@@ -1,6 +1,8 @@
 {
-  "name": "aoair_app",
-  "version": "1.0.0",
+  "name": "aoair",
+  "version": "0.1.0",
+  "description": "Offline AI research assistant for Android (local LLM inference + local RAG, no network required after install)",
+  "license": "MIT",
   "main": "index.ts",
   "dependencies": {
     "expo": "~57.0.24",

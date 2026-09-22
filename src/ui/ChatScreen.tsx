@@ -14,6 +14,7 @@ import { SystemMonitor } from "./SystemMonitor";
 import { llamaEngine } from "../inference/LlamaEngine";
 import { embeddingEngine } from "../rag/embed";
 import { retrieve, assemblePrompt, RetrievedChunk } from "../rag/retrieve";
+import { seedKnowledgeBaseIfEmpty } from "../rag/seedCorpus";
 import { DEFAULT_MANIFEST } from "../models/manifest";
 
 interface Message {
@@ -40,6 +41,7 @@ export function ChatScreen() {
           llamaEngine.load(llm.filename),
           embeddingEngine.load(emb.filename),
         ]);
+        await seedKnowledgeBaseIfEmpty();
         setReady(true);
       } catch (e: any) {
         setLoadError(e?.message ?? String(e));
