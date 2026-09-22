@@ -24,6 +24,21 @@ captured from the running app once on-device):
    headroom is left for the LLM's active weight working set, and is a 9GB
    Q4_K_M MoE model with 2.7B active params safe to load here?"
 
+General-knowledge questions (draw on the bundled Wikipedia-derived corpus in
+`assets/corpus/corpus.json`, showing this isn't just a self-referential demo):
+
+6. **Comparison/synthesis**: "What do the Agricultural Revolution and the
+   Industrial Revolution have in common as turning points in human history,
+   and how did they differ in how quickly they changed daily life?"
+7. **Cross-domain synthesis**: "How does the immune system's response to a
+   pathogen relate to how a vaccine works — walk through the mechanism."
+8. **Explanation with nuance**: "Why is the Amazon rainforest considered
+   important for global climate, and what does biodiversity loss there
+   actually threaten beyond the obvious loss of species?"
+9. **Comparison**: "Contrast how supply and demand explains price changes
+   with how behavioral economics complicates that picture — where does the
+   simple model break down?"
+
 A 1B dense model typically fails these because they require holding multiple
-constraints in working memory and reasoning about tradeoffs, not just
-retrieving a fact.
+constraints or sources in working memory and reasoning about relationships
+between them, not just retrieving a single fact.
