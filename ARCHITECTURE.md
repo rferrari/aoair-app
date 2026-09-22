@@ -65,9 +65,12 @@ aoair_app/
       GGUF headers validated
 - [x] Bootstrap knowledge base seeded on first run, embeddings computed on-device
 - [x] Unit tests (vitest) for pure retrieval/manifest logic + CI workflow
+- [x] Native `ram-monitor` Expo module (real process RSS via /proc/self/status,
+      not just JS heap) — see `modules/ram-monitor/`, unverified by an actual
+      Gradle build since this sandbox has no Android toolchain
 - [ ] `expo prebuild` + real Android build/run on a device (pending — no Android
       toolchain in the dev sandbox; user has local Android environment)
 - [ ] Benchmark chosen models on real hardware (tokens/sec, RSS)
 - [ ] Grow the knowledge base beyond the small bootstrap corpus
-- [ ] Native RSS-based RAM monitor (JS heap is currently a placeholder, not true process RAM)
-- [ ] Publish to a public GitHub repo (not yet pushed anywhere — local git only)
+- [ ] Publish to a public GitHub repo (not yet pushed anywhere — local git only;
+      user will push it themselves)

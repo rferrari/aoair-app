@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from "react-native";
 import * as FileSystem from "expo-file-system/legacy";
 import { ModelManager } from "../models/ModelManager";
 import { RAM_BUDGET_BYTES, STORAGE_BUDGET_BYTES } from "../models/manifest";
+import { getMemoryInfo, MemoryInfo } from "../../modules/ram-monitor";
 
 const modelManager = new ModelManager();
 
@@ -13,12 +14,14 @@ function formatGB(bytes: number): string {
 /**
  * Live RAM + storage readout so the app's compliance with the bounty's
  * 12GB RAM / 50GB storage caps is auditable on-device, not just claimed.
- * RAM figure uses performance.memory where available (Hermes/JSC don't
- * expose process RSS to JS directly); storage is exact via FileSystem.
+ * RAM uses the local `ram-monitor` native module (real process RSS from
+ * /proc/self/status), which — unlike JS heap size — includes the resident
+ * pages of the mmap'd GGUF model. Falls back to "n/a" if the native module
+ * isn't linked yet (e.g. running in Expo Go instead of the dev client).
  */
 export function SystemMonitor() {
   const [storageBytes, setStorageBytes] = useState<number>(0);
-  const [jsHeapBytes, setJsHeapBytes] = useState<number | null>(null);
+  const [memInfo, setMemInfo] = useState<MemoryInfo | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -27,9 +30,12 @@ export function SystemMonitor() {
       const used = await modelManager.currentStorageUsageBytes();
       if (!cancelled) setStorageBytes(used);
 
-      // @ts-expect-error - non-standard, only present on some JS engines
-      const heap = global.performance?.memory?.usedJSHeapSize;
-      if (!cancelled && typeof heap === "number") setJsHeapBytes(heap);
+      try {
+        const info = getMemoryInfo();
+        if (!cancelled) setMemInfo(info);
+      } catch {
+        // Native module not linked (e.g. Expo Go) — leave memInfo as null.
+      }
     }
 
     poll();
@@ -41,6 +47,7 @@ export function SystemMonitor() {
   }, []);
 
   const storageOver = storageBytes > STORAGE_BUDGET_BYTES;
+  const ramOver = memInfo != null && memInfo.rssBytes > RAM_BUDGET_BYTES;
 
   return (
     <View style={styles.bar}>
@@ -49,7 +56,8 @@ export function SystemMonitor() {
         {storageOver ? " ⚠️" : ""}
       </Text>
       <Text style={styles.item}>
-        RAM (JS heap): {jsHeapBytes != null ? formatGB(jsHeapBytes) : "n/a"} / {formatGB(RAM_BUDGET_BYTES)}
+        RAM: {memInfo != null ? formatGB(memInfo.rssBytes) : "n/a"} / {formatGB(RAM_BUDGET_BYTES)}
+        {ramOver ? " ⚠️" : ""}
       </Text>
     </View>
   );

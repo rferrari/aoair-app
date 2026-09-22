@@ -54,14 +54,14 @@ npx expo run:android           # build + launch on a connected device
 
 ## Open items
 
-- [ ] Finalize + benchmark primary LLM and embedding model choices on real hardware
-      (tokens/sec, RSS) — `docs/MODELS.md`
-- [ ] Build offline knowledge base (source corpus → chunk → embed → SQLite) and
-      ship/document its acquisition
-- [ ] Implement `scripts/setup-models.sh` fetch + checksum steps
-- [ ] Replace JS-heap RAM readout with a native module reporting true process RSS
+- [ ] Verify the app actually builds and runs via `expo prebuild`/`expo run:android`
+      (untested — no Android toolchain in the environment this was scaffolded in)
+- [ ] Benchmark chosen models on real hardware (tokens/sec, RSS) — `docs/MODELS.md`
+- [ ] Grow the offline knowledge base beyond the small bootstrap corpus in
+      `src/rag/seedCorpus.ts`
 - [ ] On-device validation of the 12GB RAM / 50GB storage caps across a few
-      real mid-range Android devices
+      real mid-range Android devices, using the `ram-monitor` module's readout
+- [ ] Publish to a public GitHub repo
 - [ ] Record demo video/screenshots for the bounty proof post
 
 ## License
