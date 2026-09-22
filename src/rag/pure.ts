@@ -18,14 +18,27 @@ export function cosineSimilarity(a: Float32Array, b: Float32Array): number {
   return dot / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
-export function assemblePrompt(userQuery: string, chunks: RetrievedChunk[]): string {
+/**
+ * `systemPrompt` sets the assistant's tone/style/length (see
+ * src/constants/personalities.ts) — the citation instruction is always
+ * appended on top so RAG citations keep working regardless of persona.
+ */
+export function assemblePrompt(
+  userQuery: string,
+  chunks: RetrievedChunk[],
+  systemPrompt?: string
+): string {
   const context = chunks
     .map((c, i) => `[${i + 1}] ${c.title}\n${c.body}`)
     .join("\n\n");
 
-  return `You are an offline research assistant. Use the context below when relevant, ` +
-    `and cite sources as [n]. If the context doesn't cover the question, say so and ` +
-    `answer from general knowledge.\n\n` +
+  const instruction =
+    systemPrompt && systemPrompt.trim().length > 0
+      ? systemPrompt.trim()
+      : "You are an offline research assistant.";
+
+  return `${instruction} Use the context below when relevant, and cite sources as [n]. ` +
+    `If the context doesn't cover the question, say so and answer from general knowledge.\n\n` +
     `Context:\n${context}\n\n` +
     `Question: ${userQuery}\n\nAnswer:`;
 }

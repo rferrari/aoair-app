@@ -1,13 +1,18 @@
 import * as FileSystem from "expo-file-system/legacy";
 import { AssetKind } from "./manifest";
+import { PersonalityId, DEFAULT_PERSONALITY_ID } from "../constants/personalities";
 
 interface Settings {
   activeModelId: Partial<Record<AssetKind, string>>;
   hidePromptIdeas?: boolean;
+  personalityId?: PersonalityId;
+  customSystemPrompt?: string;
+  maxTokens?: number;
 }
 
 const SETTINGS_PATH = `${FileSystem.documentDirectory}settings.json`;
 const DEFAULT_SETTINGS: Settings = { activeModelId: {} };
+export const DEFAULT_MAX_TOKENS = 512;
 
 async function readSettings(): Promise<Settings> {
   try {
@@ -45,5 +50,38 @@ export async function getHidePromptIdeas(): Promise<boolean> {
 export async function setHidePromptIdeas(hide: boolean): Promise<void> {
   const s = await readSettings();
   s.hidePromptIdeas = hide;
+  await writeSettings(s);
+}
+
+export async function getPersonalityId(): Promise<PersonalityId> {
+  const s = await readSettings();
+  return s.personalityId ?? DEFAULT_PERSONALITY_ID;
+}
+
+export async function setPersonalityId(id: PersonalityId): Promise<void> {
+  const s = await readSettings();
+  s.personalityId = id;
+  await writeSettings(s);
+}
+
+export async function getCustomSystemPrompt(): Promise<string> {
+  const s = await readSettings();
+  return s.customSystemPrompt ?? "";
+}
+
+export async function setCustomSystemPrompt(prompt: string): Promise<void> {
+  const s = await readSettings();
+  s.customSystemPrompt = prompt;
+  await writeSettings(s);
+}
+
+export async function getMaxTokens(): Promise<number> {
+  const s = await readSettings();
+  return s.maxTokens ?? DEFAULT_MAX_TOKENS;
+}
+
+export async function setMaxTokens(maxTokens: number): Promise<void> {
+  const s = await readSettings();
+  s.maxTokens = maxTokens;
   await writeSettings(s);
 }

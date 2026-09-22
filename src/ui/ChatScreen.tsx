@@ -15,7 +15,15 @@ import { embeddingEngine } from "../rag/embed";
 import { retrieve, assemblePrompt, RetrievedChunk } from "../rag/retrieve";
 import { seedKnowledgeBaseIfEmpty } from "../rag/seedCorpus";
 import { MODEL_CATALOG, REQUIRED_MODELS } from "../models/manifest";
-import { getActiveModelId, getHidePromptIdeas } from "../models/settings";
+import {
+  getActiveModelId,
+  getHidePromptIdeas,
+  getPersonalityId,
+  setPersonalityId,
+  getCustomSystemPrompt,
+  getMaxTokens,
+} from "../models/settings";
+import { getPersonality, PersonalityId } from "../constants/personalities";
 import { PromptIdeasCarousel } from "./PromptIdeasCarousel";
 import { VoiceInputButton } from "./VoiceInputButton";
 
@@ -41,6 +49,7 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
   const [loadError, setLoadError] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [showPromptIdeas, setShowPromptIdeas] = useState(false);
+  const [personalityId, setPersonalityIdState] = useState<PersonalityId>("succinct");
   const listRef = useRef<FlatList<Message>>(null);
   const inputRef = useRef<TextInput>(null);
 
@@ -48,8 +57,15 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
     (async () => {
       const hide = await getHidePromptIdeas();
       if (!hide) setShowPromptIdeas(true);
+      setPersonalityIdState(await getPersonalityId());
     })();
   }, []);
+
+  const cycleTone = useCallback(async () => {
+    const next = personalityId === "succinct" ? "detailed" : "succinct";
+    setPersonalityIdState(next);
+    await setPersonalityId(next);
+  }, [personalityId]);
 
   useEffect(() => {
     (async () => {
@@ -86,11 +102,19 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
     setMessages((prev) => [...prev, userMsg, { id: assistantId, role: "assistant", text: "" }]);
 
     try {
-      const chunks = await retrieve(query);
-      const prompt = assemblePrompt(query, chunks);
+      const [chunks, maxTokens, activePersonalityId, customPrompt] = await Promise.all([
+        retrieve(query),
+        getMaxTokens(),
+        getPersonalityId(),
+        getCustomSystemPrompt(),
+      ]);
+      const personality = getPersonality(activePersonalityId);
+      const systemPrompt = activePersonalityId === "custom" ? customPrompt : personality.systemPrompt;
+      const prompt = assemblePrompt(query, chunks, systemPrompt);
 
       await llamaEngine.generate({
         prompt,
+        nPredict: maxTokens,
         onToken: (piece) => {
           setMessages((prev) =>
             prev.map((m) => (m.id === assistantId ? { ...m, text: m.text + piece } : m))
@@ -120,6 +144,11 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
       <View style={styles.headerRow}>
         <Text style={styles.headerTitle}>aoair</Text>
         <View style={styles.headerActions}>
+          <Pressable style={styles.tonePill} onPress={cycleTone} hitSlop={8}>
+            <Text style={styles.tonePillText}>
+              {personalityId === "succinct" ? "⚡ Concise" : "🔬 Detailed"}
+            </Text>
+          </Pressable>
           <Pressable style={styles.headerBtn} onPress={() => setShowPromptIdeas(true)} hitSlop={8}>
             <Text style={styles.headerBtnText}>💡 Prompt Ideas</Text>
           </Pressable>
@@ -208,9 +237,16 @@ const styles = StyleSheet.create({
     borderBottomColor: "#222",
   },
   headerTitle: { color: "#fff", fontSize: 16, fontWeight: "700" },
-  headerActions: { flexDirection: "row", gap: 14 },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: 10 },
   headerBtn: { paddingVertical: 4, paddingHorizontal: 4 },
   headerBtnText: { color: "#8bf", fontSize: 12 },
+  tonePill: {
+    backgroundColor: "#1a1a1a",
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  tonePillText: { color: "#ccc", fontSize: 11, fontWeight: "600" },
   banner: {
     flexDirection: "row",
     alignItems: "center",

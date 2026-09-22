@@ -50,4 +50,25 @@ describe("assemblePrompt", () => {
     const prompt = assemblePrompt("What is X?", []);
     expect(prompt).toContain("Question: What is X?");
   });
+
+  it("uses the default instruction when no system prompt is given", () => {
+    const prompt = assemblePrompt("What is X?", []);
+    expect(prompt).toContain("You are an offline research assistant.");
+  });
+
+  it("substitutes a custom system prompt for the default instruction", () => {
+    const prompt = assemblePrompt("What is X?", [], "You are a pirate.");
+    expect(prompt).toContain("You are a pirate.");
+    expect(prompt).not.toContain("You are an offline research assistant.");
+  });
+
+  it("still appends the citation instruction with a custom system prompt", () => {
+    const prompt = assemblePrompt("What is X?", [], "You are a pirate.");
+    expect(prompt).toContain("cite sources as [n]");
+  });
+
+  it("falls back to the default instruction for an empty/whitespace system prompt", () => {
+    const prompt = assemblePrompt("What is X?", [], "   ");
+    expect(prompt).toContain("You are an offline research assistant.");
+  });
 });

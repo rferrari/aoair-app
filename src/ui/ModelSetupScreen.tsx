@@ -4,6 +4,7 @@ import { MODEL_CATALOG, CatalogModel, AssetKind, TIERS, SetupTier, CORPUS_CATALO
 import { ModelManager, DownloadProgress } from "../models/ModelManager";
 import { getActiveModelId, setActiveModelId } from "../models/settings";
 import { SystemMonitor } from "./SystemMonitor";
+import { PersonalitySettings } from "./PersonalitySettings";
 
 const modelManager = new ModelManager();
 
@@ -243,6 +244,7 @@ export function ModelSetupScreen(props: Props) {
 
       <ScrollView>
         {!requiredMode && <SystemMonitor />}
+        {!requiredMode && <PersonalitySettings />}
 
         {requiredMode && (
           <Text style={styles.subtitle}>
