@@ -42,16 +42,30 @@ function assetPath(asset: Pick<CatalogModel, "filename">): string {
 export class ModelManager {
   constructor(private catalog: CatalogModel[] = MODEL_CATALOG) {}
 
+  /**
+   * A file that exists but doesn't match the catalog's expected size is
+   * treated as NOT present (and cleaned up) rather than a false "present" —
+   * this is what an interrupted/truncated download looks like (e.g. the
+   * app backgrounded or network dropped mid-transfer), and llama.cpp fails
+   * to load such a file with a generic, unhelpful error. Catching this here
+   * means the UI correctly offers "Download"/"Retry" instead of showing a
+   * green "Downloaded" badge for a file that will fail the moment it's used.
+   */
   async statusOf(asset: CatalogModel): Promise<AssetStatus> {
     const path = assetPath(asset);
     const info = await FileSystem.getInfoAsync(path);
     if (!info.exists) {
       return { asset, present: false, sizeOnDiskBytes: 0, checksumOk: null };
     }
+    const sizeOnDisk = info.size ?? 0;
+    if (sizeOnDisk !== asset.sizeBytes) {
+      await FileSystem.deleteAsync(path, { idempotent: true }).catch(() => {});
+      return { asset, present: false, sizeOnDiskBytes: 0, checksumOk: null };
+    }
     return {
       asset,
       present: true,
-      sizeOnDiskBytes: info.size ?? 0,
+      sizeOnDiskBytes: sizeOnDisk,
       checksumOk: null,
     };
   }
