@@ -1,6 +1,6 @@
 /**
- * Model catalog. Every model the app can use is declared here with an
- * expected sha256 so ModelManager can verify integrity and the total
+ * Model + corpus catalog. Every asset the app can use is declared here with
+ * an expected sha256 so ModelManager can verify integrity and the total
  * footprint can be audited against the 50GB storage cap.
  *
  * `required: true` entries are the default LLM + embedding model. They are
@@ -15,10 +15,12 @@
  * one-time model setup complete).
  *
  * `required: false` entries are optional extras a user can fetch later from
- * the same Models screen in its normal (non-blocking) mode.
+ * the same Models/Settings screen in its normal (non-blocking) mode — either
+ * an alternate LLM, or a corpus pack (see TIERS below).
  */
 
-export type AssetKind = "llm" | "embedding";
+export type AssetKind = "llm" | "embedding" | "corpus";
+export type SetupTier = "minimum" | "standard" | "full";
 
 export interface CatalogModel {
   id: string;
@@ -45,8 +47,10 @@ export const RAM_BUDGET_BYTES = 12 * 1024 * 1024 * 1024; // 12GB
 
 /**
  * See docs/MODELS.md for the rationale behind each pick (licensing,
- * size/RAM tradeoffs). Checksums verified against the files fetched by
- * scripts/setup-models.sh.
+ * size/RAM tradeoffs). Model checksums verified against the files fetched
+ * by scripts/setup-models.sh; corpus pack checksums verified against files
+ * built by scripts/build-corpus-tier.mjs and committed to this repo (hosted
+ * for download via raw.githubusercontent.com — no separate server needed).
  */
 export const MODEL_CATALOG: CatalogModel[] = [
   {
@@ -75,13 +79,94 @@ export const MODEL_CATALOG: CatalogModel[] = [
     description: "33M, sentence embeddings for the local vector index. Default.",
     required: true,
   },
-  // Add more tested candidates here later (each needs a unique `id` and
-  // `filename` so it can coexist on disk with other downloaded models).
-  // They ship with `required: false` and appear in the Models screen as
-  // optional downloads.
+  {
+    id: "qwen2.5-1.5b-instruct-q4km",
+    kind: "llm",
+    label: "Qwen2.5-1.5B-Instruct (Q4_K_M)",
+    filename: "models/qwen2.5-1.5b-instruct-q4km.gguf",
+    sizeBytes: 986048768,
+    sha256: "1adf0b11065d8ad2e8123ea110d1ec956dab4ab038eab665614adba04b6c3370",
+    sourceUrl:
+      "https://huggingface.co/bartowski/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf",
+    license: "Apache-2.0",
+    description: "1.5B dense, faster/lighter alternative to the default. ~1.0GB.",
+    required: false,
+  },
+  {
+    id: "qwen2.5-7b-instruct-q4km",
+    kind: "llm",
+    label: "Qwen2.5-7B-Instruct (Q4_K_M)",
+    filename: "models/qwen2.5-7b-instruct-q4km.gguf",
+    sizeBytes: 4683074240,
+    sha256: "65b8fcd92af6b4fefa935c625d1ac27ea29dcb6ee14589c55a8f115ceaaa1423",
+    sourceUrl:
+      "https://huggingface.co/bartowski/Qwen2.5-7B-Instruct-GGUF/resolve/main/Qwen2.5-7B-Instruct-Q4_K_M.gguf",
+    license: "Apache-2.0",
+    description: "7B dense, stronger reasoning, more RAM/storage/time. ~4.7GB.",
+    required: false,
+  },
+  {
+    id: "corpus-standard",
+    kind: "corpus",
+    label: "Standard knowledge base (+300 topics)",
+    filename: "corpus/corpus-standard.json",
+    sizeBytes: 183132,
+    sha256: "953059ab77b41e63090c8594f26b36d02b33ee6984ca0d1957db07f4a7cc4913",
+    sourceUrl:
+      "https://raw.githubusercontent.com/rferrari/aoair-app/main/assets/corpus/corpus-standard.json",
+    license: "CC BY-SA 4.0 (Wikipedia)",
+    description: "300 additional Wikipedia-derived topics for local RAG. ~180KB.",
+    required: false,
+  },
+  {
+    id: "corpus-full",
+    kind: "corpus",
+    label: "Full knowledge base (+1,000 topics)",
+    filename: "corpus/corpus-full.json",
+    sizeBytes: 620935,
+    sha256: "0c47378ebeeafd7abc89963b82a1580708a8d178259937645f8492d1d1cdebfb",
+    sourceUrl:
+      "https://raw.githubusercontent.com/rferrari/aoair-app/main/assets/corpus/corpus-full.json",
+    license: "CC BY-SA 4.0 (Wikipedia)",
+    description: "1,000 more Wikipedia-derived topics for local RAG. ~610KB.",
+    required: false,
+  },
+  // Add more tested candidates / corpus packs here later (each needs a
+  // unique `id` and `filename`). They ship with `required: false` and
+  // appear in the Settings screen as optional downloads.
 ];
 
 export const REQUIRED_MODELS = MODEL_CATALOG.filter((m) => m.required);
+export const CORPUS_CATALOG = MODEL_CATALOG.filter((m) => m.kind === "corpus");
+
+export interface TierDefinition {
+  id: SetupTier;
+  label: string;
+  description: string;
+  /** ids of CORPUS_CATALOG entries this tier downloads, in addition to the required models. */
+  corpusPackIds: string[];
+}
+
+export const TIERS: TierDefinition[] = [
+  {
+    id: "minimum",
+    label: "Minimum",
+    description: "Models only. Uses the built-in 58-topic knowledge base — no extra download.",
+    corpusPackIds: [],
+  },
+  {
+    id: "standard",
+    label: "Standard",
+    description: "+ 300 more Wikipedia-derived topics (~180KB extra download).",
+    corpusPackIds: ["corpus-standard"],
+  },
+  {
+    id: "full",
+    label: "Full",
+    description: "+ 1,300 more Wikipedia-derived topics total (~800KB extra download).",
+    corpusPackIds: ["corpus-standard", "corpus-full"],
+  },
+];
 
 export function totalManifestBytes(models: CatalogModel[]): number {
   return models.reduce((sum, m) => sum + m.sizeBytes, 0);

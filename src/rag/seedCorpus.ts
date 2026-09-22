@@ -1,21 +1,36 @@
+import * as FileSystem from "expo-file-system/legacy";
 import { getDb, insertChunk, ChunkRecord } from "./db";
 import { embeddingEngine } from "./embed";
-import wikipediaCorpus from "../../assets/corpus/corpus.json";
+import minimumCorpus from "../../assets/corpus/corpus.json";
+import { CORPUS_CATALOG } from "../models/manifest";
 
 /**
- * Bootstrap knowledge base seeded on first run: a general-knowledge corpus
- * built from Wikipedia article summaries (see scripts/build-corpus.mjs,
- * docs/MODELS.md "Local knowledge base") plus a handful of docs about the
- * app's own architecture (useful for the bounty's own eval questions about
- * MoE/mmap/RAM budgeting). Embeddings are computed on-device at first run
- * (not precomputed at build time) so the vector index always matches
- * whatever embedding model actually ships, with no separate offline
- * embedding pipeline to keep in sync.
+ * Knowledge base sources, layered:
+ *
+ * 1. APP_TOPIC_DOCS — a handful of docs about the app's own architecture
+ *    (useful for the bounty's own eval questions about MoE/mmap/RAM budgeting).
+ * 2. minimumCorpus (assets/corpus/corpus.json) — 58 Wikipedia-derived docs,
+ *    bundled directly in the JS bundle, always present, no download needed.
+ * 3. Downloaded corpus packs (CORPUS_CATALOG entries, "standard"/"full"
+ *    tiers) — read from disk if the user downloaded them via Settings or
+ *    the first-run tier picker; skipped if not present.
+ *
+ * Called on every app start; each doc has a stable id so re-running only
+ * inserts docs that aren't already in the DB (embedding is the expensive
+ * part, so this avoids re-embedding everything just because a new corpus
+ * pack was added later). Embeddings are computed on-device (not
+ * precomputed at build/download time) so the vector index always matches
+ * whatever embedding model actually ships.
  */
-type SeedDoc = { title: string; source: string; body: string };
+type SeedDoc = { id: string; title: string; source: string; body: string };
+
+function slug(title: string): string {
+  return title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
 
 const APP_TOPIC_DOCS: SeedDoc[] = [
   {
+    id: "app-moe-ram",
     title: "Mixture-of-Experts models and phone RAM",
     source: "aoair seed corpus",
     body:
@@ -29,6 +44,7 @@ const APP_TOPIC_DOCS: SeedDoc[] = [
       "streamed from disk (mmap) rather than fully resident.",
   },
   {
+    id: "app-mmap-streaming",
     title: "mmap-based weight streaming vs. full RAM loading",
     source: "aoair seed corpus",
     body:
@@ -45,6 +61,7 @@ const APP_TOPIC_DOCS: SeedDoc[] = [
       "generation latency, e.g. on slow eMMC storage under heavy background load.",
   },
   {
+    id: "app-bm25-vs-cosine",
     title: "BM25 lexical search vs. cosine similarity over embeddings",
     source: "aoair seed corpus",
     body:
@@ -61,6 +78,7 @@ const APP_TOPIC_DOCS: SeedDoc[] = [
       "of complementary signal.",
   },
   {
+    id: "app-grapheneos",
     title: "GrapheneOS and Google Play Services",
     source: "aoair seed corpus",
     body:
@@ -75,6 +93,7 @@ const APP_TOPIC_DOCS: SeedDoc[] = [
       "llama.cpp) rather than calling a Play-Services-mediated model API.",
   },
   {
+    id: "app-ram-budgeting",
     title: "Budgeting RAM for on-device LLM inference",
     source: "aoair seed corpus",
     body:
@@ -90,24 +109,43 @@ const APP_TOPIC_DOCS: SeedDoc[] = [
   },
 ];
 
-const SEED_DOCS: SeedDoc[] = [...APP_TOPIC_DOCS, ...(wikipediaCorpus as SeedDoc[])];
+const MINIMUM_CORPUS_DOCS: SeedDoc[] = (
+  minimumCorpus as Array<{ title: string; source: string; body: string }>
+).map((d) => ({ ...d, id: `wiki-min-${slug(d.title)}` }));
 
-function chunkId(docIndex: number): string {
-  return `seed-${docIndex}`;
+async function loadDownloadedCorpusPacks(): Promise<SeedDoc[]> {
+  const docs: SeedDoc[] = [];
+  for (const pack of CORPUS_CATALOG) {
+    const path = `${FileSystem.documentDirectory}${pack.filename}`;
+    const info = await FileSystem.getInfoAsync(path);
+    if (!info.exists) continue;
+    try {
+      const raw = await FileSystem.readAsStringAsync(path);
+      const parsed = JSON.parse(raw) as Array<{ title: string; source: string; body: string }>;
+      for (const d of parsed) {
+        docs.push({ ...d, id: `wiki-${pack.id}-${slug(d.title)}` });
+      }
+    } catch (e) {
+      console.warn(`Failed to load corpus pack ${pack.id}:`, e);
+    }
+  }
+  return docs;
 }
 
 export async function seedKnowledgeBaseIfEmpty(): Promise<void> {
   const db = await getDb();
-  const row = await db.getFirstAsync<{ count: number }>(
-    `SELECT COUNT(*) as count FROM chunks`
-  );
-  if ((row?.count ?? 0) > 0) return;
+  const allDocs = [...APP_TOPIC_DOCS, ...MINIMUM_CORPUS_DOCS, ...(await loadDownloadedCorpusPacks())];
 
-  for (let i = 0; i < SEED_DOCS.length; i++) {
-    const doc = SEED_DOCS[i];
+  for (const doc of allDocs) {
+    const existing = await db.getFirstAsync<{ chunk_id: string }>(
+      `SELECT chunk_id FROM chunks WHERE chunk_id = ?`,
+      [doc.id]
+    );
+    if (existing) continue;
+
     const chunk: ChunkRecord = {
-      chunkId: chunkId(i),
-      docId: chunkId(i),
+      chunkId: doc.id,
+      docId: doc.id,
       title: doc.title,
       body: doc.body,
       source: doc.source,

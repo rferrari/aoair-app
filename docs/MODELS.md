@@ -80,13 +80,39 @@ Apache-2.0-licensed LLM candidates a user can download and switch to:
 
 | Candidate | Params | Quant | Approx. size | Notes |
 |---|---|---|---|---|
-| Qwen2.5-1.5B-Instruct | 1.5B | Q4_K_M | ~1.0GB | Faster/lighter alternative |
-| Qwen2.5-7B-Instruct | 7B | Q4_K_M | ~4.7GB | Stronger reasoning, more RAM/storage, slower tokens/sec |
+| Qwen2.5-1.5B-Instruct | 1.5B | Q4_K_M | ~0.92GB | Faster/lighter alternative |
+| Qwen2.5-7B-Instruct | 7B | Q4_K_M | ~4.36GB | Stronger reasoning, more RAM/storage, slower tokens/sec |
 
 Both from `bartowski`'s GGUF quantizations, sha256-verified the same way as the
 default models (see `src/models/manifest.ts`). Switching models re-loads the
 inference engine (`LlamaEngine`/`EmbeddingEngine` now release their previous
 context before loading a new one, avoiding a native memory leak on switch).
+
+## Setup tiers and corpus packs
+
+First run offers three tiers (`src/models/manifest.ts` `TIERS`, picked in
+`ModelSetupScreen`'s wizard) — all download the same required models, only
+the knowledge base differs, and higher tiers are strict supersets:
+
+| Tier | Knowledge base | Extra download |
+|---|---|---|
+| Minimum | 58 bundled topics (in the JS bundle, no download) | none |
+| Standard | + 300 more Wikipedia-derived topics | ~180KB |
+| Full | + 1,000 more on top of Standard (1,358 total) | ~800KB total |
+
+Corpus packs (`corpus-standard`, `corpus-full`) are built by
+`scripts/build-corpus-tier.mjs`, which uses MediaWiki's batched
+`generator=random` API (20 articles/request) rather than one-by-one summary
+calls — far fewer HTTP round-trips for a given count. They're committed to
+this repo and downloaded via a `raw.githubusercontent.com` URL (no separate
+hosting needed) through the same `ModelManager.downloadCatalogModel` path as
+everything else, verified by sha256.
+
+**Honest scope note**: "Full" is not literally the entire English Wikipedia —
+that's a different scale of engineering (dump processing, compression, a real
+ANN index) not attempted here. The architecture is designed so more packs can
+be added later within the 50GB storage budget without changing how any of
+this works — `MODEL_CATALOG`/`TIERS` are meant to grow.
 
 ## Delivery: one-time first-run download
 

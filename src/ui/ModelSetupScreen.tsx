@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, FlatList, Pressable, ActivityIndicator, ScrollView } from "react-native";
-import { MODEL_CATALOG, CatalogModel, AssetKind } from "../models/manifest";
+import { MODEL_CATALOG, CatalogModel, AssetKind, TIERS, SetupTier, CORPUS_CATALOG } from "../models/manifest";
 import { ModelManager, DownloadProgress } from "../models/ModelManager";
 import { getActiveModelId, setActiveModelId } from "../models/settings";
 import { SystemMonitor } from "./SystemMonitor";
@@ -40,6 +40,7 @@ type Props =
 export function ModelSetupScreen(props: Props) {
   const requiredMode = props.mode === "required";
   const [wizardStep, setWizardStep] = useState<"intro" | "downloading">("intro");
+  const [selectedTier, setSelectedTier] = useState<SetupTier>("standard");
   const [rows, setRows] = useState<Record<string, RowState>>({});
   const [activeIds, setActiveIds] = useState<Partial<Record<AssetKind, string>>>({});
 
@@ -122,20 +123,25 @@ export function ModelSetupScreen(props: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const tierCorpusPackIds = TIERS.find((t) => t.id === selectedTier)?.corpusPackIds ?? [];
+  const tierAssets = [
+    ...MODEL_CATALOG.filter((m) => m.required),
+    ...CORPUS_CATALOG.filter((c) => tierCorpusPackIds.includes(c.id)),
+  ];
+
   const startRequiredDownloads = useCallback(async () => {
     setWizardStep("downloading");
     const statuses = await refreshStatus();
-    for (const s of statuses) {
-      if (s.asset.required && !s.present) {
-        download(s.asset);
+    const presentIds = new Set(statuses.filter((s) => s.present).map((s) => s.asset.id));
+    for (const asset of tierAssets) {
+      if (!presentIds.has(asset.id)) {
+        download(asset);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [download, refreshStatus]);
+  }, [download, refreshStatus, tierAssets]);
 
-  const requiredReady = MODEL_CATALOG.filter((m) => m.required).every(
-    (m) => rows[m.id]?.present
-  );
+  const requiredReady = tierAssets.every((m) => rows[m.id]?.present);
 
   if (requiredMode && wizardStep === "intro") {
     return (
@@ -162,6 +168,27 @@ export function ModelSetupScreen(props: Props) {
               can even turn on airplane mode right now.
             </Text>
           </View>
+
+          <Text style={styles.tierHeading}>How much knowledge base?</Text>
+          {TIERS.map((tier) => (
+            <Pressable
+              key={tier.id}
+              style={[styles.tierCard, selectedTier === tier.id && styles.tierCardSelected]}
+              onPress={() => setSelectedTier(tier.id)}
+            >
+              <View style={styles.tierRadio}>
+                {selectedTier === tier.id && <View style={styles.tierRadioDot} />}
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.tierLabel}>{tier.label}</Text>
+                <Text style={styles.tierDescription}>{tier.description}</Text>
+              </View>
+            </Pressable>
+          ))}
+          <Text style={styles.tierNote}>
+            You can add more knowledge base packs later from Settings, any time
+            you're back online.
+          </Text>
         </ScrollView>
         <Pressable style={styles.primaryBtn} onPress={startRequiredDownloads}>
           <Text style={styles.primaryBtnText}>Start setup</Text>
@@ -198,7 +225,7 @@ export function ModelSetupScreen(props: Props) {
         )}
 
         <FlatList
-          data={requiredMode ? MODEL_CATALOG.filter((m) => m.required) : MODEL_CATALOG}
+          data={requiredMode ? tierAssets : MODEL_CATALOG}
           keyExtractor={(m) => m.id}
           scrollEnabled={false}
           contentContainerStyle={styles.list}
@@ -286,6 +313,32 @@ const styles = StyleSheet.create({
   },
   introCardTitle: { color: "#8bf", fontSize: 13, fontWeight: "700" },
   introCardBody: { color: "#ccc", fontSize: 13, lineHeight: 19 },
+  tierHeading: { color: "#fff", fontSize: 15, fontWeight: "700", alignSelf: "flex-start", marginTop: 8 },
+  tierCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "#111",
+    borderRadius: 12,
+    padding: 14,
+    width: "100%",
+    borderWidth: 1,
+    borderColor: "#111",
+  },
+  tierCardSelected: { borderColor: "#3a7a4a", backgroundColor: "#132018" },
+  tierRadio: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    borderColor: "#555",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tierRadioDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: "#3a7a4a" },
+  tierLabel: { color: "#eee", fontSize: 14, fontWeight: "700" },
+  tierDescription: { color: "#999", fontSize: 12, marginTop: 2 },
+  tierNote: { color: "#666", fontSize: 11, textAlign: "center", marginTop: 4 },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",

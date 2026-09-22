@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { MODEL_CATALOG, REQUIRED_MODELS, STORAGE_BUDGET_BYTES, totalManifestBytes } from "./manifest";
+import {
+  MODEL_CATALOG,
+  REQUIRED_MODELS,
+  CORPUS_CATALOG,
+  TIERS,
+  STORAGE_BUDGET_BYTES,
+  totalManifestBytes,
+} from "./manifest";
 
 describe("totalManifestBytes", () => {
   it("sums asset sizes", () => {
@@ -33,5 +40,31 @@ describe("MODEL_CATALOG", () => {
     const filenames = MODEL_CATALOG.map((m) => m.filename);
     expect(new Set(ids).size).toBe(ids.length);
     expect(new Set(filenames).size).toBe(filenames.length);
+  });
+
+  it("every catalog entry has a non-empty checksum, size, and source URL", () => {
+    for (const m of MODEL_CATALOG) {
+      expect(m.sha256).toMatch(/^[0-9a-f]{64}$/);
+      expect(m.sizeBytes).toBeGreaterThan(0);
+      expect(m.sourceUrl).toMatch(/^https:\/\//);
+    }
+  });
+});
+
+describe("TIERS", () => {
+  const corpusIds = new Set(CORPUS_CATALOG.map((c) => c.id));
+
+  it("every tier's corpusPackIds reference a real corpus catalog entry", () => {
+    for (const tier of TIERS) {
+      for (const id of tier.corpusPackIds) {
+        expect(corpusIds.has(id)).toBe(true);
+      }
+    }
+  });
+
+  it("higher tiers are supersets of lower tiers' corpus packs (minimum -> standard -> full)", () => {
+    const byId = Object.fromEntries(TIERS.map((t) => [t.id, new Set(t.corpusPackIds)]));
+    for (const id of byId.minimum) expect(byId.standard.has(id)).toBe(true);
+    for (const id of byId.standard) expect(byId.full.has(id)).toBe(true);
   });
 });
