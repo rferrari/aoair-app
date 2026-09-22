@@ -58,6 +58,7 @@ async function synthesize(
   originalQuery: string,
   subResults: { subQuestion: string; answer: string }[],
   systemPrompt: string | undefined,
+  maxTokens: number,
   onToken?: (piece: string) => void
 ): Promise<string> {
   const perspectives = subResults
@@ -72,13 +73,14 @@ async function synthesize(
     `Original question: ${originalQuery}\n\n${perspectives}\n\n` +
     `Compare these perspectives, reconcile any conflicts, and write one unified, ` +
     `well-reasoned answer. Cite sources as [n] where the perspectives did.\n\nAnswer:`;
-  return llamaEngine.generate({ prompt, nPredict: 600, temperature: 0.6, onToken });
+  return llamaEngine.generate({ prompt, nPredict: maxTokens, temperature: 0.6, onToken });
 }
 
 export async function runDeepResearch(
   query: string,
   systemPrompt: string | undefined,
   history: ConversationHistory | undefined,
+  maxTokens: number,
   onProgress?: (p: ResearchProgress) => void,
   onToken?: (piece: string) => void
 ): Promise<ResearchResult> {
@@ -95,7 +97,11 @@ export async function runDeepResearch(
   }
 
   onProgress?.({ stage: "synthesizing" });
-  const answer = await synthesize(query, subResults, systemPrompt, onToken);
+  // The final synthesized answer respects the user's Max Output Tokens
+  // setting, same as a normal single-pass reply — the sub-question research
+  // passes above use their own smaller fixed budgets since they're
+  // intermediate working material, not what the user reads.
+  const answer = await synthesize(query, subResults, systemPrompt, maxTokens, onToken);
 
   return { answer, subQuestions, citations: allChunks };
 }

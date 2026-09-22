@@ -116,6 +116,10 @@ export function PersonalitySettings() {
               separately, then synthesizes one answer. Several sequential
               model calls on the same model — noticeably slower than a
               normal reply, not multiple AI models running at once.
+              Independent from the response style above: it changes how
+              much research goes into an answer, not its tone — the two
+              combine (e.g. Deep Research + Succinct still synthesizes a
+              short final answer).
             </Text>
           </View>
           <Switch

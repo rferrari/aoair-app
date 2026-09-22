@@ -26,9 +26,16 @@ export const PERSONALITIES: Personality[] = [
       "answers in bullet points or brief paragraphs without preamble.",
   },
   {
+    // Deliberately not called "Deep Research" or using 🔬 — that name/icon
+    // is reserved for the actual multi-pass "Deep Research Mode" toggle
+    // (src/services/orchestrator.ts), a different, independent feature.
+    // Using both for this single-pass response-style preset was confusing:
+    // turning on Deep Research Mode is NOT the same as picking this style,
+    // and vice versa (they compose — Deep Research Mode still uses
+    // whichever style is selected here for its synthesis step).
     id: "detailed",
-    label: "Deep Research & Analysis",
-    icon: "🔬",
+    label: "Thorough & Detailed",
+    icon: "📚",
     description: "Structured, thorough explanations with comparisons and reasoning.",
     systemPrompt:
       "You are an analytical research partner. Provide thorough, structured " +

@@ -299,6 +299,7 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
           query,
           systemPrompt,
           history,
+          maxTokens,
           (p: ResearchProgress) => {
             // All stages map to "thinking" here — onToken (shared with the
             // normal path) flips to "generating" itself once the
@@ -431,7 +432,7 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
           </Pressable>
           <Pressable style={styles.tonePill} onPress={cycleTone} hitSlop={8}>
             <Text style={styles.tonePillText}>
-              {personalityId === "succinct" ? "⚡" : "🔬"}
+              {getPersonality(personalityId).icon}
             </Text>
           </Pressable>
           {deepResearchActive && (
