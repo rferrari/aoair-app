@@ -298,7 +298,7 @@ export function ModelSetupScreen(props: Props) {
 
       <SegmentedTabs tabs={SETTINGS_TABS} activeKey={settingsTab} onChange={(k) => setSettingsTab(k as SettingsTab)} />
 
-      <ScrollView>
+      <ScrollView style={styles.tabContent} contentContainerStyle={styles.tabContentContainer}>
         {settingsTab === "tone" && (
           <>
             <PersonalitySettings />
@@ -399,6 +399,8 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   title: { color: "#fff", fontSize: 18, fontWeight: "600" },
+  tabContent: { flex: 1 },
+  tabContentContainer: { paddingBottom: 24 },
   closeBtn: { color: "#8bf", fontSize: 14 },
   subtitle: { color: "#999", fontSize: 12, paddingHorizontal: 12, paddingBottom: 8 },
   sectionHeading: {

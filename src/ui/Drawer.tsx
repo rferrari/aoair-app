@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { View, Text, StyleSheet, Pressable, Animated, Dimensions, ScrollView } from "react-native";
 import { ChatSession } from "../services/chatHistory";
+import { DrawerFooterStats } from "./DrawerFooterStats";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const DRAWER_WIDTH = Math.min(300, SCREEN_WIDTH * 0.8);
@@ -75,6 +76,7 @@ export function Drawer({
         onTouchEnd={onClose}
       />
       <Animated.View style={[styles.panel, { transform: [{ translateX }] }]}>
+        <ScrollView style={styles.scrollArea} showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>aoair</Text>
         <Text style={styles.subtitle}>Offline AI research assistant</Text>
 
@@ -144,6 +146,9 @@ export function Drawer({
             </Pressable>
           ))}
         </View>
+        </ScrollView>
+
+        <DrawerFooterStats />
       </Animated.View>
     </View>
   );
@@ -170,6 +175,7 @@ const styles = StyleSheet.create({
     borderRightWidth: StyleSheet.hairlineWidth,
     borderRightColor: "rgba(255,255,255,0.08)",
   },
+  scrollArea: { flex: 1 },
   title: { color: "#fff", fontSize: 20, fontWeight: "700" },
   subtitle: { color: "#888", fontSize: 12, marginTop: 2, marginBottom: 16 },
   newChatBtn: {
