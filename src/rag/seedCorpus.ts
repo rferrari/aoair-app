@@ -1,18 +1,20 @@
 import { getDb, insertChunk, ChunkRecord } from "./db";
 import { embeddingEngine } from "./embed";
+import wikipediaCorpus from "../../assets/corpus/corpus.json";
 
 /**
- * Small bootstrap knowledge base so the app has something to retrieve
- * against out of the box. This is a placeholder corpus, not the final
- * shipped knowledge base — see docs/MODELS.md "Local knowledge base" for
- * the plan to replace this with a larger curated offline corpus.
- *
- * Embeddings are computed on-device at first run (not precomputed at build
- * time) so the vector index always matches whatever embedding model
- * actually ships, with no separate offline embedding pipeline to keep in
- * sync.
+ * Bootstrap knowledge base seeded on first run: a general-knowledge corpus
+ * built from Wikipedia article summaries (see scripts/build-corpus.mjs,
+ * docs/MODELS.md "Local knowledge base") plus a handful of docs about the
+ * app's own architecture (useful for the bounty's own eval questions about
+ * MoE/mmap/RAM budgeting). Embeddings are computed on-device at first run
+ * (not precomputed at build time) so the vector index always matches
+ * whatever embedding model actually ships, with no separate offline
+ * embedding pipeline to keep in sync.
  */
-const SEED_DOCS: Array<{ title: string; source: string; body: string }> = [
+type SeedDoc = { title: string; source: string; body: string };
+
+const APP_TOPIC_DOCS: SeedDoc[] = [
   {
     title: "Mixture-of-Experts models and phone RAM",
     source: "aoair seed corpus",
@@ -87,6 +89,8 @@ const SEED_DOCS: Array<{ title: string; source: string; body: string }> = [
       "models are the standard choice for phone-class inference.",
   },
 ];
+
+const SEED_DOCS: SeedDoc[] = [...APP_TOPIC_DOCS, ...(wikipediaCorpus as SeedDoc[])];
 
 function chunkId(docIndex: number): string {
   return `seed-${docIndex}`;
