@@ -34,7 +34,14 @@ function BouncingDot({ delay }: { delay: number }) {
  * has streamed back. ChatScreen swaps this out for the actual streamed text
  * the moment the first token arrives.
  */
-export function ProcessingIndicator({ status }: { status: Exclude<ProcessingStatus, "idle"> }) {
+export function ProcessingIndicator({
+  status,
+  label,
+}: {
+  status: Exclude<ProcessingStatus, "idle">;
+  /** Overrides the default label for this status (e.g. Deep Research's per-stage text). */
+  label?: string;
+}) {
   const glow = useRef(new Animated.Value(0.4)).current;
 
   useEffect(() => {
@@ -51,7 +58,7 @@ export function ProcessingIndicator({ status }: { status: Exclude<ProcessingStat
   return (
     <View style={styles.row}>
       <Animated.View style={[styles.avatar, { opacity: glow }]} />
-      <Text style={styles.label}>{STATUS_LABEL[status]}</Text>
+      <Text style={styles.label}>{label ?? STATUS_LABEL[status]}</Text>
       <View style={styles.dots}>
         <BouncingDot delay={0} />
         <BouncingDot delay={130} />

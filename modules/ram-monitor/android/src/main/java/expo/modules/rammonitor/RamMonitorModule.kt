@@ -32,6 +32,25 @@ class RamMonitorModule : Module() {
         "totalPssBytes" to pss
       )
     }
+
+    // Total physical RAM on this device, for the model catalog's
+    // compatibility badges (comparing a candidate model's size against what
+    // the device actually has, not just the bounty's 12GB ceiling).
+    Function("getDeviceTotalRamBytes") {
+      readDeviceTotalRamBytes()
+    }
+  }
+
+  private fun readDeviceTotalRamBytes(): Long {
+    return try {
+      val context = appContext.reactContext ?: return 0L
+      val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+      val info = ActivityManager.MemoryInfo()
+      am.getMemoryInfo(info)
+      info.totalMem
+    } catch (e: Exception) {
+      0L
+    }
   }
 
   private fun readRssBytes(): Long {

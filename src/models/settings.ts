@@ -13,6 +13,7 @@ interface Settings {
   historyTurnThreshold?: number;
   maxSavedSessions?: number;
   autoGenerateTitles?: boolean;
+  deepResearchMode?: boolean;
 }
 
 export interface MemorySettings {
@@ -129,5 +130,21 @@ export async function getMemorySettings(): Promise<MemorySettings> {
 export async function setMemorySettings(patch: Partial<MemorySettings>): Promise<void> {
   const s = await readSettings();
   Object.assign(s, patch);
+  await writeSettings(s);
+}
+
+/**
+ * "Deep Research Mode" — a sequential multi-pass pipeline over the same
+ * single model (decompose -> research sub-questions -> synthesize), not
+ * multiple models running concurrently. See src/services/orchestrator.ts.
+ */
+export async function getDeepResearchMode(): Promise<boolean> {
+  const s = await readSettings();
+  return s.deepResearchMode ?? false;
+}
+
+export async function setDeepResearchMode(enabled: boolean): Promise<void> {
+  const s = await readSettings();
+  s.deepResearchMode = enabled;
   await writeSettings(s);
 }

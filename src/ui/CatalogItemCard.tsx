@@ -1,12 +1,37 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ActivityIndicator, Alert } from "react-native";
 import { CatalogModel } from "../models/manifest";
+import { getDeviceTotalRamBytes } from "ram-monitor";
 
 function formatMB(bytes: number): string {
   return bytes >= 1024 * 1024 * 1024
     ? `${(bytes / 1024 / 1024 / 1024).toFixed(1)}GB`
     : `${(bytes / 1024 / 1024).toFixed(0)}MB`;
 }
+
+type Compatibility = "green" | "yellow" | "red" | "unknown";
+
+/**
+ * Rough compatibility estimate: a GGUF model's resident working set while
+ * loaded (weights actually touched via mmap + KV cache) tracks close to its
+ * file size for a fully-resident quantized model, plus some overhead for
+ * context/KV cache — 1.15x is a conservative approximation, not a
+ * measurement. This is a heads-up before downloading, not a guarantee.
+ */
+function computeCompatibility(sizeBytes: number, deviceRamBytes: number): Compatibility {
+  if (deviceRamBytes <= 0) return "unknown";
+  const estimatedRamBytes = sizeBytes * 1.15;
+  if (estimatedRamBytes <= deviceRamBytes * 0.65) return "green";
+  if (estimatedRamBytes <= deviceRamBytes * 0.9) return "yellow";
+  return "red";
+}
+
+const COMPATIBILITY_LABEL: Record<Compatibility, string> = {
+  green: "🟢 Runs great",
+  yellow: "🟡 High RAM use",
+  red: "🔴 Likely too large",
+  unknown: "",
+};
 
 export interface CatalogRowState {
   present: boolean;
@@ -44,6 +69,16 @@ export function CatalogItemCard({ item, row, isActive, onDownload, onUse, onRemo
   const present = row?.present ?? false;
   const effectivelyActive = isCorpus ? present : isActive;
 
+  const [deviceRam, setDeviceRam] = useState(0);
+  useEffect(() => {
+    try {
+      setDeviceRam(getDeviceTotalRamBytes());
+    } catch {
+      // native module not linked; leave at 0 (unknown)
+    }
+  }, []);
+  const compatibility = item.kind === "llm" ? computeCompatibility(item.sizeBytes, deviceRam) : "unknown";
+
   const confirmRemove = () => {
     Alert.alert(
       isCorpus ? "Remove this knowledge base pack?" : "Remove this model?",
@@ -68,6 +103,17 @@ export function CatalogItemCard({ item, row, isActive, onDownload, onUse, onRemo
         {item.kind} · {formatMB(item.sizeBytes)} · {item.license}
         {item.required ? " · default" : ""}
       </Text>
+      {compatibility !== "unknown" && (
+        <Text
+          style={[
+            styles.compatText,
+            compatibility === "yellow" && styles.compatTextYellow,
+            compatibility === "red" && styles.compatTextRed,
+          ]}
+        >
+          {COMPATIBILITY_LABEL[compatibility]} for this device's RAM
+        </Text>
+      )}
       <Text style={styles.description}>{item.description}</Text>
 
       {row?.error && <Text style={styles.error}>{row.error}</Text>}
@@ -144,6 +190,9 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 },
   label: { color: "#eee", fontSize: 14, fontWeight: "600", flex: 1 },
   meta: { color: "#8f8", fontSize: 11, marginTop: 2 },
+  compatText: { color: "#8f8", fontSize: 10, marginTop: 2, fontWeight: "600" },
+  compatTextYellow: { color: "#e0c040" },
+  compatTextRed: { color: "#e05a5a" },
   description: { color: "#999", fontSize: 12, marginTop: 2 },
   error: { color: "#f88", fontSize: 11, marginTop: 4 },
   progressTrack: {

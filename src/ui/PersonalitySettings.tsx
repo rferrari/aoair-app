@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable, TextInput } from "react-native";
+import { View, Text, StyleSheet, Pressable, TextInput, Switch } from "react-native";
 import { PERSONALITIES, PersonalityId, MAX_TOKENS_OPTIONS } from "../constants/personalities";
 import {
   getPersonalityId,
@@ -8,6 +8,8 @@ import {
   setCustomSystemPrompt,
   getMaxTokens,
   setMaxTokens,
+  getDeepResearchMode,
+  setDeepResearchMode,
 } from "../models/settings";
 
 /**
@@ -20,14 +22,21 @@ export function PersonalitySettings() {
   const [personalityId, setPersonalityIdState] = useState<PersonalityId>("succinct");
   const [customPrompt, setCustomPromptState] = useState("");
   const [maxTokens, setMaxTokensState] = useState(512);
+  const [deepResearch, setDeepResearchState] = useState(false);
 
   useEffect(() => {
     (async () => {
       setPersonalityIdState(await getPersonalityId());
       setCustomPromptState(await getCustomSystemPrompt());
       setMaxTokensState(await getMaxTokens());
+      setDeepResearchState(await getDeepResearchMode());
     })();
   }, []);
+
+  const toggleDeepResearch = async (value: boolean) => {
+    setDeepResearchState(value);
+    await setDeepResearchMode(value);
+  };
 
   const selectPersonality = async (id: PersonalityId) => {
     setPersonalityIdState(id);
@@ -45,6 +54,7 @@ export function PersonalitySettings() {
   };
 
   return (
+    <>
     <View style={styles.card}>
       <Text style={styles.title}>Assistant tone & response style</Text>
 
@@ -95,12 +105,33 @@ export function PersonalitySettings() {
         Caps how long a single response can be — lower is faster and more
         battery-friendly on phone hardware.
       </Text>
+      </View>
+
+      <View style={styles.card}>
+        <View style={styles.deepResearchRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.title}>🔬 Deep Research Mode</Text>
+            <Text style={styles.note}>
+              Breaks your question into sub-questions, researches each
+              separately, then synthesizes one answer. Several sequential
+              model calls on the same model — noticeably slower than a
+              normal reply, not multiple AI models running at once.
+            </Text>
+          </View>
+          <Switch
+            value={deepResearch}
+            onValueChange={toggleDeepResearch}
+            trackColor={{ false: "#333", true: "#3a7a4a" }}
+          />
+        </View>
     </View>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
   card: { backgroundColor: "#111", borderRadius: 10, padding: 14, margin: 12, gap: 10 },
+  deepResearchRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   title: { color: "#fff", fontSize: 14, fontWeight: "600" },
   option: {
     flexDirection: "row",

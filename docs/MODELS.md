@@ -114,6 +114,29 @@ ANN index) not attempted here. The architecture is designed so more packs can
 be added later within the 50GB storage budget without changing how any of
 this works — `MODEL_CATALOG`/`TIERS` are meant to grow.
 
+## "Deep Research Mode" — honest scope note
+
+Settings has a "🔬 Deep Research Mode" toggle (`src/services/orchestrator.ts`)
+that decomposes a question into 2-3 sub-questions, retrieves + answers each
+separately, then synthesizes one final answer. This is **not** multiple AI
+models/agents running concurrently — running 3 models at once, or a
+dedicated planner/critic model, genuinely doesn't fit in the 12GB RAM budget
+alongside everything else. It's several sequential `llamaEngine.generate()`
+calls on the *same* single loaded model, playing different roles in turn.
+Noticeably slower than a normal reply (multiple LLM passes instead of one) —
+the UI badge says "Deep Research", not "multi-agent", and the in-app
+description spells this out, to avoid overclaiming what's actually
+happening.
+
+`modules/ram-monitor` also exposes `getDeviceTotalRamBytes()` (device
+physical RAM, not just this app's usage) so the model catalog can show a
+rough 🟢/🟡/🔴 compatibility hint before downloading a large model —
+estimated from file size (×1.15 for KV-cache/context overhead), which is an
+approximation, not a guarantee. A live Hugging Face model browser (search,
+arbitrary GGUF repos) was considered and deliberately not built — real
+scope beyond the curated, sha256-verified static catalog already in place,
+for uncertain payoff.
+
 ## Multi-session chat history & conversation memory
 
 Chat sessions/messages persist locally in the same SQLite database as the

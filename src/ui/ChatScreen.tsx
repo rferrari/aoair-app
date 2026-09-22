@@ -27,7 +27,9 @@ import {
   getMemorySettings,
   MemorySettings as MemorySettingsType,
   DEFAULT_MEMORY_SETTINGS,
+  getDeepResearchMode,
 } from "../models/settings";
+import { runDeepResearch, ResearchProgress } from "../services/orchestrator";
 import { getPersonality, PersonalityId } from "../constants/personalities";
 import {
   createSession,
@@ -60,6 +62,14 @@ interface Message {
 /** Messages kept verbatim in the prompt regardless of summarization state (last 3 exchanges). */
 const VERBATIM_MESSAGE_COUNT = 6;
 
+function researchStageLabel(p: ResearchProgress): string {
+  if (p.stage === "decomposing") return "🔬 Breaking question into sub-questions…";
+  if (p.stage === "researching") {
+    return `🔬 Researching sub-question ${(p.subQuestionIndex ?? 0) + 1}/${p.subQuestionCount ?? 1}…`;
+  }
+  return "🔬 Synthesizing findings…";
+}
+
 async function resolveActiveModel(kind: "llm" | "embedding") {
   const activeId = await getActiveModelId(kind);
   const fallback = REQUIRED_MODELS.find((m) => m.kind === kind)!;
@@ -78,7 +88,8 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const [personalityId, setPersonalityIdState] = useState<PersonalityId>("succinct");
-  const [processing, setProcessing] = useState<{ messageId: string; status: ProcessingStatus } | null>(null);
+  const [processing, setProcessing] = useState<{ messageId: string; status: ProcessingStatus; label?: string } | null>(null);
+  const [deepResearchActive, setDeepResearchActive] = useState(false);
   const [liveTokPerSec, setLiveTokPerSec] = useState<number | null>(null);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -87,6 +98,7 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
   const inputRef = useRef<TextInput>(null);
   const hapticsEnabledRef = useRef(true);
   const memorySettingsRef = useRef<MemorySettingsType>(DEFAULT_MEMORY_SETTINGS);
+  const deepResearchModeRef = useRef(false);
   const sessionSummaryRef = useRef<string | null>(null);
   const messagesRef = useRef<Message[]>([]);
   const backgroundTaskRef = useRef<Promise<void> | null>(null);
@@ -125,6 +137,7 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
       setPersonalityIdState(await getPersonalityId());
       hapticsEnabledRef.current = await getHapticsEnabled();
       memorySettingsRef.current = await getMemorySettings();
+      deepResearchModeRef.current = await getDeepResearchMode();
       await refreshSessions();
     })();
   }, [refreshSessions]);
@@ -244,8 +257,7 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
     let assistantText = "";
 
     try {
-      const [chunks, maxTokens, activePersonalityId, customPrompt] = await Promise.all([
-        retrieve(query),
+      const [maxTokens, activePersonalityId, customPrompt] = await Promise.all([
         getMaxTokens(),
         getPersonalityId(),
         getCustomSystemPrompt(),
@@ -257,35 +269,52 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
       const verbatimTurns: ConversationTurn[] = priorMessages
         .slice(-VERBATIM_MESSAGE_COUNT)
         .map((m) => ({ role: m.role, text: m.text }));
-      const prompt = assemblePrompt(query, chunks, systemPrompt, {
-        summary: sessionSummaryRef.current,
-        turns: verbatimTurns,
-      });
+      const history = { summary: sessionSummaryRef.current, turns: verbatimTurns };
 
-      setProcessing({ messageId: assistantId, status: "thinking" });
       let firstToken = true;
       let firstTokenTime = 0;
+      const onToken = (piece: string) => {
+        tokensGenerated += 1;
+        assistantText += piece;
+        if (firstToken) {
+          firstToken = false;
+          firstTokenTime = performance.now();
+          ttftMs = firstTokenTime - startTime;
+          setProcessing({ messageId: assistantId, status: "generating" });
+        } else {
+          const elapsedSinceFirst = (performance.now() - firstTokenTime) / 1000;
+          if (elapsedSinceFirst > 0) setLiveTokPerSec(tokensGenerated / elapsedSinceFirst);
+        }
+        setMessages((prev) =>
+          prev.map((m) => (m.id === assistantId ? { ...m, text: m.text + piece } : m))
+        );
+      };
 
-      await llamaEngine.generate({
-        prompt,
-        nPredict: maxTokens,
-        onToken: (piece) => {
-          tokensGenerated += 1;
-          assistantText += piece;
-          if (firstToken) {
-            firstToken = false;
-            firstTokenTime = performance.now();
-            ttftMs = firstTokenTime - startTime;
-            setProcessing({ messageId: assistantId, status: "generating" });
-          } else {
-            const elapsedSinceFirst = (performance.now() - firstTokenTime) / 1000;
-            if (elapsedSinceFirst > 0) setLiveTokPerSec(tokensGenerated / elapsedSinceFirst);
-          }
-          setMessages((prev) =>
-            prev.map((m) => (m.id === assistantId ? { ...m, text: m.text + piece } : m))
-          );
-        },
-      });
+      let chunks: RetrievedChunk[];
+
+      if (deepResearchModeRef.current) {
+        setDeepResearchActive(true);
+        const result = await runDeepResearch(
+          query,
+          systemPrompt,
+          history,
+          (p: ResearchProgress) => {
+            // All stages map to "thinking" here — onToken (shared with the
+            // normal path) flips to "generating" itself once the
+            // synthesis step's first real token streams in, same as the
+            // single-pass path.
+            setProcessing({ messageId: assistantId, status: "thinking", label: researchStageLabel(p) });
+          },
+          onToken
+        );
+        chunks = result.citations;
+      } else {
+        setProcessing({ messageId: assistantId, status: "retrieving" });
+        chunks = await retrieve(query);
+        setProcessing({ messageId: assistantId, status: "thinking" });
+        const prompt = assemblePrompt(query, chunks, systemPrompt, history);
+        await llamaEngine.generate({ prompt, nPredict: maxTokens, onToken });
+      }
 
       const wasStopped = stopRequestedRef.current;
       setMessages((prev) =>
@@ -366,6 +395,7 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
       setGenerating(false);
       setProcessing(null);
       setLiveTokPerSec(null);
+      setDeepResearchActive(false);
     }
   }, [input, generating, haptic, activeSessionId, cancelBackgroundTask, refreshSessions]);
 
@@ -403,6 +433,11 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
               {personalityId === "succinct" ? "⚡" : "🔬"}
             </Text>
           </Pressable>
+          {deepResearchActive && (
+            <View style={styles.deepResearchBadge}>
+              <Text style={styles.deepResearchBadgeText}>🔬 Deep Research</Text>
+            </View>
+          )}
           {liveTokPerSec != null && (
             <View style={styles.tokBadge}>
               <Text style={styles.tokBadgeText}>{liveTokPerSec.toFixed(1)} tok/s</Text>
@@ -441,7 +476,10 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
             return (
               <View style={[styles.bubble, item.role === "user" ? styles.userBubble : styles.assistantBubble]}>
                 {showProcessing ? (
-                  <ProcessingIndicator status={processing!.status as Exclude<ProcessingStatus, "idle">} />
+                  <ProcessingIndicator
+                    status={processing!.status as Exclude<ProcessingStatus, "idle">}
+                    label={processing!.label}
+                  />
                 ) : (
                   <Text style={styles.bubbleText}>{item.text}</Text>
                 )}
@@ -557,6 +595,13 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
   },
   tokBadgeText: { color: "#c9a8ff", fontSize: 10, fontWeight: "700" },
+  deepResearchBadge: {
+    backgroundColor: "rgba(59,130,246,0.2)",
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  deepResearchBadgeText: { color: "#7db4ff", fontSize: 10, fontWeight: "700" },
   newChatBtn: {
     width: 28,
     height: 28,

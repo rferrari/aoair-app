@@ -9,10 +9,20 @@ export interface MemoryInfo {
 
 interface RamMonitorNativeModule {
   getMemoryInfo(): MemoryInfo;
+  getDeviceTotalRamBytes(): number;
 }
 
 const RamMonitor = requireNativeModule<RamMonitorNativeModule>("RamMonitor");
 
 export function getMemoryInfo(): MemoryInfo {
   return RamMonitor.getMemoryInfo();
+}
+
+/** Total physical RAM on this device (not this app's usage) — 0 if unavailable. */
+export function getDeviceTotalRamBytes(): number {
+  try {
+    return RamMonitor.getDeviceTotalRamBytes();
+  } catch {
+    return 0;
+  }
 }
