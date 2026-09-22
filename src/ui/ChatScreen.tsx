@@ -48,7 +48,7 @@ import { VoiceInputButton } from "./VoiceInputButton";
 import { ProcessingIndicator, ProcessingStatus } from "./ProcessingIndicator";
 import { Drawer, DrawerItem } from "./Drawer";
 import { AboutScreen } from "./AboutScreen";
-import { recordQueryStats, trackPeakRss } from "../services/telemetry";
+import { recordQueryStats, trackPeakRss, startAppMemoryTracking } from "../services/telemetry";
 import { getMemoryInfo } from "ram-monitor";
 
 interface Message {
@@ -166,6 +166,7 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
           llamaEngine.load(llm.filename),
           embeddingEngine.load(emb.filename),
         ]);
+        startAppMemoryTracking();
 
         setLoadStatus("Preparing knowledge base…");
         await seedKnowledgeBaseIfEmpty();

@@ -1,5 +1,6 @@
 import * as FileSystem from "expo-file-system/legacy";
 import { initLlama, LlamaContext } from "llama.rn";
+import { getDeviceTotalRamBytes, getMemoryInfo } from "ram-monitor";
 
 export interface GenerateOptions {
   prompt: string;
@@ -13,6 +14,16 @@ export interface LoadedModelInfo {
   nCtx: number;
   nThreads: number;
 }
+
+// Rough overhead for OS + other apps + this app's own JS/UI runtime, before
+// touching the model at all. Conservative on purpose: a warning that fires
+// too early is annoying; one that fires too late is a cryptic crash.
+const OS_AND_APP_OVERHEAD_BYTES = 2 * 1024 * 1024 * 1024;
+// Multiplier from a GGUF file's on-disk size to its rough resident working
+// set once loaded (weights actually touched + KV cache) — approximation,
+// not a measurement. Matches the estimate used for the catalog's RAM
+// compatibility badges (src/ui/CatalogItemCard.tsx).
+const MODEL_RAM_OVERHEAD_FACTOR = 1.15;
 
 /**
  * Thin wrapper around llama.rn. Loads a GGUF model with mmap so weights
@@ -32,23 +43,75 @@ export class LlamaEngine {
         `Model not found at ${modelPath}. Run the setup wizard to install it first.`
       );
     }
+    const fileSizeBytes = (info as { size?: number }).size ?? 0;
 
     // Release any previously loaded model first (e.g. switching models from
     // Settings re-mounts ChatScreen and calls load() again) so we don't leak
     // the old context's native memory.
     await this.unload();
 
+    // Pre-flight check: a clear "this probably won't fit" message beats a
+    // cryptic native failure or an outright OOM crash. Best-effort — if the
+    // native RAM readouts aren't available (0), we skip the check rather
+    // than block loading on missing data.
+    const diagnostics = this.estimateFit(fileSizeBytes);
+    if (diagnostics && diagnostics.likelyInsufficient) {
+      throw new Error(
+        `"${modelFilename}" needs roughly ${diagnostics.estimatedGb}GB of RAM, but this ` +
+          `device only has about ${diagnostics.availableGb}GB free (of ${diagnostics.totalGb}GB total). ` +
+          `Try a smaller model from Settings > Tone & Model.`
+      );
+    }
+
     const nCtx = opts?.nCtx ?? 4096;
     const nThreads = opts?.nThreads ?? 4;
 
-    this.context = await initLlama({
-      model: modelPath,
-      use_mlock: false, // avoid pinning full weights in RAM; rely on mmap streaming
-      n_ctx: nCtx,
-      n_threads: nThreads,
-      n_gpu_layers: 0, // CPU-only for broad device compatibility; adjust per-device
-    });
-    this.modelInfo = { filename: modelFilename, nCtx, nThreads };
+    try {
+      this.context = await initLlama({
+        model: modelPath,
+        use_mlock: false, // avoid pinning full weights in RAM; rely on mmap streaming
+        n_ctx: nCtx,
+        n_threads: nThreads,
+        n_gpu_layers: 0, // CPU-only for broad device compatibility; adjust per-device
+      });
+      this.modelInfo = { filename: modelFilename, nCtx, nThreads };
+    } catch (e: any) {
+      // The native error here (from llama.rn/llama.cpp) is often terse
+      // ("Failed to initialize context" with no further detail) — append
+      // our own RAM estimate so the user (and future debugging) has an
+      // actual hypothesis instead of a dead end, per diagnostics above.
+      const nativeMessage = e?.message ?? String(e);
+      const hint = diagnostics
+        ? ` (this device has ~${diagnostics.totalGb}GB RAM, ~${diagnostics.availableGb}GB free; ` +
+          `"${modelFilename}" needs roughly ${diagnostics.estimatedGb}GB — likely the cause if those are close)`
+        : "";
+      throw new Error(`Failed to load "${modelFilename}": ${nativeMessage}${hint}`);
+    }
+  }
+
+  private estimateFit(
+    fileSizeBytes: number
+  ): { estimatedGb: string; totalGb: string; availableGb: string; likelyInsufficient: boolean } | null {
+    let totalRam = 0;
+    let currentRss = 0;
+    try {
+      totalRam = getDeviceTotalRamBytes();
+      currentRss = getMemoryInfo().rssBytes;
+    } catch {
+      return null;
+    }
+    if (totalRam <= 0) return null;
+
+    const availableBytes = Math.max(totalRam - currentRss - OS_AND_APP_OVERHEAD_BYTES, 0);
+    const estimatedNeedBytes = fileSizeBytes * MODEL_RAM_OVERHEAD_FACTOR;
+    const toGb = (b: number) => (b / 1024 / 1024 / 1024).toFixed(1);
+
+    return {
+      estimatedGb: toGb(estimatedNeedBytes),
+      totalGb: toGb(totalRam),
+      availableGb: toGb(availableBytes),
+      likelyInsufficient: estimatedNeedBytes > availableBytes,
+    };
   }
 
   async unload() {

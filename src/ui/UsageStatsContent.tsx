@@ -1,9 +1,15 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { SystemMonitor } from "./SystemMonitor";
-import { getLastQueryStats, subscribeQueryStats, QueryStats } from "../services/telemetry";
+import {
+  getLastQueryStats,
+  subscribeQueryStats,
+  QueryStats,
+  getAppPeakRssBytes,
+} from "../services/telemetry";
 import { llamaEngine } from "../inference/LlamaEngine";
-import { MODEL_CATALOG } from "../models/manifest";
+import { MODEL_CATALOG, RAM_BUDGET_BYTES } from "../models/manifest";
+import { getMemoryInfo, getDeviceTotalRamBytes } from "ram-monitor";
 
 function formatGB(bytes: number): string {
   return `${(bytes / 1024 / 1024 / 1024).toFixed(2)}GB`;
@@ -22,16 +28,67 @@ function formatMs(ms: number): string {
  */
 export function UsageStatsContent() {
   const [stats, setStats] = useState<QueryStats | null>(getLastQueryStats());
+  const [appRss, setAppRss] = useState(0);
+  const [appPeakRss, setAppPeakRss] = useState(getAppPeakRssBytes());
+  const [deviceTotalRam, setDeviceTotalRam] = useState(0);
 
   useEffect(() => subscribeQueryStats(setStats), []);
+
+  useEffect(() => {
+    let cancelled = false;
+    function poll() {
+      try {
+        if (!cancelled) setAppRss(getMemoryInfo().rssBytes);
+      } catch {
+        // native module not linked
+      }
+      if (!cancelled) setAppPeakRss(getAppPeakRssBytes());
+    }
+    poll();
+    const id = setInterval(poll, 2000);
+    try {
+      setDeviceTotalRam(getDeviceTotalRamBytes());
+    } catch {
+      // native module not linked
+    }
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
 
   const modelInfo = llamaEngine.getModelInfo();
   const modelCatalogEntry = modelInfo
     ? MODEL_CATALOG.find((m) => m.filename === modelInfo.filename)
     : undefined;
 
+  const deviceUsedRam = deviceTotalRam > 0 ? Math.max(deviceTotalRam - appRss, 0) : 0;
+  const withinLimit = appPeakRss <= RAM_BUDGET_BYTES;
+
   return (
     <View>
+      <View style={styles.card}>
+        <View style={styles.cardTitleRow}>
+          <Text style={styles.cardTitle}>🧠 Memory footprint</Text>
+          {appPeakRss > 0 && (
+            <View style={[styles.limitBadge, withinLimit ? styles.limitBadgeOk : styles.limitBadgeOver]}>
+              <Text style={styles.limitBadgeText}>
+                {withinLimit ? "🟢 Within 12GB Limit" : "🔴 Over 12GB Limit"}
+              </Text>
+            </View>
+          )}
+        </View>
+        <Row label="App memory" value={`${formatGB(appRss)} (Peak: ${formatGB(appPeakRss)})`} />
+        <Row
+          label="Device RAM"
+          value={
+            deviceTotalRam > 0
+              ? `${formatGB(deviceUsedRam)} used / ${formatGB(deviceTotalRam)} total`
+              : "unavailable"
+          }
+        />
+      </View>
+
       <View style={styles.card}>
         <Text style={styles.cardTitle}>⚡ Inference performance</Text>
         {stats ? (
@@ -77,7 +134,12 @@ function Row({ label, value }: { label: string; value: string }) {
 
 const styles = StyleSheet.create({
   card: { backgroundColor: "#111", borderRadius: 10, padding: 14, margin: 12, gap: 8 },
-  cardTitle: { color: "#fff", fontSize: 14, fontWeight: "600", marginBottom: 4 },
+  cardTitleRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 },
+  cardTitle: { color: "#fff", fontSize: 14, fontWeight: "600" },
+  limitBadge: { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 },
+  limitBadgeOk: { backgroundColor: "rgba(58,122,74,0.4)" },
+  limitBadgeOver: { backgroundColor: "rgba(122,42,42,0.4)" },
+  limitBadgeText: { color: "#fff", fontSize: 10, fontWeight: "700" },
   row: { flexDirection: "row", justifyContent: "space-between" },
   rowLabel: { color: "#999", fontSize: 12 },
   rowValue: { color: "#eee", fontSize: 12, fontWeight: "600", fontVariant: ["tabular-nums"] },

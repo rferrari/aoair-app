@@ -4,6 +4,7 @@
  * auditing this session's inference performance and RAM footprint against
  * the bounty's 12GB RAM / 50GB storage caps, live on-device.
  */
+import { getMemoryInfo } from "ram-monitor";
 
 export interface QueryStats {
   tokensGenerated: number;
@@ -53,4 +54,33 @@ export function trackPeakRss(sampleFn: () => number, intervalMs = 400) {
       return peak;
     },
   };
+}
+
+/**
+ * App-lifetime peak RSS (process resident set size), not just during a
+ * single query — tracks the high-water mark from the moment the app
+ * started polling (typically once a model is loaded), so "was this app
+ * ever over 12GB" is answerable even between queries. Started once,
+ * lazily, on first read/poll — see startAppMemoryTracking().
+ */
+let appPeakRssBytes = 0;
+let trackingStarted = false;
+
+export function startAppMemoryTracking(intervalMs = 2000): void {
+  if (trackingStarted) return;
+  trackingStarted = true;
+  const poll = () => {
+    try {
+      const rss = getMemoryInfo().rssBytes;
+      if (rss > appPeakRssBytes) appPeakRssBytes = rss;
+    } catch {
+      // native module not linked; leave peak at whatever we've seen
+    }
+  };
+  poll();
+  setInterval(poll, intervalMs);
+}
+
+export function getAppPeakRssBytes(): number {
+  return appPeakRssBytes;
 }
