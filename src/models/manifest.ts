@@ -27,28 +27,32 @@ export const STORAGE_BUDGET_BYTES = 50 * 1024 * 1024 * 1024; // 50GB
 export const RAM_BUDGET_BYTES = 12 * 1024 * 1024 * 1024; // 12GB
 
 /**
- * Default manifest. Fill in sha256 + setupSourceUrl once models are chosen
- * and benchmarked on-device (see docs/MODELS.md). Kept empty-safe so the app
- * can run its integrity check even before assets are chosen.
+ * Default manifest. See docs/MODELS.md for the rationale behind each pick
+ * (licensing, size/RAM tradeoffs). Checksums verified against the files
+ * fetched by scripts/setup-models.sh.
  */
 export const DEFAULT_MANIFEST: ManifestAsset[] = [
   {
     id: "primary-llm",
     kind: "llm",
     filename: "models/primary-llm.gguf",
-    sizeBytes: 0,
-    sha256: "",
+    sizeBytes: 2393232672,
+    sha256: "e4165e3a71af97f1b4820da61079826d8752a2088e313af0c7d346796c38eff5",
+    setupSourceUrl:
+      "https://huggingface.co/bartowski/Phi-3.5-mini-instruct-GGUF/resolve/main/Phi-3.5-mini-instruct-Q4_K_M.gguf",
     description:
-      "Primary quantized instruct model (GGUF, Q4_K_M or similar) for generation and reasoning.",
+      "Phi-3.5-mini-instruct (MIT), 3.8B dense, Q4_K_M — primary generation model.",
   },
   {
     id: "embedding-model",
     kind: "embedding",
     filename: "models/embedding.gguf",
-    sizeBytes: 0,
-    sha256: "",
+    sizeBytes: 36806944,
+    sha256: "ec38e8da142596baa913124ae50550de284b6916bf59577ef2f0cb9660c2f514",
+    setupSourceUrl:
+      "https://huggingface.co/CompendiumLabs/bge-small-en-v1.5-gguf/resolve/main/bge-small-en-v1.5-q8_0.gguf",
     description:
-      "Sub-300MB sentence-embedding model used to build/query the local vector index.",
+      "bge-small-en-v1.5 (MIT), 33M, Q8_0 — sentence embeddings for the local vector index.",
   },
 ];
 

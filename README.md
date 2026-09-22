@@ -16,28 +16,33 @@ for the exact models/datasets/indexes used.
 
 ## Status
 
-🚧 Early scaffolding. Model selection, on-device benchmarks, and the setup wizard
-are still in progress — see open items below.
+🚧 Core app, RAG pipeline, and model selection are done and verified (see
+`docs/MODELS.md`). Not yet verified on real Android/GrapheneOS hardware — see
+open items below.
 
-## Quickstart (once models are finalized)
+## Quickstart
 
 ```bash
 git clone <this repo>
 cd aoair_app
 npm install
 
-# One-time, online: fetch + verify model weights (see docs/MODELS.md)
+# One-time, online: fetch + verify model weights (~2.3GB total; see docs/MODELS.md)
 ./scripts/setup-models.sh
 
-# Generate native Android project (custom dev client, not Expo Go)
+# Generate native Android project (custom dev client, not Expo Go) and install
 npx expo prebuild -p android
-
-# Build + install on a connected device/emulator
 npx expo run:android
+
+# Push the verified model weights into the installed app's private storage
+# (exact adb commands are printed at the end of setup-models.sh)
 ```
 
 The app loads models from its document directory and never contacts the
-network at runtime. All inference and retrieval happen on-device.
+network at runtime — `app.json` explicitly blocks the `INTERNET` permission,
+so this is enforced at the OS level, not just by convention. All inference
+and retrieval happen on-device via `llama.cpp` (through `llama.rn`) and
+SQLite FTS5.
 
 ## Development
 

@@ -2,34 +2,39 @@
 
 This file documents every offline asset the app ships with or depends on, per the
 bounty's "clearly document the models, datasets, indexes, and other resources used"
-requirement. **Not yet finalized** — placeholders below will be replaced with the
-exact GGUF files, sha256 checksums, and source URLs once on-device benchmarking
-(tokens/sec, RAM footprint via `adb shell dumpsys meminfo`) selects the final picks.
+requirement.
 
-## Primary generation model (candidates)
+## Primary generation model — chosen
 
-Selection criteria: quantized GGUF, runs via `llama.cpp`/`llama.rn` on Android CPU,
-mmap-streamable, working-set RAM (weights touched + KV cache) comfortably under 12GB
-alongside the embedding model and app overhead, and meaningfully stronger than a 1B
-dense model on reasoning/synthesis tasks.
+**[Phi-3.5-mini-instruct](https://huggingface.co/microsoft/Phi-3.5-mini-instruct)**
+(Microsoft, **MIT license**), quantized GGUF from
+**[bartowski/Phi-3.5-mini-instruct-GGUF](https://huggingface.co/bartowski/Phi-3.5-mini-instruct-GGUF)**,
+file `Phi-3.5-mini-instruct-Q4_K_M.gguf` (~2.23GB, sha256 below).
 
-| Candidate | Total params | Active params | Quant | Approx. disk size | Notes |
-|---|---|---|---|---|---|
-| Qwen2.5-3B-Instruct | 3B | 3B (dense) | Q4_K_M | ~2.0GB | Safe baseline, fast bring-up |
-| Qwen1.5-MoE-A2.7B-Chat | 14.3B | 2.7B | Q4_K_M | ~9GB | MoE direction Vitalik suggested; more knowledge at similar active-param RAM/speed cost |
-| Phi-3.5-mini-instruct | 3.8B | 3.8B (dense) | Q4_K_M | ~2.3GB | Strong reasoning-per-param, dense fallback |
+- 3.8B params, dense, Q4_K_M quantization
+- Chosen over Qwen2.5-3B-Instruct because Qwen's 3B GGUF ships under the restrictive
+  `qwen-research` license (non-commercial/research-only), which is a poor fit for a
+  public open-source bounty submission; Phi-3.5-mini's MIT license has no such
+  restriction.
+- Strong reasoning-per-parameter for its size (outperforms most 1–3B dense models on
+  MMLU/GSM8K-style benchmarks per its model card), directly targeting the bounty's
+  ">1B dense model" reasoning bar.
+- Runs via `llama.cpp`/`llama.rn` on Android CPU, mmap-streamable so weights aren't
+  fully pinned in RAM.
+- **Upgrade path (not yet implemented)**: a proper MoE model (e.g. an Apache/MIT
+  licensed variant in the Qwen1.5-MoE / OLMoE family, ~2–3B active params) for more
+  world knowledge at similar active-param RAM/speed cost, once benchmarked on-device
+  against this baseline.
 
-Default until benchmarked: **Qwen2.5-3B-Instruct Q4_K_M**, with a documented upgrade
-path to the MoE candidate once on-device tokens/sec and RSS are measured.
+## Embedding model — chosen
 
-## Embedding model (candidates)
+**[bge-small-en-v1.5](https://huggingface.co/BAAI/bge-small-en-v1.5)** (BAAI, **MIT
+license**), quantized GGUF from
+**[CompendiumLabs/bge-small-en-v1.5-gguf](https://huggingface.co/CompendiumLabs/bge-small-en-v1.5-gguf)**,
+file `bge-small-en-v1.5-q8_0.gguf` (~35MB, sha256 below).
 
-Sub-300MB, GGUF, usable via `llama.rn`'s embedding mode.
-
-| Candidate | Params | Quant | Approx. size |
-|---|---|---|---|
-| all-MiniLM-L6-v2 (GGUF) | 22M | F16/Q8 | ~45–90MB |
-| bge-small-en-v1.5 (GGUF) | 33M | Q8 | ~35MB |
+- 33M params, well under the 300MB sub-budget, fast enough to stay resident alongside
+  the primary LLM without meaningfully affecting the 12GB RAM budget.
 
 ## Local knowledge base / retrieval index
 
