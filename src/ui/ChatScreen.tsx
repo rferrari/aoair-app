@@ -26,6 +26,7 @@ import {
 import { getPersonality, PersonalityId } from "../constants/personalities";
 import { PromptIdeasCarousel } from "./PromptIdeasCarousel";
 import { VoiceInputButton } from "./VoiceInputButton";
+import { ProcessingIndicator, ProcessingStatus } from "./ProcessingIndicator";
 
 interface Message {
   id: string;
@@ -50,6 +51,7 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
   const [generating, setGenerating] = useState(false);
   const [showPromptIdeas, setShowPromptIdeas] = useState(false);
   const [personalityId, setPersonalityIdState] = useState<PersonalityId>("succinct");
+  const [processing, setProcessing] = useState<{ messageId: string; status: ProcessingStatus } | null>(null);
   const listRef = useRef<FlatList<Message>>(null);
   const inputRef = useRef<TextInput>(null);
 
@@ -100,6 +102,7 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
     const userMsg: Message = { id: `${Date.now()}-u`, role: "user", text: query };
     const assistantId = `${Date.now()}-a`;
     setMessages((prev) => [...prev, userMsg, { id: assistantId, role: "assistant", text: "" }]);
+    setProcessing({ messageId: assistantId, status: "retrieving" });
 
     try {
       const [chunks, maxTokens, activePersonalityId, customPrompt] = await Promise.all([
@@ -112,10 +115,17 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
       const systemPrompt = activePersonalityId === "custom" ? customPrompt : personality.systemPrompt;
       const prompt = assemblePrompt(query, chunks, systemPrompt);
 
+      setProcessing({ messageId: assistantId, status: "thinking" });
+      let firstToken = true;
+
       await llamaEngine.generate({
         prompt,
         nPredict: maxTokens,
         onToken: (piece) => {
+          if (firstToken) {
+            firstToken = false;
+            setProcessing({ messageId: assistantId, status: "generating" });
+          }
           setMessages((prev) =>
             prev.map((m) => (m.id === assistantId ? { ...m, text: m.text + piece } : m))
           );
@@ -133,6 +143,7 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
       );
     } finally {
       setGenerating(false);
+      setProcessing(null);
     }
   }, [input, generating]);
 
@@ -178,16 +189,24 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
         keyExtractor={(m) => m.id}
         contentContainerStyle={styles.list}
         onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
-        renderItem={({ item }) => (
-          <View style={[styles.bubble, item.role === "user" ? styles.userBubble : styles.assistantBubble]}>
-            <Text style={styles.bubbleText}>{item.text}</Text>
-            {item.citations && item.citations.length > 0 && (
-              <Text style={styles.citations}>
-                Sources: {item.citations.map((c, i) => `[${i + 1}] ${c.title}`).join("  ")}
-              </Text>
-            )}
-          </View>
-        )}
+        renderItem={({ item }) => {
+          const showProcessing =
+            item.text === "" && processing?.messageId === item.id && processing.status !== "generating";
+          return (
+            <View style={[styles.bubble, item.role === "user" ? styles.userBubble : styles.assistantBubble]}>
+              {showProcessing ? (
+                <ProcessingIndicator status={processing!.status as Exclude<ProcessingStatus, "idle">} />
+              ) : (
+                <Text style={styles.bubbleText}>{item.text}</Text>
+              )}
+              {item.citations && item.citations.length > 0 && (
+                <Text style={styles.citations}>
+                  Sources: {item.citations.map((c, i) => `[${i + 1}] ${c.title}`).join("  ")}
+                </Text>
+              )}
+            </View>
+          );
+        }}
       />
 
       <View style={styles.inputRow}>
