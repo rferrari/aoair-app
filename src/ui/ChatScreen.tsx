@@ -6,8 +6,7 @@ import {
   Pressable,
   FlatList,
   StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
+  Keyboard,
   ActivityIndicator,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -83,6 +82,7 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
   const [liveTokPerSec, setLiveTokPerSec] = useState<number | null>(null);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const listRef = useRef<FlatList<Message>>(null);
   const inputRef = useRef<TextInput>(null);
   const hapticsEnabledRef = useRef(true);
@@ -94,6 +94,25 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
+
+  // KeyboardAvoidingView's Android "height" behavior relies on
+  // windowSoftInputMode="adjustResize" resizing the root view, which is
+  // unreliable under edge-to-edge display (enabled by default here) — the
+  // window no longer resizes the way it expects, so the input bar ends up
+  // under the keyboard. Tracking keyboard height directly via these events
+  // and applying it as padding works regardless of edge-to-edge quirks.
+  useEffect(() => {
+    const showSub = Keyboard.addListener("keyboardDidShow", (e) => {
+      setKeyboardHeight(e.endCoordinates.height);
+    });
+    const hideSub = Keyboard.addListener("keyboardDidHide", () => {
+      setKeyboardHeight(0);
+    });
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const refreshSessions = useCallback(async () => {
     setSessions(await listSessions());
@@ -367,10 +386,7 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
       <View style={styles.ambientGlowTop} pointerEvents="none" />
       <View style={styles.ambientGlowBottom} pointerEvents="none" />
 
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-      >
+      <View style={[styles.flex, { paddingBottom: keyboardHeight }]}>
         <View style={styles.headerRow}>
           <Pressable
             style={styles.hamburgerBtn}
@@ -477,7 +493,7 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
             }}
           />
         )}
-      </KeyboardAvoidingView>
+      </View>
 
       <Drawer
         open={drawerOpen}
