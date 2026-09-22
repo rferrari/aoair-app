@@ -31,6 +31,9 @@ import { VoiceInputButton } from "./VoiceInputButton";
 import { ProcessingIndicator, ProcessingStatus } from "./ProcessingIndicator";
 import { Drawer, DrawerItem } from "./Drawer";
 import { AboutScreen } from "./AboutScreen";
+import { UsageStatsScreen } from "./UsageStatsScreen";
+import { recordQueryStats, trackPeakRss } from "../services/telemetry";
+import { getMemoryInfo } from "ram-monitor";
 
 interface Message {
   id: string;
@@ -57,8 +60,10 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
   const [showPromptIdeas, setShowPromptIdeas] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
+  const [showStats, setShowStats] = useState(false);
   const [personalityId, setPersonalityIdState] = useState<PersonalityId>("succinct");
   const [processing, setProcessing] = useState<{ messageId: string; status: ProcessingStatus } | null>(null);
+  const [liveTokPerSec, setLiveTokPerSec] = useState<number | null>(null);
   const listRef = useRef<FlatList<Message>>(null);
   const inputRef = useRef<TextInput>(null);
 
@@ -120,6 +125,17 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
     setMessages((prev) => [...prev, userMsg, { id: assistantId, role: "assistant", text: "" }]);
     setProcessing({ messageId: assistantId, status: "retrieving" });
 
+    const peakRss = trackPeakRss(() => {
+      try {
+        return getMemoryInfo().rssBytes;
+      } catch {
+        return 0;
+      }
+    });
+    const startTime = performance.now();
+    let ttftMs = 0;
+    let tokensGenerated = 0;
+
     try {
       const [chunks, maxTokens, activePersonalityId, customPrompt] = await Promise.all([
         retrieve(query),
@@ -133,14 +149,21 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
 
       setProcessing({ messageId: assistantId, status: "thinking" });
       let firstToken = true;
+      let firstTokenTime = 0;
 
       await llamaEngine.generate({
         prompt,
         nPredict: maxTokens,
         onToken: (piece) => {
+          tokensGenerated += 1;
           if (firstToken) {
             firstToken = false;
+            firstTokenTime = performance.now();
+            ttftMs = firstTokenTime - startTime;
             setProcessing({ messageId: assistantId, status: "generating" });
+          } else {
+            const elapsedSinceFirst = (performance.now() - firstTokenTime) / 1000;
+            if (elapsedSinceFirst > 0) setLiveTokPerSec(tokensGenerated / elapsedSinceFirst);
           }
           setMessages((prev) =>
             prev.map((m) => (m.id === assistantId ? { ...m, text: m.text + piece } : m))
@@ -157,7 +180,18 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
       Haptics.notificationAsync(
         wasStopped ? Haptics.NotificationFeedbackType.Warning : Haptics.NotificationFeedbackType.Success
       ).catch(() => {});
+
+      const durationMs = performance.now() - startTime;
+      recordQueryStats({
+        tokensGenerated,
+        durationMs,
+        ttftMs,
+        tokPerSec: tokensGenerated > 0 ? tokensGenerated / ((durationMs - ttftMs) / 1000) : 0,
+        peakRssBytes: peakRss.stop(),
+        timestamp: Date.now(),
+      });
     } catch (e: any) {
+      peakRss.stop();
       setMessages((prev) =>
         prev.map((m) =>
           m.id === assistantId ? { ...m, text: `Error: ${e?.message ?? e}` } : m
@@ -166,6 +200,7 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
     } finally {
       setGenerating(false);
       setProcessing(null);
+      setLiveTokPerSec(null);
     }
   }, [input, generating]);
 
@@ -174,11 +209,15 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
     ...(onOpenSettings
       ? [{ key: "settings", icon: "⚙️", label: "Settings & Models", onPress: onOpenSettings }]
       : []),
-    { key: "about", icon: "ℹ️", label: "About & Bounty Info", onPress: () => setShowAbout(true) },
+    { key: "stats", icon: "📊", label: "Usage & Performance", onPress: () => setShowStats(true) },
+    { key: "about", icon: "ℹ️", label: "About & Info", onPress: () => setShowAbout(true) },
   ];
 
   if (showAbout) {
     return <AboutScreen onClose={() => setShowAbout(false)} />;
+  }
+  if (showStats) {
+    return <UsageStatsScreen onClose={() => setShowStats(false)} />;
   }
 
   return (
@@ -199,6 +238,11 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
               {personalityId === "succinct" ? "⚡" : "🔬"}
             </Text>
           </Pressable>
+          {liveTokPerSec != null && (
+            <View style={styles.tokBadge}>
+              <Text style={styles.tokBadgeText}>{liveTokPerSec.toFixed(1)} tok/s</Text>
+            </View>
+          )}
           <Pressable
             style={styles.newChatBtn}
             onPress={() => setMessages([])}
@@ -332,6 +376,13 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   tonePillText: { fontSize: 14 },
+  tokBadge: {
+    backgroundColor: "rgba(139,92,246,0.2)",
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  tokBadgeText: { color: "#c9a8ff", fontSize: 10, fontWeight: "700" },
   newChatBtn: {
     width: 28,
     height: 28,

@@ -8,6 +8,12 @@ export interface GenerateOptions {
   onToken?: (piece: string) => void;
 }
 
+export interface LoadedModelInfo {
+  filename: string;
+  nCtx: number;
+  nThreads: number;
+}
+
 /**
  * Thin wrapper around llama.rn. Loads a GGUF model with mmap so weights
  * stream from disk rather than being fully resident, keeping peak RAM under
@@ -16,6 +22,7 @@ export interface GenerateOptions {
  */
 export class LlamaEngine {
   private context: LlamaContext | null = null;
+  private modelInfo: LoadedModelInfo | null = null;
 
   async load(modelFilename: string, opts?: { nCtx?: number; nThreads?: number }) {
     const modelPath = `${FileSystem.documentDirectory}${modelFilename}`;
@@ -31,18 +38,27 @@ export class LlamaEngine {
     // the old context's native memory.
     await this.unload();
 
+    const nCtx = opts?.nCtx ?? 4096;
+    const nThreads = opts?.nThreads ?? 4;
+
     this.context = await initLlama({
       model: modelPath,
       use_mlock: false, // avoid pinning full weights in RAM; rely on mmap streaming
-      n_ctx: opts?.nCtx ?? 4096,
-      n_threads: opts?.nThreads ?? 4,
+      n_ctx: nCtx,
+      n_threads: nThreads,
       n_gpu_layers: 0, // CPU-only for broad device compatibility; adjust per-device
     });
+    this.modelInfo = { filename: modelFilename, nCtx, nThreads };
   }
 
   async unload() {
     await this.context?.release();
     this.context = null;
+    this.modelInfo = null;
+  }
+
+  getModelInfo(): LoadedModelInfo | null {
+    return this.modelInfo;
   }
 
   get isLoaded(): boolean {

@@ -34,7 +34,7 @@ const TOPICS = [
 
 async function fetchSummary(title, attempt = 1) {
   const url = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`;
-  const res = await fetch(url, { headers: { "User-Agent": "aoair-corpus-builder/0.1 (offline research app bounty submission)" } });
+  const res = await fetch(url, { headers: { "User-Agent": "aoair-corpus-builder/0.1" } });
   if ((res.status === 429 || res.status === 503) && attempt <= 5) {
     const backoffMs = attempt * 5000;
     console.warn(`  429, backing off ${backoffMs}ms (attempt ${attempt})`);

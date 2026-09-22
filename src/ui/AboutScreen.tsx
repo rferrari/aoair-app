@@ -19,7 +19,7 @@ export function AboutScreen({ onClose }: { onClose: () => void }) {
           one-time model setup is done.
         </Text>
         <Text style={styles.paragraph}>
-          Built for the "Best Offline AI Research App" community bounty,
+          Built for the "Best Offline AI Research App" community,
           inspired by @VitalikButerin's post on offline-capable phone AI.
         </Text>
         <Text style={styles.sectionHeading}>What runs where</Text>

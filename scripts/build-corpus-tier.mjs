@@ -21,7 +21,7 @@ async function fetchRandomBatch(attempt = 1) {
     `&generator=random&grnnamespace=0&grnlimit=${BATCH_SIZE}` +
     `&prop=extracts&exintro&explaintext&exchars=700`;
   const res = await fetch(url, {
-    headers: { "User-Agent": "aoair-corpus-builder/0.1 (offline research app bounty submission)" },
+    headers: { "User-Agent": "aoair-corpus-builder/0.1" },
   });
   if ((res.status === 429 || res.status === 503) && attempt <= 5) {
     const backoffMs = attempt * 4000;
