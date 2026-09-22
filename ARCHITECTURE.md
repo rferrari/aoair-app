@@ -61,7 +61,13 @@ aoair_app/
 - [x] FTS5 schema + hybrid (lexical+semantic) retrieval + prompt assembly
 - [x] LlamaEngine (generation) and EmbeddingEngine wrappers over `llama.rn`
 - [x] Chat UI with streaming tokens, citations, live storage monitor
-- [ ] `expo prebuild` + real Android build/run on a device
-- [ ] Finalize + benchmark model choices (see docs/MODELS.md)
-- [ ] Build/ship the actual offline knowledge base
+- [x] Primary + embedding models chosen (MIT-licensed), downloaded, checksum-verified,
+      GGUF headers validated
+- [x] Bootstrap knowledge base seeded on first run, embeddings computed on-device
+- [x] Unit tests (vitest) for pure retrieval/manifest logic + CI workflow
+- [ ] `expo prebuild` + real Android build/run on a device (pending — no Android
+      toolchain in the dev sandbox; user has local Android environment)
+- [ ] Benchmark chosen models on real hardware (tokens/sec, RSS)
+- [ ] Grow the knowledge base beyond the small bootstrap corpus
 - [ ] Native RSS-based RAM monitor (JS heap is currently a placeholder, not true process RAM)
+- [ ] Publish to a public GitHub repo (not yet pushed anywhere — local git only)

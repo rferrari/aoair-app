@@ -1,10 +1,9 @@
-import { getDb, ChunkRecord } from "./db";
-import { embeddingEngine, cosineSimilarity } from "./embed";
+import { getDb } from "./db";
+import { embeddingEngine } from "./embed";
+import { cosineSimilarity } from "./pure";
+import type { RetrievedChunk } from "./retrieve.types";
 
-export interface RetrievedChunk extends ChunkRecord {
-  score: number;
-  matchType: "lexical" | "semantic" | "hybrid";
-}
+export type { RetrievedChunk } from "./retrieve.types";
 
 /** BM25-ranked FTS5 lexical search over the local knowledge base. */
 async function lexicalSearch(query: string, limit: number): Promise<RetrievedChunk[]> {
@@ -101,14 +100,4 @@ export async function retrieve(query: string, topK = 6): Promise<RetrievedChunk[
     .slice(0, topK);
 }
 
-export function assemblePrompt(userQuery: string, chunks: RetrievedChunk[]): string {
-  const context = chunks
-    .map((c, i) => `[${i + 1}] ${c.title}\n${c.body}`)
-    .join("\n\n");
-
-  return `You are an offline research assistant. Use the context below when relevant, ` +
-    `and cite sources as [n]. If the context doesn't cover the question, say so and ` +
-    `answer from general knowledge.\n\n` +
-    `Context:\n${context}\n\n` +
-    `Question: ${userQuery}\n\nAnswer:`;
-}
+export { assemblePrompt } from "./pure";
