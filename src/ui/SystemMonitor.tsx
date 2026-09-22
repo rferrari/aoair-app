@@ -3,7 +3,7 @@ import { View, Text, StyleSheet } from "react-native";
 import * as FileSystem from "expo-file-system/legacy";
 import { ModelManager } from "../models/ModelManager";
 import { RAM_BUDGET_BYTES, STORAGE_BUDGET_BYTES } from "../models/manifest";
-import { getMemoryInfo, MemoryInfo } from "../../modules/ram-monitor";
+import { getMemoryInfo, MemoryInfo } from "ram-monitor";
 
 const modelManager = new ModelManager();
 
