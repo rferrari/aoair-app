@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { StatusBar } from "expo-status-bar";
-import { SafeAreaView, StyleSheet, ActivityIndicator, View } from "react-native";
+import { StyleSheet, ActivityIndicator, View } from "react-native";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { ChatScreen } from "./src/ui/ChatScreen";
 import { ModelSetupScreen } from "./src/ui/ModelSetupScreen";
 import { ModelManager } from "./src/models/ModelManager";
@@ -20,23 +21,25 @@ export default function App() {
   }, []);
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar style="light" />
-      {screen === "checking" && (
-        <View style={styles.centered}>
-          <ActivityIndicator color="#8f8" />
-        </View>
-      )}
-      {screen === "required-setup" && (
-        <ModelSetupScreen mode="required" onReady={() => setScreen("chat")} />
-      )}
-      {screen === "chat" && (
-        <ChatScreen onOpenModelSetup={() => setScreen("models")} />
-      )}
-      {screen === "models" && (
-        <ModelSetupScreen mode="optional" onClose={() => setScreen("chat")} />
-      )}
-    </SafeAreaView>
+    <SafeAreaProvider>
+      <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+        <StatusBar style="light" />
+        {screen === "checking" && (
+          <View style={styles.centered}>
+            <ActivityIndicator color="#8f8" />
+          </View>
+        )}
+        {screen === "required-setup" && (
+          <ModelSetupScreen mode="required" onReady={() => setScreen("chat")} />
+        )}
+        {screen === "chat" && (
+          <ChatScreen onOpenSettings={() => setScreen("models")} />
+        )}
+        {screen === "models" && (
+          <ModelSetupScreen mode="optional" onClose={() => setScreen("chat")} />
+        )}
+      </SafeAreaView>
+    </SafeAreaProvider>
   );
 }
 

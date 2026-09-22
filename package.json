@@ -16,7 +16,8 @@
     "llama.rn": "^0.13.0-rc.4",
     "ram-monitor": "file:./modules/ram-monitor",
     "react": "19.2.3",
-    "react-native": "0.86.3"
+    "react-native": "0.86.3",
+    "react-native-safe-area-context": "~5.7.0"
   },
   "devDependencies": {
     "@types/react": "~19.2.2",

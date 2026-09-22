@@ -16,6 +16,7 @@ export class EmbeddingEngine {
     if (!info.exists) {
       throw new Error(`Embedding model not found at ${modelPath}`);
     }
+    await this.unload();
     this.context = await initLlama({
       model: modelPath,
       embedding: true,
@@ -28,6 +29,11 @@ export class EmbeddingEngine {
     if (!this.context) throw new Error("EmbeddingEngine: model not loaded");
     const result = await this.context.embedding(text);
     return Float32Array.from(result.embedding);
+  }
+
+  async unload() {
+    await this.context?.release();
+    this.context = null;
   }
 }
 

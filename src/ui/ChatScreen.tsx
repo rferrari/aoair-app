@@ -10,12 +10,12 @@ import {
   Platform,
   ActivityIndicator,
 } from "react-native";
-import { SystemMonitor } from "./SystemMonitor";
 import { llamaEngine } from "../inference/LlamaEngine";
 import { embeddingEngine } from "../rag/embed";
 import { retrieve, assemblePrompt, RetrievedChunk } from "../rag/retrieve";
 import { seedKnowledgeBaseIfEmpty } from "../rag/seedCorpus";
-import { REQUIRED_MODELS } from "../models/manifest";
+import { MODEL_CATALOG, REQUIRED_MODELS } from "../models/manifest";
+import { getActiveModelId } from "../models/settings";
 
 interface Message {
   id: string;
@@ -24,7 +24,14 @@ interface Message {
   citations?: RetrievedChunk[];
 }
 
-export function ChatScreen({ onOpenModelSetup }: { onOpenModelSetup?: () => void }) {
+async function resolveActiveModel(kind: "llm" | "embedding") {
+  const activeId = await getActiveModelId(kind);
+  const fallback = REQUIRED_MODELS.find((m) => m.kind === kind)!;
+  if (!activeId) return fallback;
+  return MODEL_CATALOG.find((m) => m.id === activeId && m.kind === kind) ?? fallback;
+}
+
+export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [ready, setReady] = useState(false);
@@ -37,10 +44,11 @@ export function ChatScreen({ onOpenModelSetup }: { onOpenModelSetup?: () => void
     (async () => {
       try {
         // App.tsx only mounts ChatScreen once ModelManager.requiredModelsPresent()
-        // is true, so these files are already on disk here — no network,
-        // no bundled-asset copy needed at this point.
-        const llm = REQUIRED_MODELS.find((a) => a.kind === "llm")!;
-        const emb = REQUIRED_MODELS.find((a) => a.kind === "embedding")!;
+        // is true, so the required models are already on disk here — no
+        // network needed at this point. The active model (default or a
+        // user-selected alternate from Settings) is resolved from disk too.
+        const llm = await resolveActiveModel("llm");
+        const emb = await resolveActiveModel("embedding");
 
         await Promise.all([
           llamaEngine.load(llm.filename),
@@ -99,12 +107,10 @@ export function ChatScreen({ onOpenModelSetup }: { onOpenModelSetup?: () => void
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <View style={styles.headerRow}>
-        <View style={{ flex: 1 }}>
-          <SystemMonitor />
-        </View>
-        {onOpenModelSetup && (
-          <Pressable style={styles.modelsBtn} onPress={onOpenModelSetup}>
-            <Text style={styles.modelsBtnText}>Models</Text>
+        <Text style={styles.headerTitle}>aoair</Text>
+        {onOpenSettings && (
+          <Pressable style={styles.settingsBtn} onPress={onOpenSettings} hitSlop={8}>
+            <Text style={styles.settingsBtnText}>⚙ Settings</Text>
           </Pressable>
         )}
       </View>
@@ -160,9 +166,18 @@ export function ChatScreen({ onOpenModelSetup }: { onOpenModelSetup?: () => void
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#000" },
-  headerRow: { flexDirection: "row", alignItems: "center" },
-  modelsBtn: { paddingHorizontal: 12, paddingVertical: 6, backgroundColor: "#111" },
-  modelsBtnText: { color: "#8bf", fontSize: 11 },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#222",
+  },
+  headerTitle: { color: "#fff", fontSize: 16, fontWeight: "700" },
+  settingsBtn: { paddingVertical: 4, paddingHorizontal: 4 },
+  settingsBtnText: { color: "#8bf", fontSize: 13 },
   banner: {
     flexDirection: "row",
     alignItems: "center",

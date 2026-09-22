@@ -61,6 +61,33 @@ file `bge-small-en-v1.5-q8_0.gguf` (~35MB, sha256 below).
   questions in `docs/EVAL_QUERIES.md`, but growing it (more topics, fuller article
   text beyond the lead paragraph) would meaningfully improve real-world usefulness.
 
+## Language scope: English-only for this version
+
+bge-small-en-v1.5 is an English-only embedding model, and the bootstrap corpus is
+English-only. This was a deliberate choice, not an oversight: swapping in a
+per-locale embedding model would also require a per-locale knowledge base and
+separate retrieval-quality testing per language, and the primary LLM
+(Phi-3.5-mini-instruct) is itself primarily English-tuned — a multilingual
+embedding model wouldn't meaningfully help without a multilingual LLM and corpus
+to match. Worth revisiting (e.g. a multilingual embedding model matched to the
+device's locale, paired with a multilingual LLM candidate and corpus) as future
+work, not in this version.
+
+## Optional LLM catalog (choose your model)
+
+Beyond the required default, the in-app Settings screen offers additional
+Apache-2.0-licensed LLM candidates a user can download and switch to:
+
+| Candidate | Params | Quant | Approx. size | Notes |
+|---|---|---|---|---|
+| Qwen2.5-1.5B-Instruct | 1.5B | Q4_K_M | ~1.0GB | Faster/lighter alternative |
+| Qwen2.5-7B-Instruct | 7B | Q4_K_M | ~4.7GB | Stronger reasoning, more RAM/storage, slower tokens/sec |
+
+Both from `bartowski`'s GGUF quantizations, sha256-verified the same way as the
+default models (see `src/models/manifest.ts`). Switching models re-loads the
+inference engine (`LlamaEngine`/`EmbeddingEngine` now release their previous
+context before loading a new one, avoiding a native memory leak on switch).
+
 ## Delivery: one-time first-run download
 
 Both default models are declared with `required: true` in `src/models/manifest.ts`.

@@ -26,6 +26,11 @@ export class LlamaEngine {
       );
     }
 
+    // Release any previously loaded model first (e.g. switching models from
+    // Settings re-mounts ChatScreen and calls load() again) so we don't leak
+    // the old context's native memory.
+    await this.unload();
+
     this.context = await initLlama({
       model: modelPath,
       use_mlock: false, // avoid pinning full weights in RAM; rely on mmap streaming

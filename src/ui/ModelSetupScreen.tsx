@@ -1,12 +1,16 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, FlatList, Pressable, ActivityIndicator } from "react-native";
-import { MODEL_CATALOG, CatalogModel } from "../models/manifest";
+import { View, Text, StyleSheet, FlatList, Pressable, ActivityIndicator, ScrollView } from "react-native";
+import { MODEL_CATALOG, CatalogModel, AssetKind } from "../models/manifest";
 import { ModelManager, DownloadProgress } from "../models/ModelManager";
+import { getActiveModelId, setActiveModelId } from "../models/settings";
+import { SystemMonitor } from "./SystemMonitor";
 
 const modelManager = new ModelManager();
 
 function formatMB(bytes: number): string {
-  return `${(bytes / 1024 / 1024).toFixed(0)}MB`;
+  return bytes >= 1024 * 1024 * 1024
+    ? `${(bytes / 1024 / 1024 / 1024).toFixed(1)}GB`
+    : `${(bytes / 1024 / 1024).toFixed(0)}MB`;
 }
 
 interface RowState {
@@ -23,20 +27,21 @@ type Props =
 /**
  * Model catalog / setup screen, in two modes:
  *
- * - "required" (first run, no models on disk yet): blocks entry to the app
- *   until the default LLM + embedding model are downloaded. This is the
- *   ONE time the app needs network access; once done, "work completely
- *   offline once installed" holds from then on.
- * - "optional" (reached later via the chat screen's "Models" button): lets
- *   the user browse/download additional/alternate models, or remove ones
- *   they no longer want, purely opt-in.
+ * - "required" (first run, no models on disk yet): a short wizard that
+ *   explains the one-time download before starting it, then blocks entry
+ *   to the app until the default LLM + embedding model are present.
+ * - "optional" (the app's Settings screen, reached via the chat header):
+ *   storage/RAM readout, plus browsing/downloading additional models and
+ *   switching which downloaded model is active per kind.
  *
  * Either way, `ModelManager.downloadCatalogModel` — only ever triggered
  * here by an explicit action — is the app's sole network call site.
  */
 export function ModelSetupScreen(props: Props) {
-  const [rows, setRows] = useState<Record<string, RowState>>({});
   const requiredMode = props.mode === "required";
+  const [wizardStep, setWizardStep] = useState<"intro" | "downloading">("intro");
+  const [rows, setRows] = useState<Record<string, RowState>>({});
+  const [activeIds, setActiveIds] = useState<Partial<Record<AssetKind, string>>>({});
 
   const refreshStatus = useCallback(async () => {
     const statuses = await modelManager.statusAll();
@@ -52,6 +57,14 @@ export function ModelSetupScreen(props: Props) {
       }
       return next;
     });
+
+    const llmActive = await getActiveModelId("llm");
+    const embActive = await getActiveModelId("embedding");
+    setActiveIds({
+      llm: llmActive ?? MODEL_CATALOG.find((m) => m.kind === "llm" && m.required)?.id,
+      embedding: embActive ?? MODEL_CATALOG.find((m) => m.kind === "embedding" && m.required)?.id,
+    });
+
     return statuses;
   }, []);
 
@@ -96,92 +109,160 @@ export function ModelSetupScreen(props: Props) {
     [refreshStatus]
   );
 
+  const useModel = useCallback(
+    async (model: CatalogModel) => {
+      await setActiveModelId(model.kind, model.id);
+      await refreshStatus();
+    },
+    [refreshStatus]
+  );
+
   useEffect(() => {
-    (async () => {
-      const statuses = await refreshStatus();
-      if (requiredMode) {
-        // Kick off downloads for whichever required models are missing.
-        for (const s of statuses) {
-          if (s.asset.required && !s.present) {
-            download(s.asset);
-          }
-        }
-      }
-    })();
+    refreshStatus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const startRequiredDownloads = useCallback(async () => {
+    setWizardStep("downloading");
+    const statuses = await refreshStatus();
+    for (const s of statuses) {
+      if (s.asset.required && !s.present) {
+        download(s.asset);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [download, refreshStatus]);
 
   const requiredReady = MODEL_CATALOG.filter((m) => m.required).every(
     (m) => rows[m.id]?.present
   );
 
+  if (requiredMode && wizardStep === "intro") {
+    return (
+      <View style={styles.container}>
+        <ScrollView contentContainerStyle={styles.introScroll}>
+          <Text style={styles.introIcon}>⛺</Text>
+          <Text style={styles.introTitle}>Welcome to aoair</Text>
+          <Text style={styles.introBody}>
+            An offline AI research assistant — local inference, local retrieval,
+            no cloud, no accounts.
+          </Text>
+          <View style={styles.introCard}>
+            <Text style={styles.introCardTitle}>One-time setup</Text>
+            <Text style={styles.introCardBody}>
+              aoair needs an internet connection right now, once, to download its
+              default AI model (~2.3GB) and embedding model (~35MB).
+            </Text>
+          </View>
+          <View style={styles.introCard}>
+            <Text style={styles.introCardTitle}>Then, fully offline</Text>
+            <Text style={styles.introCardBody}>
+              After this setup finishes, aoair never needs the internet again —
+              chat, search, and reasoning all run entirely on this device. You
+              can even turn on airplane mode right now.
+            </Text>
+          </View>
+        </ScrollView>
+        <Pressable style={styles.primaryBtn} onPress={startRequiredDownloads}>
+          <Text style={styles.primaryBtnText}>Start setup</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>{requiredMode ? "Set up aoair" : "Model catalog"}</Text>
+        <Text style={styles.title}>{requiredMode ? "Downloading models" : "Settings"}</Text>
         {!requiredMode && (
-          <Pressable onPress={(props as { onClose: () => void }).onClose}>
+          <Pressable onPress={(props as { onClose: () => void }).onClose} hitSlop={8}>
             <Text style={styles.closeBtn}>Close</Text>
           </Pressable>
         )}
       </View>
-      <Text style={styles.subtitle}>
-        {requiredMode
-          ? "One-time setup: downloading the default models. This needs an internet " +
-            "connection now, but the app works fully offline from then on."
-          : "The default models are set up. Downloading extra models here requires " +
-            "an internet connection — nothing else in this app does."}
-      </Text>
-      <FlatList
-        data={requiredMode ? MODEL_CATALOG.filter((m) => m.required) : MODEL_CATALOG}
-        keyExtractor={(m) => m.id}
-        contentContainerStyle={styles.list}
-        renderItem={({ item }) => {
-          const row = rows[item.id];
-          return (
-            <View style={styles.row}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.label}>{item.label}</Text>
-                <Text style={styles.meta}>
-                  {item.kind} · {formatMB(item.sizeBytes)} · {item.license}
-                  {item.required ? " · default" : ""}
-                </Text>
-                <Text style={styles.description}>{item.description}</Text>
-                {row?.error && <Text style={styles.error}>{row.error}</Text>}
-                {row?.downloading && (
-                  <Text style={styles.meta}>
-                    Downloading… {(row.progress * 100).toFixed(0)}%
+
+      <ScrollView>
+        {!requiredMode && <SystemMonitor />}
+
+        {requiredMode && (
+          <Text style={styles.subtitle}>
+            This needs an internet connection now — the app works fully offline
+            from here on once it's done.
+          </Text>
+        )}
+        {!requiredMode && (
+          <Text style={styles.subtitle}>
+            Downloading or switching models here needs an internet connection —
+            nothing else in this app does.
+          </Text>
+        )}
+
+        <FlatList
+          data={requiredMode ? MODEL_CATALOG.filter((m) => m.required) : MODEL_CATALOG}
+          keyExtractor={(m) => m.id}
+          scrollEnabled={false}
+          contentContainerStyle={styles.list}
+          renderItem={({ item }) => {
+            const row = rows[item.id];
+            const isActive = activeIds[item.kind] === item.id;
+            return (
+              <View style={styles.row}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.label}>
+                    {item.label}
+                    {isActive && !requiredMode ? "  ★" : ""}
                   </Text>
+                  <Text style={styles.meta}>
+                    {item.kind} · {formatMB(item.sizeBytes)} · {item.license}
+                    {item.required ? " · default" : ""}
+                  </Text>
+                  <Text style={styles.description}>{item.description}</Text>
+                  {row?.error && <Text style={styles.error}>{row.error}</Text>}
+                  {row?.downloading && (
+                    <View style={styles.progressTrack}>
+                      <View style={[styles.progressFill, { width: `${row.progress * 100}%` }]} />
+                    </View>
+                  )}
+                </View>
+                {row?.downloading ? (
+                  <ActivityIndicator color="#8f8" />
+                ) : row?.present ? (
+                  requiredMode ? (
+                    <Text style={styles.meta}>ready</Text>
+                  ) : isActive ? (
+                    <Text style={styles.activeLabel}>Active</Text>
+                  ) : (
+                    <View style={{ gap: 6, alignItems: "flex-end" }}>
+                      <Pressable onPress={() => useModel(item)}>
+                        <Text style={styles.useBtn}>Use this</Text>
+                      </Pressable>
+                      {!item.required && (
+                        <Pressable onPress={() => remove(item)}>
+                          <Text style={styles.removeBtn}>Remove</Text>
+                        </Pressable>
+                      )}
+                    </View>
+                  )
+                ) : (
+                  <Pressable style={styles.downloadBtn} onPress={() => download(item)}>
+                    <Text style={styles.downloadBtnText}>
+                      {row?.error ? "Retry" : "Download"}
+                    </Text>
+                  </Pressable>
                 )}
               </View>
-              {row?.downloading ? (
-                <ActivityIndicator color="#8f8" />
-              ) : row?.present ? (
-                requiredMode ? (
-                  <Text style={styles.meta}>ready</Text>
-                ) : (
-                  <Pressable onPress={() => remove(item)}>
-                    <Text style={styles.removeBtn}>Remove</Text>
-                  </Pressable>
-                )
-              ) : (
-                <Pressable style={styles.downloadBtn} onPress={() => download(item)}>
-                  <Text style={styles.downloadBtnText}>
-                    {row?.error ? "Retry" : "Download"}
-                  </Text>
-                </Pressable>
-              )}
-            </View>
-          );
-        }}
-      />
+            );
+          }}
+        />
+      </ScrollView>
+
       {requiredMode && (
         <Pressable
-          style={[styles.continueBtn, !requiredReady && styles.continueBtnDisabled]}
+          style={[styles.primaryBtn, !requiredReady && styles.primaryBtnDisabled]}
           disabled={!requiredReady}
           onPress={() => (props as { onReady: () => void }).onReady()}
         >
-          <Text style={styles.downloadBtnText}>
+          <Text style={styles.primaryBtnText}>
             {requiredReady ? "Continue" : "Waiting for downloads…"}
           </Text>
         </Pressable>
@@ -192,6 +273,19 @@ export function ModelSetupScreen(props: Props) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#000" },
+  introScroll: { padding: 24, alignItems: "center", gap: 16 },
+  introIcon: { fontSize: 48, marginTop: 24 },
+  introTitle: { color: "#fff", fontSize: 24, fontWeight: "700" },
+  introBody: { color: "#aaa", fontSize: 14, textAlign: "center", lineHeight: 20 },
+  introCard: {
+    backgroundColor: "#111",
+    borderRadius: 12,
+    padding: 16,
+    width: "100%",
+    gap: 6,
+  },
+  introCardTitle: { color: "#8bf", fontSize: 13, fontWeight: "700" },
+  introCardBody: { color: "#ccc", fontSize: 13, lineHeight: 19 },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -214,15 +308,26 @@ const styles = StyleSheet.create({
   meta: { color: "#8f8", fontSize: 11, marginTop: 2 },
   description: { color: "#999", fontSize: 12, marginTop: 4 },
   error: { color: "#f88", fontSize: 11, marginTop: 4 },
+  progressTrack: {
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: "#222",
+    overflow: "hidden",
+    marginTop: 6,
+  },
+  progressFill: { height: "100%", backgroundColor: "#3a7a4a" },
   downloadBtn: { backgroundColor: "#2a5f3a", borderRadius: 6, paddingHorizontal: 12, paddingVertical: 6 },
   downloadBtnText: { color: "#fff", fontSize: 12, fontWeight: "600" },
+  useBtn: { color: "#8bf", fontSize: 12, fontWeight: "600" },
   removeBtn: { color: "#f88", fontSize: 12 },
-  continueBtn: {
+  activeLabel: { color: "#8f8", fontSize: 12, fontWeight: "600" },
+  primaryBtn: {
     backgroundColor: "#2a5f3a",
     borderRadius: 8,
     margin: 12,
-    paddingVertical: 12,
+    paddingVertical: 14,
     alignItems: "center",
   },
-  continueBtnDisabled: { backgroundColor: "#333" },
+  primaryBtnDisabled: { backgroundColor: "#333" },
+  primaryBtnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
 });
