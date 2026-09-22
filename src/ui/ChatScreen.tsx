@@ -478,7 +478,7 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
             </Pressable>
           ) : (
             <Pressable style={styles.sendBtn} onPress={send} disabled={!ready}>
-              <Text style={styles.sendBtnText}>Send</Text>
+              <Text style={styles.sendBtnText}>➤</Text>
             </Pressable>
           )}
         </View>
@@ -605,16 +605,20 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   sendBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: "#2a5f3a",
-    borderRadius: 8,
-    paddingHorizontal: 16,
+    alignItems: "center",
     justifyContent: "center",
   },
-  sendBtnText: { color: "#fff", fontWeight: "600" },
+  sendBtnText: { color: "#fff", fontWeight: "700", fontSize: 17 },
   stopBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: "#7a2a2a",
-    borderRadius: 8,
-    paddingHorizontal: 16,
+    alignItems: "center",
     justifyContent: "center",
   },
   stopBtnText: { color: "#fff", fontWeight: "700", fontSize: 16 },
