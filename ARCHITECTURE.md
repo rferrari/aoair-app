@@ -55,4 +55,13 @@ aoair_app/
 
 ## Status
 
-Scaffolding in progress. See MEMORY/todo in this repo's git history for current step.
+- [x] Expo TS scaffold, `expo-dev-client`, `expo-sqlite`, `expo-file-system`, `llama.rn` installed
+- [x] `app.json` blocks INTERNET/network permissions, sets Android package id
+- [x] ModelManager (checksum/presence verification), manifest schema
+- [x] FTS5 schema + hybrid (lexical+semantic) retrieval + prompt assembly
+- [x] LlamaEngine (generation) and EmbeddingEngine wrappers over `llama.rn`
+- [x] Chat UI with streaming tokens, citations, live storage monitor
+- [ ] `expo prebuild` + real Android build/run on a device
+- [ ] Finalize + benchmark model choices (see docs/MODELS.md)
+- [ ] Build/ship the actual offline knowledge base
+- [ ] Native RSS-based RAM monitor (JS heap is currently a placeholder, not true process RAM)

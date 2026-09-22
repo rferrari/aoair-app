@@ -39,3 +39,7 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# model weights and generated indexes (fetched via scripts/setup-models.sh)
+assets/models/
+*.gguf
