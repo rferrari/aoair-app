@@ -24,7 +24,8 @@
     },
     "plugins": [
       "expo-sqlite",
-      "expo-dev-client"
+      "expo-dev-client",
+      "expo-sharing"
     ],
     "extra": {
       "eas": {

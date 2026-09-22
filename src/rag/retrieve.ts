@@ -16,8 +16,12 @@ async function lexicalSearch(query: string, limit: number): Promise<RetrievedChu
     body: string;
     rank: number;
   }>(
-    `SELECT chunk_id, doc_id, title, body, bm25(chunks_fts) AS rank
-     FROM chunks_fts WHERE chunks_fts MATCH ? ORDER BY rank LIMIT ?`,
+    `SELECT f.chunk_id, f.doc_id, f.title, f.body, bm25(chunks_fts) AS rank
+     FROM chunks_fts f
+     JOIN chunks c ON c.chunk_id = f.chunk_id
+     LEFT JOIN custom_collections cc ON cc.id = c.collection_id
+     WHERE chunks_fts MATCH ? AND (c.collection_id IS NULL OR cc.active = 1)
+     ORDER BY rank LIMIT ?`,
     [`"${escaped}"`, limit]
   );
   return rows.map((r) => ({
@@ -43,7 +47,10 @@ async function semanticSearch(query: string, limit: number): Promise<RetrievedCh
     embedding: Uint8Array;
   }>(
     `SELECT c.chunk_id, c.doc_id, c.title, c.body, e.embedding
-     FROM chunk_embeddings e JOIN chunks c ON c.chunk_id = e.chunk_id`
+     FROM chunk_embeddings e
+     JOIN chunks c ON c.chunk_id = e.chunk_id
+     LEFT JOIN custom_collections cc ON cc.id = c.collection_id
+     WHERE c.collection_id IS NULL OR cc.active = 1`
   );
 
   const scored = rows.map((r) => {

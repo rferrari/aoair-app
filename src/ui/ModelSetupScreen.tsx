@@ -6,6 +6,7 @@ import { getActiveModelId, setActiveModelId } from "../models/settings";
 import { seedKnowledgeBaseIfEmpty } from "../rag/seedCorpus";
 import { startDownload, getDownloadState, isDownloading, subscribeDownloads } from "../services/downloadManager";
 import { CatalogItemCard, CatalogRowState } from "./CatalogItemCard";
+import { CorpusSettingsTab } from "./CorpusSettingsTab";
 import { PersonalitySettings } from "./PersonalitySettings";
 import { UsageStatsContent } from "./UsageStatsContent";
 import { VoiceSettings } from "./VoiceSettings";
@@ -297,21 +298,11 @@ export function ModelSetupScreen(props: Props) {
         </AccordionSection>
 
         <AccordionSection icon="📦" title="Knowledge Base">
-          <FlatList
-            data={CORPUS_CATALOG}
-            keyExtractor={(m) => m.id}
-            scrollEnabled={false}
-            contentContainerStyle={styles.list}
-            renderItem={({ item }) => (
-              <CatalogItemCard
-                item={item}
-                row={getRow(item)}
-                isActive={presence[item.id] ?? false}
-                onDownload={download}
-                onUse={() => {}}
-                onRemove={remove}
-              />
-            )}
+          <CorpusSettingsTab
+            corpusItems={CORPUS_CATALOG}
+            getRow={getRow}
+            download={download}
+            remove={remove}
           />
         </AccordionSection>
 

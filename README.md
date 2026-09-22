@@ -11,6 +11,9 @@ Research App" community bounty.
 - Works completely offline after a one-time first-run model setup
 - Runs on GrapheneOS / no GMS dependency
 - Real Android device, not just emulator
+- Import your own documents (.txt/.md/.csv/.json) into the local knowledge
+  base, toggle or delete them per-collection, and export/share a collection
+  as a portable JSON pack — see [Custom knowledge base](#custom-knowledge-base) below
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for the design (including exactly how
 first-run model setup works and why network permission is present but unused
@@ -46,6 +49,33 @@ An in-app "Models" screen lets you optionally download additional/alternate
 models later when you do have connectivity — see
 `src/ui/ModelSetupScreen.tsx`, the only place in the app that touches the
 network.
+
+## Custom knowledge base
+
+Settings > Knowledge Base has an "Import" card alongside the built-in
+downloadable corpus packs. It lets you index your own notes into the same
+local FTS5 + vector search used everywhere else in the app:
+
+- **Supported formats:** `.txt`, `.md`, `.csv` (naive comma-split, no quoted-field
+  escaping), `.json` (either the app's own `{title, source, body}[]` corpus-pack
+  shape, or any other JSON — imported as raw text otherwise). **PDF is not
+  supported** — there's no pure-JS PDF text extractor reliable enough for
+  real-world (compressed-stream) PDFs to run in Hermes, and a native PDF
+  library would reintroduce the native-dependency/rebuild risk this project
+  has otherwise avoided. Convert a PDF to text/markdown first.
+- Each import is chunked (~500 tokens, 50-token overlap, heuristic
+  char-based split) and embedded on-device with the same embedding model used
+  for the rest of the knowledge base, then saved as a named, toggleable
+  collection — turn one off without deleting it, or delete it outright.
+- **Export** re-serializes a collection as `{title, source, body}[]` JSON (the
+  same shape as the bundled corpus packs) and hands it to the Android share
+  sheet — send it over Bluetooth, Nearby Share, a file manager, whatever the
+  recipient's device offers. This is deliberately *not* a raw `.sqlite`
+  export: that would bake in this device's specific embedding vectors, which
+  are meaningless (or the wrong dimension) on a phone running a different
+  embedding model. A recipient re-embeds the JSON locally by importing it the
+  same way.
+- Everything happens on-device; nothing is uploaded anywhere.
 
 ## Development
 
