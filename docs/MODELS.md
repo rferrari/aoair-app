@@ -114,6 +114,19 @@ ANN index) not attempted here. The architecture is designed so more packs can
 be added later within the 50GB storage budget without changing how any of
 this works — `MODEL_CATALOG`/`TIERS` are meant to grow.
 
+## UI dependency choices
+
+The chat UI's animations (mic pulse/aura rings, processing indicator, drawer
+slide) all use React Native's built-in `Animated` API rather than
+`react-native-reanimated`, and the side drawer is hand-rolled rather than
+`@react-navigation/drawer`. Both would work, but both are heavier native
+dependency chains (worklets + Babel plugin; gesture-handler + screens + a
+full navigator) for effects `Animated` and a simple slide-panel component
+already deliver here — given this app is a single-screen state machine, not
+a multi-route navigator, pulling in a routing library felt like solving a
+problem this app doesn't have. `expo-linear-gradient` is the one new native
+dependency added for the gradient background/glassmorphism look.
+
 ## Voice input (offline speech-to-text)
 
 `modules/voice-input` wraps Android's built-in `SpeechRecognizer` with

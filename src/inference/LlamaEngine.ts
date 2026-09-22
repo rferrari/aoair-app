@@ -66,6 +66,16 @@ export class LlamaEngine {
     );
     return text ?? full;
   }
+
+  /**
+   * Signals the native completion loop to stop. The in-flight generate()
+   * call's completion() promise resolves normally with whatever text was
+   * generated so far — this is llama.cpp's own clean-stop behavior, not an
+   * error/abort path, so no try/catch needed around a stopped generate().
+   */
+  async stop(): Promise<void> {
+    await this.context?.stopCompletion();
+  }
 }
 
 export const llamaEngine = new LlamaEngine();

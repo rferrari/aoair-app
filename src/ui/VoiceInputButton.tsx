@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Pressable, Text, StyleSheet, Animated, Alert } from "react-native";
+import { Pressable, Text, StyleSheet, Animated, Alert, View } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { isVoiceInputAvailable, startListening, stopListening, VoiceEvent } from "../voice/VoiceInput";
 
 interface Props {
@@ -7,13 +8,58 @@ interface Props {
   onTranscript: (text: string) => void;
 }
 
+const AURA_COLORS = ["#22d3ee", "#3b82f6", "#8b5cf6", "#ec4899"] as const; // cyan -> blue -> violet -> pink
+
+function AuraRing({ active, delay }: { active: boolean; delay: number }) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!active) {
+      scale.setValue(1);
+      opacity.setValue(0);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.delay(delay),
+        Animated.parallel([
+          Animated.timing(scale, { toValue: 1.9, duration: 900, useNativeDriver: true }),
+          Animated.timing(opacity, { toValue: 0, duration: 900, useNativeDriver: true }),
+        ]),
+        Animated.timing(scale, { toValue: 1, duration: 0, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 0.55, duration: 0, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [active, delay, scale, opacity]);
+
+  return (
+    <Animated.View
+      style={[styles.ring, { opacity, transform: [{ scale }] }]}
+      pointerEvents="none"
+    >
+      <LinearGradient
+        colors={AURA_COLORS}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.ringGradient}
+      />
+    </Animated.View>
+  );
+}
+
 /**
- * Mic button for offline speech-to-text. Backed by Android's built-in
- * SpeechRecognizer with EXTRA_PREFER_OFFLINE (src/voice/VoiceInput.ts +
- * modules/voice-input) — works on stock Android/most OEM builds that ship a
- * speech-recognition service, but NOT guaranteed on GrapheneOS or other
- * de-Googled builds with no such service installed. Detects this and shows
- * a clear "unavailable" state instead of pretending to listen.
+ * Gemini-style glowing mic: idle is a sleek metallic-gradient circle;
+ * listening expands multi-color aura rings (cyan -> blue -> violet ->
+ * pink) that pulse outward. Built with core Animated + expo-linear-gradient
+ * (no react-native-reanimated) — see docs/MODELS.md for why.
+ *
+ * Backed by Android's built-in SpeechRecognizer with EXTRA_PREFER_OFFLINE
+ * (src/voice/VoiceInput.ts) — not guaranteed available on GrapheneOS/
+ * de-Googled builds; shows a clear "unavailable" message there instead of
+ * pretending to listen.
  */
 export function VoiceInputButton({ disabled, onTranscript }: Props) {
   const [available, setAvailable] = useState<boolean | null>(null);
@@ -31,7 +77,7 @@ export function VoiceInputButton({ disabled, onTranscript }: Props) {
     }
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulse, { toValue: 1.3, duration: 500, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1.12, duration: 500, useNativeDriver: true }),
         Animated.timing(pulse, { toValue: 1, duration: 500, useNativeDriver: true }),
       ])
     );
@@ -56,9 +102,7 @@ export function VoiceInputButton({ disabled, onTranscript }: Props) {
     setListening(true);
     try {
       const result = await startListening((event: VoiceEvent) => {
-        if (event.type === "error") {
-          setListening(false);
-        }
+        if (event.type === "error") setListening(false);
       });
       if (result) onTranscript(result);
     } finally {
@@ -67,33 +111,51 @@ export function VoiceInputButton({ disabled, onTranscript }: Props) {
   };
 
   return (
-    <Animated.View style={{ transform: [{ scale: pulse }] }}>
-      <Pressable
-        style={[
-          styles.btn,
-          listening && styles.btnListening,
-          (disabled || available === false) && styles.btnDisabled,
-        ]}
-        onPress={handlePress}
-        disabled={disabled && !listening}
-        hitSlop={8}
-      >
-        <Text style={styles.icon}>{listening ? "●" : "🎤"}</Text>
-      </Pressable>
-    </Animated.View>
+    <View style={styles.container}>
+      {[0, 300, 600].map((delay) => (
+        <AuraRing key={delay} active={listening} delay={delay} />
+      ))}
+      <Animated.View style={{ transform: [{ scale: pulse }] }}>
+        <Pressable
+          onPress={handlePress}
+          disabled={disabled && !listening}
+          hitSlop={8}
+          style={(disabled || available === false) && styles.btnDisabled}
+        >
+          <LinearGradient
+            colors={listening ? AURA_COLORS : ["#2a2a3a", "#16161f"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.btn}
+          >
+            <Text style={styles.icon}>{listening ? "●" : "🎤"}</Text>
+          </LinearGradient>
+        </Pressable>
+      </Animated.View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   btn: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#1a1a1a",
     alignItems: "center",
     justifyContent: "center",
   },
-  btnListening: { backgroundColor: "#7a2a2a" },
   btnDisabled: { opacity: 0.4 },
-  icon: { fontSize: 16 },
+  icon: { fontSize: 16, color: "#fff" },
+  ring: {
+    position: "absolute",
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  ringGradient: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 20,
+  },
 });
