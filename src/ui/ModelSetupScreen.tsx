@@ -1,15 +1,16 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, FlatList, Pressable, ScrollView } from "react-native";
 import { MODEL_CATALOG, CatalogModel, AssetKind, TIERS, SetupTier, CORPUS_CATALOG } from "../models/manifest";
-import { ModelManager, DownloadProgress } from "../models/ModelManager";
+import { ModelManager } from "../models/ModelManager";
 import { getActiveModelId, setActiveModelId } from "../models/settings";
 import { seedKnowledgeBaseIfEmpty } from "../rag/seedCorpus";
+import { startDownload, getDownloadState, isDownloading, subscribeDownloads } from "../services/downloadManager";
 import { CatalogItemCard, CatalogRowState } from "./CatalogItemCard";
 import { PersonalitySettings } from "./PersonalitySettings";
 import { UsageStatsContent } from "./UsageStatsContent";
 import { VoiceSettings } from "./VoiceSettings";
 import { MemorySettings } from "./MemorySettings";
-import { SegmentedTabs } from "./SegmentedTabs";
+import { AccordionSection } from "./AccordionSection";
 import { Toast } from "./Toast";
 
 const modelManager = new ModelManager();
@@ -19,15 +20,6 @@ type Props =
   | { mode: "required"; onReady: () => void }
   | { mode: "optional"; onClose: () => void };
 
-type SettingsTab = "tone" | "knowledge" | "memory" | "stats" | "voice";
-const SETTINGS_TABS = [
-  { key: "tone" as const, icon: "🤖", label: "Tone & Model" },
-  { key: "knowledge" as const, icon: "📦", label: "Knowledge Base" },
-  { key: "memory" as const, icon: "💾", label: "Memory" },
-  { key: "stats" as const, icon: "⚡", label: "Stats & System" },
-  { key: "voice" as const, icon: "🎙️", label: "Voice" },
-];
-
 /**
  * Model catalog / setup screen, in two modes:
  *
@@ -35,34 +27,32 @@ const SETTINGS_TABS = [
  *   explains the one-time download before starting it, then blocks entry
  *   to the app until the default LLM + embedding model are present.
  * - "optional" (the app's Settings screen, reached via the chat drawer):
- *   a tabbed view — Tone & Model, Knowledge Base, Stats & System, Voice.
+ *   collapsible sections — Tone & Model, Knowledge Base, Memory, Stats &
+ *   System, Voice.
  *
- * Either way, `ModelManager.downloadCatalogModel` — only ever triggered
- * here by an explicit action — is the app's sole network call site.
+ * Download progress/state lives in src/services/downloadManager.ts (a
+ * module-level store), not component state — this screen (and the whole
+ * app) can unmount/remount while a download is in flight and this screen
+ * will correctly show it still running when reopened, instead of forgetting
+ * about it and risking a second concurrent download to the same file (see
+ * that module's doc comment for the bug this fixes).
  */
 export function ModelSetupScreen(props: Props) {
   const requiredMode = props.mode === "required";
   const [wizardStep, setWizardStep] = useState<"welcome" | "intro" | "downloading">("welcome");
-  const [settingsTab, setSettingsTab] = useState<SettingsTab>("tone");
   const [selectedTier, setSelectedTier] = useState<SetupTier>("standard");
-  const [rows, setRows] = useState<Record<string, CatalogRowState>>({});
+  const [presence, setPresence] = useState<Record<string, boolean>>({});
   const [activeIds, setActiveIds] = useState<Partial<Record<AssetKind, string>>>({});
   const [toast, setToast] = useState<string | null>(null);
+  const [, forceRender] = useState(0);
+
+  // Re-render whenever any download's progress changes, so rows reflect
+  // live state even if this screen wasn't the one that started it.
+  useEffect(() => subscribeDownloads(() => forceRender((n) => n + 1)), []);
 
   const refreshStatus = useCallback(async () => {
     const statuses = await modelManager.statusAll();
-    setRows((prev) => {
-      const next = { ...prev };
-      for (const s of statuses) {
-        next[s.asset.id] = {
-          present: s.present,
-          downloading: prev[s.asset.id]?.downloading ?? false,
-          progress: prev[s.asset.id]?.progress ?? 0,
-          error: prev[s.asset.id]?.error ?? null,
-        };
-      }
-      return next;
-    });
+    setPresence(Object.fromEntries(statuses.map((s) => [s.asset.id, s.present])));
 
     const next: Partial<Record<AssetKind, string>> = {};
     for (const kind of LLM_EMBEDDING_KINDS) {
@@ -74,47 +64,34 @@ export function ModelSetupScreen(props: Props) {
     return statuses;
   }, []);
 
+  const getRow = useCallback(
+    (item: CatalogModel): CatalogRowState => {
+      const dl = getDownloadState(item.id);
+      return {
+        present: presence[item.id] ?? false,
+        downloading: isDownloading(item.id),
+        progress: dl?.progress ?? 0,
+        error: dl?.error ?? null,
+      };
+    },
+    [presence]
+  );
+
   const download = useCallback(
     async (model: CatalogModel) => {
-      setRows((prev) => ({
-        ...prev,
-        [model.id]: { present: false, downloading: true, progress: 0, error: null },
-      }));
-      try {
-        await modelManager.downloadCatalogModel(model, (p: DownloadProgress) => {
-          const progress =
-            p.totalBytesExpectedToWrite > 0 ? p.totalBytesWritten / p.totalBytesExpectedToWrite : 0;
-          setRows((prev) => ({
-            ...prev,
-            [model.id]: { ...prev[model.id], downloading: true, progress },
-          }));
-        });
-        setRows((prev) => ({
-          ...prev,
-          [model.id]: { present: true, downloading: false, progress: 1, error: null },
-        }));
+      await startDownload(model);
+      await refreshStatus();
 
-        // A corpus pack just landed on disk. In optional (Settings) mode the
-        // embedding model is already loaded (ChatScreen mounted before this
-        // screen is reachable), so we can merge its docs into the knowledge
-        // base right away instead of waiting for the next app launch.
-        if (model.kind === "corpus" && !requiredMode) {
-          await seedKnowledgeBaseIfEmpty();
-          setToast(`Added "${model.label}" to your offline knowledge base`);
-        }
-      } catch (e: any) {
-        setRows((prev) => ({
-          ...prev,
-          [model.id]: {
-            present: false,
-            downloading: false,
-            progress: 0,
-            error: e?.message ?? String(e),
-          },
-        }));
+      // A corpus pack just landed on disk. In optional (Settings) mode the
+      // embedding model is already loaded (ChatScreen mounted before this
+      // screen is reachable), so we can merge its docs into the knowledge
+      // base right away instead of waiting for the next app launch.
+      if (model.kind === "corpus" && !requiredMode && !getDownloadState(model.id)?.error) {
+        await seedKnowledgeBaseIfEmpty();
+        setToast(`Added "${model.label}" to your offline knowledge base`);
       }
     },
-    [requiredMode]
+    [requiredMode, refreshStatus]
   );
 
   const remove = useCallback(
@@ -158,7 +135,7 @@ export function ModelSetupScreen(props: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [download, refreshStatus, tierAssets]);
 
-  const requiredReady = tierAssets.every((m) => rows[m.id]?.present);
+  const requiredReady = tierAssets.every((m) => presence[m.id]);
 
   const chooseForMe = useCallback(() => {
     setSelectedTier("standard");
@@ -256,7 +233,8 @@ export function ModelSetupScreen(props: Props) {
         </View>
         <Text style={styles.subtitle}>
           This needs an internet connection now — the app works fully offline
-          from here on once it's done.
+          from here on once it's done. Keep aoair open in the foreground until
+          this finishes — backgrounding the app can interrupt a download.
         </Text>
         <FlatList
           data={tierAssets}
@@ -265,7 +243,7 @@ export function ModelSetupScreen(props: Props) {
           renderItem={({ item }) => (
             <CatalogItemCard
               item={item}
-              row={rows[item.id]}
+              row={getRow(item)}
               isActive={item.required || tierCorpusPackIds.includes(item.id)}
               onDownload={download}
               onUse={() => {}}
@@ -286,7 +264,7 @@ export function ModelSetupScreen(props: Props) {
     );
   }
 
-  // Optional mode: tabbed Settings screen.
+  // Optional mode: collapsible Settings screen.
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -296,33 +274,29 @@ export function ModelSetupScreen(props: Props) {
         </Pressable>
       </View>
 
-      <SegmentedTabs tabs={SETTINGS_TABS} activeKey={settingsTab} onChange={(k) => setSettingsTab(k as SettingsTab)} />
+      <ScrollView contentContainerStyle={styles.accordionScroll}>
+        <AccordionSection icon="🤖" title="Tone & Model" defaultOpen>
+          <PersonalitySettings />
+          <Text style={styles.sectionHeading}>Generation model</Text>
+          <FlatList
+            data={MODEL_CATALOG.filter((m) => m.kind === "llm" || m.kind === "embedding")}
+            keyExtractor={(m) => m.id}
+            scrollEnabled={false}
+            contentContainerStyle={styles.list}
+            renderItem={({ item }) => (
+              <CatalogItemCard
+                item={item}
+                row={getRow(item)}
+                isActive={activeIds[item.kind] === item.id}
+                onDownload={download}
+                onUse={useModel}
+                onRemove={remove}
+              />
+            )}
+          />
+        </AccordionSection>
 
-      <ScrollView style={styles.tabContent} contentContainerStyle={styles.tabContentContainer}>
-        {settingsTab === "tone" && (
-          <>
-            <PersonalitySettings />
-            <Text style={styles.sectionHeading}>Generation model</Text>
-            <FlatList
-              data={MODEL_CATALOG.filter((m) => m.kind === "llm" || m.kind === "embedding")}
-              keyExtractor={(m) => m.id}
-              scrollEnabled={false}
-              contentContainerStyle={styles.list}
-              renderItem={({ item }) => (
-                <CatalogItemCard
-                  item={item}
-                  row={rows[item.id]}
-                  isActive={activeIds[item.kind] === item.id}
-                  onDownload={download}
-                  onUse={useModel}
-                  onRemove={remove}
-                />
-              )}
-            />
-          </>
-        )}
-
-        {settingsTab === "knowledge" && (
+        <AccordionSection icon="📦" title="Knowledge Base">
           <FlatList
             data={CORPUS_CATALOG}
             keyExtractor={(m) => m.id}
@@ -331,19 +305,27 @@ export function ModelSetupScreen(props: Props) {
             renderItem={({ item }) => (
               <CatalogItemCard
                 item={item}
-                row={rows[item.id]}
-                isActive={rows[item.id]?.present ?? false}
+                row={getRow(item)}
+                isActive={presence[item.id] ?? false}
                 onDownload={download}
                 onUse={() => {}}
                 onRemove={remove}
               />
             )}
           />
-        )}
+        </AccordionSection>
 
-        {settingsTab === "memory" && <MemorySettings />}
-        {settingsTab === "stats" && <UsageStatsContent />}
-        {settingsTab === "voice" && <VoiceSettings />}
+        <AccordionSection icon="💾" title="Memory">
+          <MemorySettings />
+        </AccordionSection>
+
+        <AccordionSection icon="⚡" title="Stats & System">
+          <UsageStatsContent />
+        </AccordionSection>
+
+        <AccordionSection icon="🎙️" title="Voice">
+          <VoiceSettings />
+        </AccordionSection>
       </ScrollView>
 
       <Toast message={toast} onHide={() => setToast(null)} />
@@ -399,8 +381,7 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   title: { color: "#fff", fontSize: 18, fontWeight: "600" },
-  tabContent: { flex: 1 },
-  tabContentContainer: { paddingBottom: 24 },
+  accordionScroll: { paddingBottom: 24 },
   closeBtn: { color: "#8bf", fontSize: 14 },
   subtitle: { color: "#999", fontSize: 12, paddingHorizontal: 12, paddingBottom: 8 },
   sectionHeading: {
