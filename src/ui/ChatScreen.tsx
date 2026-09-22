@@ -15,7 +15,9 @@ import { embeddingEngine } from "../rag/embed";
 import { retrieve, assemblePrompt, RetrievedChunk } from "../rag/retrieve";
 import { seedKnowledgeBaseIfEmpty } from "../rag/seedCorpus";
 import { MODEL_CATALOG, REQUIRED_MODELS } from "../models/manifest";
-import { getActiveModelId } from "../models/settings";
+import { getActiveModelId, getHidePromptIdeas } from "../models/settings";
+import { PromptIdeasCarousel } from "./PromptIdeasCarousel";
+import { VoiceInputButton } from "./VoiceInputButton";
 
 interface Message {
   id: string;
@@ -38,7 +40,16 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
   const [loadStatus, setLoadStatus] = useState("Loading models into memory…");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
+  const [showPromptIdeas, setShowPromptIdeas] = useState(false);
   const listRef = useRef<FlatList<Message>>(null);
+  const inputRef = useRef<TextInput>(null);
+
+  useEffect(() => {
+    (async () => {
+      const hide = await getHidePromptIdeas();
+      if (!hide) setShowPromptIdeas(true);
+    })();
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -104,15 +115,20 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <View style={styles.headerRow}>
         <Text style={styles.headerTitle}>aoair</Text>
-        {onOpenSettings && (
-          <Pressable style={styles.settingsBtn} onPress={onOpenSettings} hitSlop={8}>
-            <Text style={styles.settingsBtnText}>⚙ Settings</Text>
+        <View style={styles.headerActions}>
+          <Pressable style={styles.headerBtn} onPress={() => setShowPromptIdeas(true)} hitSlop={8}>
+            <Text style={styles.headerBtnText}>💡 Prompt Ideas</Text>
           </Pressable>
-        )}
+          {onOpenSettings && (
+            <Pressable style={styles.headerBtn} onPress={onOpenSettings} hitSlop={8}>
+              <Text style={styles.headerBtnText}>⚙ Settings</Text>
+            </Pressable>
+          )}
+        </View>
       </View>
 
       {loadError && (
@@ -146,7 +162,12 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
       />
 
       <View style={styles.inputRow}>
+        <VoiceInputButton
+          disabled={!ready || generating}
+          onTranscript={(text) => setInput((prev) => (prev ? `${prev} ${text}` : text))}
+        />
         <TextInput
+          ref={inputRef}
           style={styles.input}
           value={input}
           onChangeText={setInput}
@@ -160,6 +181,17 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
           <Text style={styles.sendBtnText}>{generating ? "…" : "Send"}</Text>
         </Pressable>
       </View>
+
+      {showPromptIdeas && (
+        <PromptIdeasCarousel
+          onDismiss={() => setShowPromptIdeas(false)}
+          onUsePrompt={(prompt) => {
+            setInput(prompt);
+            setShowPromptIdeas(false);
+            requestAnimationFrame(() => inputRef.current?.focus());
+          }}
+        />
+      )}
     </KeyboardAvoidingView>
   );
 }
@@ -176,8 +208,9 @@ const styles = StyleSheet.create({
     borderBottomColor: "#222",
   },
   headerTitle: { color: "#fff", fontSize: 16, fontWeight: "700" },
-  settingsBtn: { paddingVertical: 4, paddingHorizontal: 4 },
-  settingsBtnText: { color: "#8bf", fontSize: 13 },
+  headerActions: { flexDirection: "row", gap: 14 },
+  headerBtn: { paddingVertical: 4, paddingHorizontal: 4 },
+  headerBtnText: { color: "#8bf", fontSize: 12 },
   banner: {
     flexDirection: "row",
     alignItems: "center",

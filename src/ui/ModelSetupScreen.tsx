@@ -39,7 +39,7 @@ type Props =
  */
 export function ModelSetupScreen(props: Props) {
   const requiredMode = props.mode === "required";
-  const [wizardStep, setWizardStep] = useState<"intro" | "downloading">("intro");
+  const [wizardStep, setWizardStep] = useState<"welcome" | "intro" | "downloading">("welcome");
   const [selectedTier, setSelectedTier] = useState<SetupTier>("standard");
   const [rows, setRows] = useState<Record<string, RowState>>({});
   const [activeIds, setActiveIds] = useState<Partial<Record<AssetKind, string>>>({});
@@ -142,6 +142,39 @@ export function ModelSetupScreen(props: Props) {
   }, [download, refreshStatus, tierAssets]);
 
   const requiredReady = tierAssets.every((m) => rows[m.id]?.present);
+
+  const chooseForMe = useCallback(() => {
+    setSelectedTier("standard");
+    startRequiredDownloads();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startRequiredDownloads]);
+
+  if (requiredMode && wizardStep === "welcome") {
+    return (
+      <View style={styles.container}>
+        <ScrollView contentContainerStyle={styles.introScroll}>
+          <Text style={styles.introIcon}>⛺</Text>
+          <Text style={styles.introTitle}>Welcome to aoair</Text>
+          <Text style={styles.introBody}>
+            An offline AI research assistant — local inference, local retrieval,
+            no cloud, no accounts.
+          </Text>
+        </ScrollView>
+        <View style={styles.welcomeActions}>
+          <Pressable style={styles.primaryBtn} onPress={chooseForMe}>
+            <Text style={styles.primaryBtnText}>✨ Choose for Me (Recommended)</Text>
+          </Pressable>
+          <Text style={styles.welcomeSubtext}>
+            Optimal settings auto-configured for your device (under 12GB RAM &
+            50GB storage).
+          </Text>
+          <Pressable style={styles.secondaryBtn} onPress={() => setWizardStep("intro")}>
+            <Text style={styles.secondaryBtnText}>⚙️ Custom Setup (Advanced)</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
 
   if (requiredMode && wizardStep === "intro") {
     return (
@@ -383,4 +416,14 @@ const styles = StyleSheet.create({
   },
   primaryBtnDisabled: { backgroundColor: "#333" },
   primaryBtnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+  welcomeActions: { padding: 16, gap: 10, alignItems: "center" },
+  welcomeSubtext: { color: "#888", fontSize: 11, textAlign: "center", paddingHorizontal: 12 },
+  secondaryBtn: {
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: "center",
+    width: "100%",
+  },
+  secondaryBtnText: { color: "#8bf", fontWeight: "600", fontSize: 14 },
 });

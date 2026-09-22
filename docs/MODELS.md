@@ -114,6 +114,22 @@ ANN index) not attempted here. The architecture is designed so more packs can
 be added later within the 50GB storage budget without changing how any of
 this works — `MODEL_CATALOG`/`TIERS` are meant to grow.
 
+## Voice input (offline speech-to-text)
+
+`modules/voice-input` wraps Android's built-in `SpeechRecognizer` with
+`EXTRA_PREFER_OFFLINE`, exposed via `src/voice/VoiceInput.ts` and the mic
+button in `ChatScreen`. No cloud STT API is called.
+
+**Honest scope note**: this depends on a system-provided recognition service
+(Google's, or an OEM's) being installed on the device. Most stock
+Android/OEM builds ship one; **GrapheneOS and other de-Googled builds
+typically do not**, so voice input won't work there out of the box —
+`isAvailable()` detects this and the UI shows a clear "unavailable" message
+rather than pretending to listen. A true cross-device guarantee would mean
+bundling a `whisper.cpp` model with a custom binding, which is a project on
+the scale of the `llama.rn` integration itself — documented as future work,
+not attempted in this version. Typing always works everywhere regardless.
+
 ## Delivery: one-time first-run download
 
 Both default models are declared with `required: true` in `src/models/manifest.ts`.

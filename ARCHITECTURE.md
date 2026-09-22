@@ -98,25 +98,32 @@ aoair_app/
 - [x] Expo TS scaffold, `expo-dev-client`, `expo-sqlite`, `expo-file-system`, `llama.rn` installed
 - [x] ModelManager (download + checksum/size verification; optional bundled-install path)
 - [x] FTS5 schema + hybrid (lexical+semantic) retrieval + prompt assembly
-- [x] LlamaEngine (generation) and EmbeddingEngine wrappers over `llama.rn`
-- [x] Mandatory first-run model setup screen + optional later model catalog
-      (`ModelSetupScreen`, two modes) — the app's only network call site
-- [x] Chat UI with streaming tokens, citations, live storage monitor
-- [x] Primary + embedding models chosen (MIT-licensed), downloaded, checksum-verified,
-      GGUF headers validated
-- [x] Bootstrap knowledge base (58 Wikipedia-derived docs) seeded on first run,
-      embeddings computed on-device
-- [x] Unit tests (vitest) for pure retrieval/manifest logic + CI workflow
-- [x] Native `ram-monitor` module (real process RSS via /proc/self/status)
-- [x] Native `bundled-assets` module + `withBundledModels` config plugin (alternate
-      fully-bundled build path) — verified via an actual `expo prebuild -p android`
-      run: both GGUF files land byte-identical in the native project, both local
-      native modules confirmed discovered by Expo's Android autolinking
-- [x] EAS Build configured (`eas.json`, `.easignore`) for cloud builds without a
-      local Android SDK; project linked (`ao-air`)
-- [ ] Actual `eas build` / `expo run:android` compile + install on a device — in
-      progress with the user, who has the real Android hardware and EAS account
-- [ ] Benchmark chosen models on real hardware (tokens/sec, RSS)
-- [ ] Grow the knowledge base beyond the 58-doc bootstrap corpus
-- [ ] Publish to a public GitHub repo (not yet pushed anywhere — local git only;
-      user will push it themselves)
+- [x] LlamaEngine/EmbeddingEngine wrappers over `llama.rn`, release previous
+      context before loading a new one (no native memory leak on model switch)
+- [x] Mandatory first-run setup wizard (tier picker + downloads) + optional
+      Settings screen (model catalog, active-model switch, corpus packs,
+      storage/RAM monitor) — `ModelSetupScreen`, the app's only network call site
+- [x] Chat UI: streaming tokens, citations, prompt-ideas onboarding carousel,
+      offline voice input button
+- [x] **Verified end-to-end on real Android hardware** (Xiaomi/Redmi,
+      Snapdragon/Adreno): `expo prebuild` + `expo run:android` actually compile
+      and install; first-run wizard downloads models on-device; app runs
+- [x] Primary + embedding models chosen (MIT-licensed) + two optional
+      Apache-2.0 LLM alternatives (Qwen2.5-1.5B/7B-Instruct), all
+      sha256-verified, GGUF headers validated
+- [x] Three setup tiers (Minimum/Standard/Full) with downloadable corpus packs
+      (58/358/1,358 topics), hosted via `raw.githubusercontent.com` off this
+      public repo, sha256-verified like every other catalog asset
+- [x] Native modules: `ram-monitor` (real process RSS), `bundled-assets` +
+      `withBundledModels` (alternate fully-bundled build path, not default),
+      `voice-input` (offline `SpeechRecognizer` wrapper) — all confirmed
+      discovered by Expo's Android autolinking, all built successfully in a
+      real `expo run:android` compile
+- [x] EAS Build configured (`eas.json`) and project linked (`ao-air`) for
+      cloud builds without a local Android SDK
+- [x] Public GitHub repo: https://github.com/rferrari/aoair-app
+- [x] Unit tests (vitest, 14 tests) for pure retrieval/manifest/tier logic + CI
+- [ ] Benchmark chosen models on real hardware (tokens/sec, RSS) — not yet measured
+- [ ] whisper.cpp binding for voice input on devices with no system speech
+      service (GrapheneOS) — documented as future work, not attempted
+- [ ] Public demo post (X/Farcaster) + poidh submission
