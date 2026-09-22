@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { MODEL_CATALOG, BUNDLED_MODELS, STORAGE_BUDGET_BYTES, totalManifestBytes } from "./manifest";
+import { MODEL_CATALOG, REQUIRED_MODELS, STORAGE_BUDGET_BYTES, totalManifestBytes } from "./manifest";
 
 describe("totalManifestBytes", () => {
   it("sums asset sizes", () => {
@@ -13,14 +13,14 @@ describe("totalManifestBytes", () => {
   });
 });
 
-describe("BUNDLED_MODELS", () => {
+describe("REQUIRED_MODELS", () => {
   it("includes exactly one llm and one embedding model", () => {
-    expect(BUNDLED_MODELS.filter((m) => m.kind === "llm")).toHaveLength(1);
-    expect(BUNDLED_MODELS.filter((m) => m.kind === "embedding")).toHaveLength(1);
+    expect(REQUIRED_MODELS.filter((m) => m.kind === "llm")).toHaveLength(1);
+    expect(REQUIRED_MODELS.filter((m) => m.kind === "embedding")).toHaveLength(1);
   });
 
-  it("every bundled model has a non-empty checksum and filename", () => {
-    for (const m of BUNDLED_MODELS) {
+  it("every required model has a non-empty checksum and filename", () => {
+    for (const m of REQUIRED_MODELS) {
       expect(m.sha256).toMatch(/^[0-9a-f]{64}$/);
       expect(m.filename.length).toBeGreaterThan(0);
     }

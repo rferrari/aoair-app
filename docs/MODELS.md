@@ -61,21 +61,25 @@ file `bge-small-en-v1.5-q8_0.gguf` (~35MB, sha256 below).
   questions in `docs/EVAL_QUERIES.md`, but growing it (more topics, fuller article
   text beyond the lead paragraph) would meaningfully improve real-world usefulness.
 
-## Delivery: bundled, not downloaded
+## Delivery: one-time first-run download
 
-Both default models are declared with `bundled: true` in `src/models/manifest.ts`
-and ship **inside the APK itself** — see `ARCHITECTURE.md` "Bundled models" for
-the full mechanism (`scripts/setup-models.sh` → `plugins/withBundledModels.js` →
-`modules/bundled-assets` native copy on first launch). A fresh install works
-immediately with the device offline; there is no in-app download step for the
-default model.
+Both default models are declared with `required: true` in `src/models/manifest.ts`.
+The app itself ships small (no multi-GB assets baked in, for fast builds/installs);
+on first launch it shows a mandatory setup screen that downloads them — see
+`ARCHITECTURE.md` "First-run model setup". Once done, the app works completely
+offline from then on, matching "work completely offline once installed."
 
-The in-app model catalog (`src/ui/ModelSetupScreen.tsx`) additionally lets a
-user fetch **optional, non-default** models over the network — only when they
-explicitly tap "Download" on a specific entry. This is the only code path in
-the shipped app that performs a network request; `android.permission.INTERNET`
-is present in the build for that reason, but is otherwise unused (in particular,
-never during chat/inference/retrieval).
+The same screen, reached later via the chat UI's "Models" button, additionally
+lets a user fetch **optional, non-default** models over the network — only when
+they explicitly tap "Download" on a specific entry. `ModelManager.downloadCatalogModel`
+is the only code path in the shipped app that performs a network request;
+`android.permission.INTERNET` is present in the build for that reason, but is
+otherwise unused (in particular, never during chat/inference/retrieval).
+
+An alternate build path (`modules/bundled-assets` + `plugins/withBundledModels.js`,
+verified working but not used by default) can bake the default models directly
+into the APK instead, for a build that needs zero network ever — see
+`ARCHITECTURE.md`.
 
 ## Verification
 

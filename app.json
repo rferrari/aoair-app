@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "aoair_app",
-    "slug": "aoair_app",
+    "slug": "ao-air",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -24,8 +24,13 @@
     },
     "plugins": [
       "expo-sqlite",
-      "expo-dev-client",
-      "./plugins/withBundledModels"
-    ]
+      "expo-dev-client"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "cba72560-8333-4fca-af84-f42d1c25abe3"
+      }
+    },
+    "owner": "vaipraonde"
   }
 }

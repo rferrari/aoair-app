@@ -1,15 +1,21 @@
 /**
- * Model catalog. Every model the app can use — bundled or downloadable — is
- * declared here with an expected sha256 so ModelManager can verify integrity
- * and the total footprint can be audited against the 50GB storage cap.
+ * Model catalog. Every model the app can use is declared here with an
+ * expected sha256 so ModelManager can verify integrity and the total
+ * footprint can be audited against the 50GB storage cap.
  *
- * `bundled: true` entries ship inside the app build itself (see
- * plugins/withBundledModels.js + modules/bundled-assets) and are installed
- * to the app's document directory on first launch with **no network access**
- * — the app works fully offline immediately after install. Entries with
- * `bundled: false` are optional extras a user can fetch later from the
- * in-app model catalog (src/ui/ModelSetupScreen.tsx), which does use the
- * network, only when the user explicitly taps "Download".
+ * `required: true` entries are the default LLM + embedding model. They are
+ * NOT bundled inside the app build (that keeps the installable app small
+ * and fast to build/ship — see modules/bundled-assets + plugins/withBundledModels.js
+ * for an alternate fully-bundled build path, still available but not used
+ * by default). Instead, on first launch the app shows a mandatory setup
+ * screen (src/ui/ModelSetupScreen.tsx in "required" mode) that downloads
+ * them — the ONLY time the app needs network access. Once downloaded, the
+ * app works fully offline from then on, matching the bounty's "work
+ * completely offline once installed" requirement (installed = app +
+ * one-time model setup complete).
+ *
+ * `required: false` entries are optional extras a user can fetch later from
+ * the same Models screen in its normal (non-blocking) mode.
  */
 
 export type AssetKind = "llm" | "embedding";
@@ -25,8 +31,13 @@ export interface CatalogModel {
   sourceUrl: string;
   license: string;
   description: string;
-  /** Ships inside the app build; installed from the bundle, not downloaded. */
-  bundled: boolean;
+  /** Must be downloaded before the app can be used; the default model for its kind. */
+  required: boolean;
+  /**
+   * Ships inside the app build itself (see plugins/withBundledModels.js).
+   * Not used by default — see module doc comment — but kept available.
+   */
+  bundled?: boolean;
 }
 
 export const STORAGE_BUDGET_BYTES = 50 * 1024 * 1024 * 1024; // 50GB
@@ -35,8 +46,7 @@ export const RAM_BUDGET_BYTES = 12 * 1024 * 1024 * 1024; // 12GB
 /**
  * See docs/MODELS.md for the rationale behind each pick (licensing,
  * size/RAM tradeoffs). Checksums verified against the files fetched by
- * scripts/setup-models.sh (which must run before `expo prebuild` so the
- * bundled entries actually exist to be packaged into the build).
+ * scripts/setup-models.sh.
  */
 export const MODEL_CATALOG: CatalogModel[] = [
   {
@@ -49,9 +59,8 @@ export const MODEL_CATALOG: CatalogModel[] = [
     sourceUrl:
       "https://huggingface.co/bartowski/Phi-3.5-mini-instruct-GGUF/resolve/main/Phi-3.5-mini-instruct-Q4_K_M.gguf",
     license: "MIT",
-    description:
-      "3.8B dense, primary generation model. ~2.2GB. Bundled default.",
-    bundled: true,
+    description: "3.8B dense, primary generation model. ~2.2GB. Default.",
+    required: true,
   },
   {
     id: "bge-small-en-v1.5-q8",
@@ -63,17 +72,16 @@ export const MODEL_CATALOG: CatalogModel[] = [
     sourceUrl:
       "https://huggingface.co/CompendiumLabs/bge-small-en-v1.5-gguf/resolve/main/bge-small-en-v1.5-q8_0.gguf",
     license: "MIT",
-    description:
-      "33M, sentence embeddings for the local vector index. Bundled default.",
-    bundled: true,
+    description: "33M, sentence embeddings for the local vector index. Default.",
+    required: true,
   },
   // Add more tested candidates here later (each needs a unique `id` and
   // `filename` so it can coexist on disk with other downloaded models).
-  // They ship with `bundled: false` and appear in the in-app catalog for
-  // the user to optionally download when online.
+  // They ship with `required: false` and appear in the Models screen as
+  // optional downloads.
 ];
 
-export const BUNDLED_MODELS = MODEL_CATALOG.filter((m) => m.bundled);
+export const REQUIRED_MODELS = MODEL_CATALOG.filter((m) => m.required);
 
 export function totalManifestBytes(models: CatalogModel[]): number {
   return models.reduce((sum, m) => sum + m.sizeBytes, 0);

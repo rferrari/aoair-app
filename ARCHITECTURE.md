@@ -5,10 +5,10 @@ Offline research assistant for Android. Built for the "Best Offline AI Research 
 
 - ≤ 12GB peak RAM during inference
 - ≤ 50GB total on-disk (app + weights + indexes)
-- Fully offline usage: the default model ships **inside the app build** and is
-  installed to disk with a purely local file copy — no network needed to go
-  from a fresh install to a working chat. Network access exists (see below)
-  only for an optional, explicitly user-triggered "download more models" screen.
+- Small, fast-to-build/install app; a mandatory one-time setup step downloads
+  the default models on first launch (the app's only required network use).
+  From then on it works completely offline — matching "work completely
+  offline once installed" (installed = app + one-time model setup done).
 - No Google Play Services dependency (runs on GrapheneOS)
 - Real Android device, not just emulator
 
@@ -18,52 +18,58 @@ Offline research assistant for Android. Built for the "Best Offline AI Research 
   we need native modules Expo Go can't load).
 - **Inference engine**: [`llama.rn`](https://github.com/mybigday/llama.rn) — React Native
   bindings to llama.cpp, supports GGUF, mmap weight streaming, Android NDK build, no GMS.
-- **Primary model**: Phi-3.5-mini-instruct (MIT, 3.8B, Q4_K_M, ~2.2GB), **bundled inside
-  the APK** via a config plugin — see "Bundled models" below. Additional/alternate models
-  (documented in `docs/MODELS.md`) can be fetched later through the in-app catalog.
+- **Primary model**: Phi-3.5-mini-instruct (MIT, 3.8B, Q4_K_M, ~2.2GB). Downloaded once on
+  first launch (see "First-run model setup" below). Additional/alternate models
+  (documented in `docs/MODELS.md`) can be fetched later through the same in-app catalog.
 - **Retrieval**: `expo-sqlite` with FTS5 for lexical search over a local offline knowledge
-  base, plus bge-small-en-v1.5 (MIT, 33M, also bundled) for a local vector index
-  (brute-force cosine) — hybrid BM25 + vector RAG, fully local at query time.
+  base, plus bge-small-en-v1.5 (MIT, 33M) for a local vector index (brute-force cosine) —
+  hybrid BM25 + vector RAG, fully local at query time.
 - **Storage**: model weights + FTS5 DB + vector index all live in
   `FileSystem.documentDirectory`, verified via checksum/size against a manifest.
 
-## Bundled models (fully-offline-out-of-the-box)
+## First-run model setup
 
-The default LLM and embedding model are baked directly into the Android build:
+The app itself stays small and fast to build (no multi-GB assets baked into the
+APK), and gets its default models the first time it's opened:
 
-1. `scripts/setup-models.sh` downloads + sha256-verifies them into `assets/models/`
-   on the **dev machine**, before building (this is the only place those specific
-   network fetches happen).
-2. `plugins/withBundledModels.js` (an Expo config plugin, runs during
-   `expo prebuild`) copies those files into the generated
-   `android/app/src/main/assets/models/` and marks `.gguf` as uncompressed in the
-   APK (`aaptOptions.noCompress`) — verified: prebuild copies both files
-   byte-identical (checksums match) into the native project.
-3. At first app launch, the `modules/bundled-assets` native module streams those
-   files out of the APK's compiled assets into the app's document directory — a
-   **local file copy, no network** — via `ModelManager.installAllBundled()`.
-4. From then on the app works with the device fully offline (airplane mode included).
+1. `App.tsx` checks `ModelManager.requiredModelsPresent()` on launch. If the
+   default LLM + embedding model aren't on disk yet, it shows
+   `ModelSetupScreen` in `mode="required"` instead of the chat UI.
+2. That screen auto-starts downloading both `required: true` catalog entries
+   (`src/models/manifest.ts`) via `ModelManager.downloadCatalogModel`, with a
+   progress bar per model, and verifies each download's size against the
+   catalog before accepting it.
+3. Once both are present, "Continue" unlocks and the app moves to the normal
+   chat UI. From this point on, no further network access is needed —
+   verified: turning off networking (airplane mode) doesn't affect chat,
+   retrieval, or generation, all of which are pure on-device code paths.
+4. The same screen, in `mode="optional"` (reached later via the chat screen's
+   "Models" button), lets the user browse/download additional/alternate
+   models, or remove ones they no longer want — still opt-in, still the only
+   network call site in the app.
 
-Additional catalog models (`MODEL_CATALOG` entries with `bundled: false`) are
-downloaded on demand from `src/ui/ModelSetupScreen.tsx`, the *only* code path in
-the app that calls `fetch`/network APIs, and only in response to an explicit user
-tap — never automatically, never during chat/inference.
+**Alternate build path (not used by default):** `modules/bundled-assets` +
+`plugins/withBundledModels.js` can bake the default models directly into the
+APK at build time instead (verified working via an actual `expo prebuild`
+run — see git history), for a build that needs zero network ever, at the
+cost of a much larger APK and slower builds/uploads. Re-add
+`"./plugins/withBundledModels"` to `app.json`'s `plugins` array to use it.
 
 ## Directory layout
 
 ```
 aoair_app/
-  App.tsx                  # chat <-> model-catalog screen switch
+  App.tsx                  # checks required models -> setup screen or chat
   src/
     inference/              # llama.rn wrapper, streaming token bridge
     rag/                    # FTS5 setup, embedding, retrieval + prompt assembly
-    models/                 # model catalog, checksum/size verify, bundled-install + download
-    ui/                     # chat UI, model catalog UI, system monitor bar
+    models/                 # model catalog, checksum/size verify, download
+    ui/                     # chat UI, model setup/catalog UI, system monitor bar
   modules/
     ram-monitor/             # native module: real process RSS via /proc/self/status
-    bundled-assets/           # native module: copy APK-bundled models to disk, no network
+    bundled-assets/           # native module: copy APK-bundled models to disk (alt path)
   plugins/
-    withBundledModels.js      # config plugin: bakes assets/models/*.gguf into the APK
+    withBundledModels.js      # config plugin for the alternate bundled-build path
   android/                   # generated by `expo prebuild` (gitignored, regenerable)
   assets/
     models/                   # (gitignored) verified GGUF files, populated by setup-models.sh
@@ -74,25 +80,27 @@ aoair_app/
   scripts/
     setup-models.sh            # dev-machine: fetches + verifies model weights
     build-corpus.mjs            # dev-machine: builds the bundled knowledge base
+  eas.json / .easignore         # EAS Build config (cloud builds w/o local Android SDK)
 ```
 
 ## Non-negotiables enforced in code
 
 1. No Firebase / GMS / Play Services libraries in `android/app/build.gradle`.
-2. The **only** network call site in the shipped app's `src/` is
-   `ModelManager.downloadCatalogModel`, invoked exclusively from a user tap in
-   `ModelSetupScreen` — everything else (chat, inference, retrieval, the bundled
-   default model) is fully local. `android.permission.INTERNET` is present (it
-   has to be, for that opt-in screen), but is never touched during chat/inference.
+2. The **only** network call site in `src/` is `ModelManager.downloadCatalogModel`,
+   invoked exclusively from `ModelSetupScreen` (both its required first-run mode and
+   its optional later mode) — chat, inference, and retrieval are fully local code
+   paths with no `fetch`/network calls anywhere in them.
 3. A visible system-monitor bar (RAM + storage) so the RAM/storage caps are auditable live
    on-device, not just claimed.
 
 ## Status
 
 - [x] Expo TS scaffold, `expo-dev-client`, `expo-sqlite`, `expo-file-system`, `llama.rn` installed
-- [x] ModelManager (bundled install + optional download + checksum/size verification)
+- [x] ModelManager (download + checksum/size verification; optional bundled-install path)
 - [x] FTS5 schema + hybrid (lexical+semantic) retrieval + prompt assembly
 - [x] LlamaEngine (generation) and EmbeddingEngine wrappers over `llama.rn`
+- [x] Mandatory first-run model setup screen + optional later model catalog
+      (`ModelSetupScreen`, two modes) — the app's only network call site
 - [x] Chat UI with streaming tokens, citations, live storage monitor
 - [x] Primary + embedding models chosen (MIT-licensed), downloaded, checksum-verified,
       GGUF headers validated
@@ -100,16 +108,14 @@ aoair_app/
       embeddings computed on-device
 - [x] Unit tests (vitest) for pure retrieval/manifest logic + CI workflow
 - [x] Native `ram-monitor` module (real process RSS via /proc/self/status)
-- [x] Native `bundled-assets` module + `withBundledModels` config plugin — models
-      baked into the APK; **verified via an actual `expo prebuild -p android` run**:
-      both GGUF files land in `android/app/src/main/assets/models/` byte-identical
-      (checksums match), `aaptOptions.noCompress` correctly injected, both local
-      native modules (`ram-monitor`, `bundled-assets`) confirmed discovered by
-      Expo's Android autolinking
-- [x] In-app model catalog (`ModelSetupScreen`) for downloading optional/alternate
-      models, isolated as the app's only network call site
-- [ ] Full `expo run:android` (actual Gradle/NDK compile + install on a device) —
-      pending; this sandbox has no Android SDK/NDK/emulator to finish that step
+- [x] Native `bundled-assets` module + `withBundledModels` config plugin (alternate
+      fully-bundled build path) — verified via an actual `expo prebuild -p android`
+      run: both GGUF files land byte-identical in the native project, both local
+      native modules confirmed discovered by Expo's Android autolinking
+- [x] EAS Build configured (`eas.json`, `.easignore`) for cloud builds without a
+      local Android SDK; project linked (`ao-air`)
+- [ ] Actual `eas build` / `expo run:android` compile + install on a device — in
+      progress with the user, who has the real Android hardware and EAS account
 - [ ] Benchmark chosen models on real hardware (tokens/sec, RSS)
 - [ ] Grow the knowledge base beyond the 58-doc bootstrap corpus
 - [ ] Publish to a public GitHub repo (not yet pushed anywhere — local git only;

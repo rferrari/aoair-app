@@ -4,6 +4,7 @@ import { copyBundledAssetToFile } from "bundled-assets";
 import {
   CatalogModel,
   MODEL_CATALOG,
+  REQUIRED_MODELS,
   STORAGE_BUDGET_BYTES,
   totalManifestBytes,
 } from "./manifest";
@@ -27,13 +28,16 @@ function assetPath(asset: Pick<CatalogModel, "filename">): string {
 /**
  * Local file manager for model weights. Two ways an asset ends up on disk:
  *
- * 1. **Bundled** (`installBundled`): copies a model baked into the APK's
- *    compiled assets (via the `bundled-assets` native module) into the
- *    document directory. Purely local — no network — so the default model
- *    is ready immediately after install with the device offline.
- * 2. **Downloaded** (`downloadCatalogModel`): fetches an optional catalog
- *    entry over the network. Only ever called from an explicit user tap in
- *    ModelSetupScreen — never automatically, never during chat/inference.
+ * 1. **Downloaded** (`downloadCatalogModel`): fetches a catalog entry over
+ *    the network — used for both the required default models (via the
+ *    mandatory first-run ModelSetupScreen) and optional extras (via the
+ *    same screen's normal mode). Always an explicit user action; never
+ *    automatic, never during chat/inference.
+ * 2. **Bundled** (`installBundled`): copies a model baked into the APK's
+ *    compiled assets (via the `bundled-assets` native module +
+ *    plugins/withBundledModels.js) into the document directory, purely
+ *    locally. Not used by default (keeps the installable app small/fast to
+ *    build) but available as an alternate build path — see manifest.ts.
  */
 export class ModelManager {
   constructor(private catalog: CatalogModel[] = MODEL_CATALOG) {}
@@ -156,5 +160,17 @@ export class ModelManager {
 
   missingAssets(statuses: AssetStatus[]): CatalogModel[] {
     return statuses.filter((s) => !s.present).map((s) => s.asset);
+  }
+
+  /**
+   * Whether the default (required) LLM + embedding models are already on
+   * disk. Gates first-run navigation: if false, the app shows the mandatory
+   * setup screen instead of the chat UI. This is the only place the app's
+   * flow depends on network having been used at some point — once true, no
+   * further network access is needed.
+   */
+  async requiredModelsPresent(): Promise<boolean> {
+    const statuses = await Promise.all(REQUIRED_MODELS.map((a) => this.statusOf(a)));
+    return statuses.every((s) => s.present && s.sizeOnDiskBytes === s.asset.sizeBytes);
   }
 }

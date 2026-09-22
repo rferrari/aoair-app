@@ -15,8 +15,7 @@ import { llamaEngine } from "../inference/LlamaEngine";
 import { embeddingEngine } from "../rag/embed";
 import { retrieve, assemblePrompt, RetrievedChunk } from "../rag/retrieve";
 import { seedKnowledgeBaseIfEmpty } from "../rag/seedCorpus";
-import { BUNDLED_MODELS } from "../models/manifest";
-import { ModelManager } from "../models/ModelManager";
+import { REQUIRED_MODELS } from "../models/manifest";
 
 interface Message {
   id: string;
@@ -25,13 +24,11 @@ interface Message {
   citations?: RetrievedChunk[];
 }
 
-const modelManager = new ModelManager();
-
 export function ChatScreen({ onOpenModelSetup }: { onOpenModelSetup?: () => void }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [ready, setReady] = useState(false);
-  const [loadStatus, setLoadStatus] = useState("Installing bundled models…");
+  const [loadStatus, setLoadStatus] = useState("Loading models into memory…");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const listRef = useRef<FlatList<Message>>(null);
@@ -39,15 +36,12 @@ export function ChatScreen({ onOpenModelSetup }: { onOpenModelSetup?: () => void
   useEffect(() => {
     (async () => {
       try {
-        // Purely local: copies the bundled default models out of the APK
-        // into the document directory. No network access. Safe to call on
-        // every launch — a no-op once already installed.
-        await modelManager.installAllBundled();
+        // App.tsx only mounts ChatScreen once ModelManager.requiredModelsPresent()
+        // is true, so these files are already on disk here — no network,
+        // no bundled-asset copy needed at this point.
+        const llm = REQUIRED_MODELS.find((a) => a.kind === "llm")!;
+        const emb = REQUIRED_MODELS.find((a) => a.kind === "embedding")!;
 
-        const llm = BUNDLED_MODELS.find((a) => a.kind === "llm")!;
-        const emb = BUNDLED_MODELS.find((a) => a.kind === "embedding")!;
-
-        setLoadStatus("Loading models into memory…");
         await Promise.all([
           llamaEngine.load(llm.filename),
           embeddingEngine.load(emb.filename),
