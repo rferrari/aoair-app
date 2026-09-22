@@ -24,6 +24,7 @@ import {
   setPersonalityId,
   getCustomSystemPrompt,
   getMaxTokens,
+  getHapticsEnabled,
 } from "../models/settings";
 import { getPersonality, PersonalityId } from "../constants/personalities";
 import { PromptIdeasCarousel } from "./PromptIdeasCarousel";
@@ -31,7 +32,6 @@ import { VoiceInputButton } from "./VoiceInputButton";
 import { ProcessingIndicator, ProcessingStatus } from "./ProcessingIndicator";
 import { Drawer, DrawerItem } from "./Drawer";
 import { AboutScreen } from "./AboutScreen";
-import { UsageStatsScreen } from "./UsageStatsScreen";
 import { recordQueryStats, trackPeakRss } from "../services/telemetry";
 import { getMemoryInfo } from "ram-monitor";
 
@@ -60,19 +60,24 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
   const [showPromptIdeas, setShowPromptIdeas] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
-  const [showStats, setShowStats] = useState(false);
   const [personalityId, setPersonalityIdState] = useState<PersonalityId>("succinct");
   const [processing, setProcessing] = useState<{ messageId: string; status: ProcessingStatus } | null>(null);
   const [liveTokPerSec, setLiveTokPerSec] = useState<number | null>(null);
   const listRef = useRef<FlatList<Message>>(null);
   const inputRef = useRef<TextInput>(null);
+  const hapticsEnabledRef = useRef(true);
 
   useEffect(() => {
     (async () => {
       const hide = await getHidePromptIdeas();
       if (!hide) setShowPromptIdeas(true);
       setPersonalityIdState(await getPersonalityId());
+      hapticsEnabledRef.current = await getHapticsEnabled();
     })();
+  }, []);
+
+  const haptic = useCallback((fn: () => Promise<void>) => {
+    if (hapticsEnabledRef.current) fn().catch(() => {});
   }, []);
 
   const cycleTone = useCallback(async () => {
@@ -109,9 +114,9 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
 
   const stopGeneration = useCallback(async () => {
     stopRequestedRef.current = true;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    haptic(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium));
     await llamaEngine.stop();
-  }, []);
+  }, [haptic]);
 
   const send = useCallback(async () => {
     const query = input.trim();
@@ -177,9 +182,11 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
           m.id === assistantId ? { ...m, citations: chunks, stopped: wasStopped } : m
         )
       );
-      Haptics.notificationAsync(
-        wasStopped ? Haptics.NotificationFeedbackType.Warning : Haptics.NotificationFeedbackType.Success
-      ).catch(() => {});
+      haptic(() =>
+        Haptics.notificationAsync(
+          wasStopped ? Haptics.NotificationFeedbackType.Warning : Haptics.NotificationFeedbackType.Success
+        )
+      );
 
       const durationMs = performance.now() - startTime;
       recordQueryStats({
@@ -202,22 +209,18 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
       setProcessing(null);
       setLiveTokPerSec(null);
     }
-  }, [input, generating]);
+  }, [input, generating, haptic]);
 
   const drawerItems: DrawerItem[] = [
     { key: "prompts", icon: "💡", label: "Prompt Ideas", onPress: () => setShowPromptIdeas(true) },
     ...(onOpenSettings
-      ? [{ key: "settings", icon: "⚙️", label: "Settings & Models", onPress: onOpenSettings }]
+      ? [{ key: "settings", icon: "⚙️", label: "Settings", onPress: onOpenSettings }]
       : []),
-    { key: "stats", icon: "📊", label: "Usage & Performance", onPress: () => setShowStats(true) },
     { key: "about", icon: "ℹ️", label: "About & Info", onPress: () => setShowAbout(true) },
   ];
 
   if (showAbout) {
     return <AboutScreen onClose={() => setShowAbout(false)} />;
-  }
-  if (showStats) {
-    return <UsageStatsScreen onClose={() => setShowStats(false)} />;
   }
 
   return (

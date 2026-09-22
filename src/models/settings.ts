@@ -8,6 +8,7 @@ interface Settings {
   personalityId?: PersonalityId;
   customSystemPrompt?: string;
   maxTokens?: number;
+  hapticsEnabled?: boolean;
 }
 
 const SETTINGS_PATH = `${FileSystem.documentDirectory}settings.json`;
@@ -83,5 +84,16 @@ export async function getMaxTokens(): Promise<number> {
 export async function setMaxTokens(maxTokens: number): Promise<void> {
   const s = await readSettings();
   s.maxTokens = maxTokens;
+  await writeSettings(s);
+}
+
+export async function getHapticsEnabled(): Promise<boolean> {
+  const s = await readSettings();
+  return s.hapticsEnabled ?? true;
+}
+
+export async function setHapticsEnabled(enabled: boolean): Promise<void> {
+  const s = await readSettings();
+  s.hapticsEnabled = enabled;
   await writeSettings(s);
 }
