@@ -61,10 +61,28 @@ file `bge-small-en-v1.5-q8_0.gguf` (~35MB, sha256 below).
   questions in `docs/EVAL_QUERIES.md`, but growing it (more topics, fuller article
   text beyond the lead paragraph) would meaningfully improve real-world usefulness.
 
+## Delivery: bundled, not downloaded
+
+Both default models are declared with `bundled: true` in `src/models/manifest.ts`
+and ship **inside the APK itself** — see `ARCHITECTURE.md` "Bundled models" for
+the full mechanism (`scripts/setup-models.sh` → `plugins/withBundledModels.js` →
+`modules/bundled-assets` native copy on first launch). A fresh install works
+immediately with the device offline; there is no in-app download step for the
+default model.
+
+The in-app model catalog (`src/ui/ModelSetupScreen.tsx`) additionally lets a
+user fetch **optional, non-default** models over the network — only when they
+explicitly tap "Download" on a specific entry. This is the only code path in
+the shipped app that performs a network request; `android.permission.INTERNET`
+is present in the build for that reason, but is otherwise unused (in particular,
+never during chat/inference/retrieval).
+
 ## Verification
 
-Every shipped asset is declared in `src/models/manifest.ts` with a `sha256` and
-`sizeBytes`; `ModelManager` verifies presence and (on demand) checksum before the
-app relies on it. `scripts/setup-models.sh` is the only place network access to
-fetch these assets happens — it runs once, before offline use, with the device
-online; the built app itself never makes network requests.
+Every catalog entry is declared in `src/models/manifest.ts` with a `sha256` and
+`sizeBytes`. `ModelManager` verifies bundled installs by exact byte size (cheap,
+safe for multi-GB files) and can verify full sha256 on demand (used for the
+small embedding model; a multi-GB full-file JS-side sha256 is a known,
+documented limitation — see `ARCHITECTURE.md` Status). `scripts/setup-models.sh`
+does the authoritative sha256 verification, once, on the dev machine, before
+`expo prebuild` bundles the files into the build.

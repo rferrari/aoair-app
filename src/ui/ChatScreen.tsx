@@ -15,7 +15,8 @@ import { llamaEngine } from "../inference/LlamaEngine";
 import { embeddingEngine } from "../rag/embed";
 import { retrieve, assemblePrompt, RetrievedChunk } from "../rag/retrieve";
 import { seedKnowledgeBaseIfEmpty } from "../rag/seedCorpus";
-import { DEFAULT_MANIFEST } from "../models/manifest";
+import { BUNDLED_MODELS } from "../models/manifest";
+import { ModelManager } from "../models/ModelManager";
 
 interface Message {
   id: string;
@@ -24,10 +25,13 @@ interface Message {
   citations?: RetrievedChunk[];
 }
 
-export function ChatScreen() {
+const modelManager = new ModelManager();
+
+export function ChatScreen({ onOpenModelSetup }: { onOpenModelSetup?: () => void }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [ready, setReady] = useState(false);
+  const [loadStatus, setLoadStatus] = useState("Installing bundled models…");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const listRef = useRef<FlatList<Message>>(null);
@@ -35,12 +39,21 @@ export function ChatScreen() {
   useEffect(() => {
     (async () => {
       try {
-        const llm = DEFAULT_MANIFEST.find((a) => a.id === "primary-llm")!;
-        const emb = DEFAULT_MANIFEST.find((a) => a.id === "embedding-model")!;
+        // Purely local: copies the bundled default models out of the APK
+        // into the document directory. No network access. Safe to call on
+        // every launch — a no-op once already installed.
+        await modelManager.installAllBundled();
+
+        const llm = BUNDLED_MODELS.find((a) => a.kind === "llm")!;
+        const emb = BUNDLED_MODELS.find((a) => a.kind === "embedding")!;
+
+        setLoadStatus("Loading models into memory…");
         await Promise.all([
           llamaEngine.load(llm.filename),
           embeddingEngine.load(emb.filename),
         ]);
+
+        setLoadStatus("Preparing knowledge base…");
         await seedKnowledgeBaseIfEmpty();
         setReady(true);
       } catch (e: any) {
@@ -91,19 +104,26 @@ export function ChatScreen() {
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <SystemMonitor />
+      <View style={styles.headerRow}>
+        <View style={{ flex: 1 }}>
+          <SystemMonitor />
+        </View>
+        {onOpenModelSetup && (
+          <Pressable style={styles.modelsBtn} onPress={onOpenModelSetup}>
+            <Text style={styles.modelsBtnText}>Models</Text>
+          </Pressable>
+        )}
+      </View>
 
       {loadError && (
         <View style={styles.banner}>
-          <Text style={styles.bannerText}>
-            Model failed to load: {loadError}. Run the setup wizard to install models.
-          </Text>
+          <Text style={styles.bannerText}>Model failed to load: {loadError}</Text>
         </View>
       )}
       {!ready && !loadError && (
         <View style={styles.banner}>
           <ActivityIndicator color="#8f8" />
-          <Text style={styles.bannerText}>Loading offline models…</Text>
+          <Text style={styles.bannerText}>{loadStatus}</Text>
         </View>
       )}
 
@@ -146,6 +166,9 @@ export function ChatScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#000" },
+  headerRow: { flexDirection: "row", alignItems: "center" },
+  modelsBtn: { paddingHorizontal: 12, paddingVertical: 6, backgroundColor: "#111" },
+  modelsBtnText: { color: "#8bf", fontSize: 11 },
   banner: {
     flexDirection: "row",
     alignItems: "center",

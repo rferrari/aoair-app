@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# One-time, online setup step: downloads the model weights declared in
-# src/models/manifest.ts into ./assets/models and verifies their sha256.
-# The app itself never runs this or makes network calls; this script is a
-# developer/user tool run once, before going offline, to prepare assets for
-# `expo run:android` (dev) or for pushing to a device with adb (release).
+# One-time, online setup step: downloads the bundled model weights declared
+# in src/models/manifest.ts into ./assets/models and verifies their sha256.
+# Run this BEFORE `expo prebuild` — the withBundledModels config plugin
+# copies these exact files into the Android build so they ship inside the
+# APK itself (see ARCHITECTURE.md "Bundled models"). The shipped app never
+# runs this script or calls these URLs at runtime.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -47,20 +48,13 @@ download_and_verify \
   "assets/models/embedding.gguf" \
   "ec38e8da142596baa913124ae50550de284b6916bf59577ef2f0cb9660c2f514"
 
-PACKAGE_ID="team.sopa.aoair"
-
 echo
 echo "All model assets verified in assets/models/."
 echo
 echo "Next steps:"
-echo "  1. npx expo prebuild -p android && npx expo run:android"
-echo "     (installs a debug dev-client build on the connected device)"
-echo "  2. Push the verified weights into the app's private storage (debug builds"
-echo "     are run-as-able, no root needed):"
-echo "       adb push assets/models/primary-llm.gguf /data/local/tmp/primary-llm.gguf"
-echo "       adb push assets/models/embedding.gguf /data/local/tmp/embedding.gguf"
-echo "       adb shell run-as $PACKAGE_ID mkdir -p files/models"
-echo "       adb shell run-as $PACKAGE_ID cp /data/local/tmp/primary-llm.gguf files/models/primary-llm.gguf"
-echo "       adb shell run-as $PACKAGE_ID cp /data/local/tmp/embedding.gguf files/models/embedding.gguf"
-echo "  3. Relaunch the app — it reads models from its document directory"
-echo "     (files/models/), matching src/models/manifest.ts."
+echo "  npx expo prebuild -p android   # bundles these files into the APK (verify"
+echo "                                  # with: sha256sum android/app/src/main/assets/models/*.gguf)"
+echo "  npx expo run:android           # builds and installs on a connected device"
+echo
+echo "No adb push needed — the app installs its bundled models from the APK to"
+echo "its document directory on first launch, purely locally, no network."
