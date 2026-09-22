@@ -43,6 +43,24 @@ async function openAndMigrate(): Promise<SQLite.SQLiteDatabase> {
       embedding BLOB NOT NULL,
       dim INTEGER NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS chat_sessions (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      summary TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS chat_messages (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL REFERENCES chat_sessions(id),
+      role TEXT NOT NULL,
+      text TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_chat_messages_session
+      ON chat_messages(session_id, created_at);
   `);
 
   return db;

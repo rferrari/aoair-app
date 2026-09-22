@@ -14,7 +14,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { llamaEngine } from "../inference/LlamaEngine";
 import { embeddingEngine } from "../rag/embed";
-import { retrieve, assemblePrompt, RetrievedChunk } from "../rag/retrieve";
+import { retrieve, assemblePrompt, RetrievedChunk, ConversationTurn } from "../rag/retrieve";
 import { seedKnowledgeBaseIfEmpty } from "../rag/seedCorpus";
 import { MODEL_CATALOG, REQUIRED_MODELS } from "../models/manifest";
 import {
@@ -25,8 +25,23 @@ import {
   getCustomSystemPrompt,
   getMaxTokens,
   getHapticsEnabled,
+  getMemorySettings,
+  MemorySettings as MemorySettingsType,
+  DEFAULT_MEMORY_SETTINGS,
 } from "../models/settings";
 import { getPersonality, PersonalityId } from "../constants/personalities";
+import {
+  createSession,
+  addMessage as persistMessage,
+  getMessages as getSessionMessages,
+  listSessions,
+  deleteSession,
+  setSessionTitle,
+  setSessionSummary,
+  pruneSessions,
+  ChatSession,
+} from "../services/chatHistory";
+import { generateSessionTitle, summarizeConversation } from "../services/summarize";
 import { PromptIdeasCarousel } from "./PromptIdeasCarousel";
 import { VoiceInputButton } from "./VoiceInputButton";
 import { ProcessingIndicator, ProcessingStatus } from "./ProcessingIndicator";
@@ -42,6 +57,9 @@ interface Message {
   citations?: RetrievedChunk[];
   stopped?: boolean;
 }
+
+/** Messages kept verbatim in the prompt regardless of summarization state (last 3 exchanges). */
+const VERBATIM_MESSAGE_COUNT = 6;
 
 async function resolveActiveModel(kind: "llm" | "embedding") {
   const activeId = await getActiveModelId(kind);
@@ -63,9 +81,23 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
   const [personalityId, setPersonalityIdState] = useState<PersonalityId>("succinct");
   const [processing, setProcessing] = useState<{ messageId: string; status: ProcessingStatus } | null>(null);
   const [liveTokPerSec, setLiveTokPerSec] = useState<number | null>(null);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
   const listRef = useRef<FlatList<Message>>(null);
   const inputRef = useRef<TextInput>(null);
   const hapticsEnabledRef = useRef(true);
+  const memorySettingsRef = useRef<MemorySettingsType>(DEFAULT_MEMORY_SETTINGS);
+  const sessionSummaryRef = useRef<string | null>(null);
+  const messagesRef = useRef<Message[]>([]);
+  const backgroundTaskRef = useRef<Promise<void> | null>(null);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  const refreshSessions = useCallback(async () => {
+    setSessions(await listSessions());
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -73,8 +105,10 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
       if (!hide) setShowPromptIdeas(true);
       setPersonalityIdState(await getPersonalityId());
       hapticsEnabledRef.current = await getHapticsEnabled();
+      memorySettingsRef.current = await getMemorySettings();
+      await refreshSessions();
     })();
-  }, []);
+  }, [refreshSessions]);
 
   const haptic = useCallback((fn: () => Promise<void>) => {
     if (hapticsEnabledRef.current) fn().catch(() => {});
@@ -118,12 +152,60 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
     await llamaEngine.stop();
   }, [haptic]);
 
+  /** Cancels any in-flight background title/summary task and waits for it to settle. */
+  const cancelBackgroundTask = useCallback(async () => {
+    if (!backgroundTaskRef.current) return;
+    await llamaEngine.stop();
+    await backgroundTaskRef.current.catch(() => {});
+    backgroundTaskRef.current = null;
+  }, []);
+
+  const resetToNewChat = useCallback(async () => {
+    await cancelBackgroundTask();
+    setMessages([]);
+    setActiveSessionId(null);
+    sessionSummaryRef.current = null;
+  }, [cancelBackgroundTask]);
+
+  const selectSession = useCallback(async (id: string) => {
+    await cancelBackgroundTask();
+    const records = await getSessionMessages(id);
+    setMessages(records.map((r) => ({ id: r.id, role: r.role, text: r.text })));
+    setActiveSessionId(id);
+    const session = sessions.find((s) => s.id === id);
+    sessionSummaryRef.current = session?.summary ?? null;
+  }, [cancelBackgroundTask, sessions]);
+
+  const removeSession = useCallback(
+    async (id: string) => {
+      await deleteSession(id);
+      await refreshSessions();
+      if (id === activeSessionId) await resetToNewChat();
+    },
+    [activeSessionId, refreshSessions, resetToNewChat]
+  );
+
   const send = useCallback(async () => {
     const query = input.trim();
     if (!query || generating) return;
+
+    // A background title/summary task from the previous exchange may still
+    // be running on the shared llama.cpp context — stop it cleanly before
+    // starting a new generation (the two can't run concurrently).
+    await cancelBackgroundTask();
+
     setInput("");
     setGenerating(true);
     stopRequestedRef.current = false;
+
+    let sessionId = activeSessionId;
+    const isNewSession = !sessionId;
+    if (!sessionId) {
+      const session = await createSession();
+      sessionId = session.id;
+      setActiveSessionId(sessionId);
+    }
+    await persistMessage(sessionId, "user", query);
 
     const userMsg: Message = { id: `${Date.now()}-u`, role: "user", text: query };
     const assistantId = `${Date.now()}-a`;
@@ -140,6 +222,7 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
     const startTime = performance.now();
     let ttftMs = 0;
     let tokensGenerated = 0;
+    let assistantText = "";
 
     try {
       const [chunks, maxTokens, activePersonalityId, customPrompt] = await Promise.all([
@@ -150,7 +233,15 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
       ]);
       const personality = getPersonality(activePersonalityId);
       const systemPrompt = activePersonalityId === "custom" ? customPrompt : personality.systemPrompt;
-      const prompt = assemblePrompt(query, chunks, systemPrompt);
+
+      const priorMessages = messagesRef.current.filter((m) => m.text.length > 0);
+      const verbatimTurns: ConversationTurn[] = priorMessages
+        .slice(-VERBATIM_MESSAGE_COUNT)
+        .map((m) => ({ role: m.role, text: m.text }));
+      const prompt = assemblePrompt(query, chunks, systemPrompt, {
+        summary: sessionSummaryRef.current,
+        turns: verbatimTurns,
+      });
 
       setProcessing({ messageId: assistantId, status: "thinking" });
       let firstToken = true;
@@ -161,6 +252,7 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
         nPredict: maxTokens,
         onToken: (piece) => {
           tokensGenerated += 1;
+          assistantText += piece;
           if (firstToken) {
             firstToken = false;
             firstTokenTime = performance.now();
@@ -197,6 +289,53 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
         peakRssBytes: peakRss.stop(),
         timestamp: Date.now(),
       });
+
+      if (assistantText.trim().length > 0) {
+        await persistMessage(sessionId, "assistant", assistantText);
+      }
+
+      const settings = memorySettingsRef.current;
+      const allMessages = [...priorMessages, userMsg, { ...userMsg, id: assistantId, role: "assistant" as const, text: assistantText }];
+
+      // Background tasks below share the same llama.cpp context as the next
+      // generation — tracked via backgroundTaskRef so a subsequent send()
+      // can cancel them first (see cancelBackgroundTask above).
+      if (isNewSession && settings.autoGenerateTitles && !wasStopped) {
+        const sid = sessionId;
+        backgroundTaskRef.current = generateSessionTitle(query)
+          .then(async (title) => {
+            await setSessionTitle(sid, title);
+            await refreshSessions();
+          })
+          .catch(() => {})
+          .finally(() => {
+            backgroundTaskRef.current = null;
+          });
+      } else if (settings.autoSummarize && !wasStopped) {
+        const totalTurns = Math.floor(allMessages.length / 2);
+        if (totalTurns > settings.historyTurnThreshold) {
+          const olderMessages = allMessages.slice(0, -VERBATIM_MESSAGE_COUNT);
+          if (olderMessages.length > 0) {
+            const sid = sessionId;
+            const turnsToSummarize: ConversationTurn[] = olderMessages.map((m) => ({
+              role: m.role,
+              text: m.text,
+            }));
+            const previousSummary = sessionSummaryRef.current;
+            backgroundTaskRef.current = summarizeConversation(turnsToSummarize, previousSummary)
+              .then(async (summary) => {
+                sessionSummaryRef.current = summary;
+                await setSessionSummary(sid, summary);
+              })
+              .catch(() => {})
+              .finally(() => {
+                backgroundTaskRef.current = null;
+              });
+          }
+        }
+      }
+
+      await pruneSessions(settings.maxSavedSessions);
     } catch (e: any) {
       peakRss.stop();
       setMessages((prev) =>
@@ -209,7 +348,7 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
       setProcessing(null);
       setLiveTokPerSec(null);
     }
-  }, [input, generating, haptic]);
+  }, [input, generating, haptic, activeSessionId, cancelBackgroundTask, refreshSessions]);
 
   const drawerItems: DrawerItem[] = [
     { key: "prompts", icon: "💡", label: "Prompt Ideas", onPress: () => setShowPromptIdeas(true) },
@@ -233,7 +372,14 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <View style={styles.headerRow}>
-          <Pressable style={styles.hamburgerBtn} onPress={() => setDrawerOpen(true)} hitSlop={8}>
+          <Pressable
+            style={styles.hamburgerBtn}
+            onPress={() => {
+              refreshSessions();
+              setDrawerOpen(true);
+            }}
+            hitSlop={8}
+          >
             <Text style={styles.hamburgerIcon}>☰</Text>
           </Pressable>
           <Pressable style={styles.tonePill} onPress={cycleTone} hitSlop={8}>
@@ -248,7 +394,7 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
           )}
           <Pressable
             style={styles.newChatBtn}
-            onPress={() => setMessages([])}
+            onPress={resetToNewChat}
             hitSlop={8}
           >
             <Text style={styles.newChatIcon}>+</Text>
@@ -333,7 +479,16 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
         )}
       </KeyboardAvoidingView>
 
-      <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)} items={drawerItems} />
+      <Drawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        items={drawerItems}
+        sessions={sessions}
+        activeSessionId={activeSessionId}
+        onNewChat={resetToNewChat}
+        onSelectSession={selectSession}
+        onDeleteSession={removeSession}
+      />
     </LinearGradient>
   );
 }

@@ -101,3 +101,4 @@ export async function retrieve(query: string, topK = 6): Promise<RetrievedChunk[
 }
 
 export { assemblePrompt } from "./pure";
+export type { ConversationTurn, ConversationHistory } from "./pure";

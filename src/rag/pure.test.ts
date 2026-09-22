@@ -71,4 +71,35 @@ describe("assemblePrompt", () => {
     const prompt = assemblePrompt("What is X?", [], "   ");
     expect(prompt).toContain("You are an offline research assistant.");
   });
+
+  it("includes recent turns verbatim when history is given", () => {
+    const prompt = assemblePrompt("What is X?", [], undefined, {
+      turns: [
+        { role: "user", text: "My name is Alex." },
+        { role: "assistant", text: "Nice to meet you, Alex." },
+      ],
+    });
+    expect(prompt).toContain("User: My name is Alex.");
+    expect(prompt).toContain("Assistant: Nice to meet you, Alex.");
+  });
+
+  it("includes a conversation summary when history has one", () => {
+    const prompt = assemblePrompt("What is X?", [], undefined, {
+      summary: "User is planning a trip to Japan.",
+    });
+    expect(prompt).toContain("Summary of earlier conversation:");
+    expect(prompt).toContain("User is planning a trip to Japan.");
+  });
+
+  it("omits history sections entirely when no history is given", () => {
+    const prompt = assemblePrompt("What is X?", []);
+    expect(prompt).not.toContain("Summary of earlier conversation:");
+    expect(prompt).not.toContain("Recent conversation:");
+  });
+
+  it("omits history sections when history is given but empty", () => {
+    const prompt = assemblePrompt("What is X?", [], undefined, { summary: null, turns: [] });
+    expect(prompt).not.toContain("Summary of earlier conversation:");
+    expect(prompt).not.toContain("Recent conversation:");
+  });
 });

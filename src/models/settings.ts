@@ -9,7 +9,25 @@ interface Settings {
   customSystemPrompt?: string;
   maxTokens?: number;
   hapticsEnabled?: boolean;
+  autoSummarize?: boolean;
+  historyTurnThreshold?: number;
+  maxSavedSessions?: number;
+  autoGenerateTitles?: boolean;
 }
+
+export interface MemorySettings {
+  autoSummarize: boolean;
+  historyTurnThreshold: number;
+  maxSavedSessions: number;
+  autoGenerateTitles: boolean;
+}
+
+export const DEFAULT_MEMORY_SETTINGS: MemorySettings = {
+  autoSummarize: true,
+  historyTurnThreshold: 6,
+  maxSavedSessions: 20,
+  autoGenerateTitles: true,
+};
 
 const SETTINGS_PATH = `${FileSystem.documentDirectory}settings.json`;
 const DEFAULT_SETTINGS: Settings = { activeModelId: {} };
@@ -95,5 +113,21 @@ export async function getHapticsEnabled(): Promise<boolean> {
 export async function setHapticsEnabled(enabled: boolean): Promise<void> {
   const s = await readSettings();
   s.hapticsEnabled = enabled;
+  await writeSettings(s);
+}
+
+export async function getMemorySettings(): Promise<MemorySettings> {
+  const s = await readSettings();
+  return {
+    autoSummarize: s.autoSummarize ?? DEFAULT_MEMORY_SETTINGS.autoSummarize,
+    historyTurnThreshold: s.historyTurnThreshold ?? DEFAULT_MEMORY_SETTINGS.historyTurnThreshold,
+    maxSavedSessions: s.maxSavedSessions ?? DEFAULT_MEMORY_SETTINGS.maxSavedSessions,
+    autoGenerateTitles: s.autoGenerateTitles ?? DEFAULT_MEMORY_SETTINGS.autoGenerateTitles,
+  };
+}
+
+export async function setMemorySettings(patch: Partial<MemorySettings>): Promise<void> {
+  const s = await readSettings();
+  Object.assign(s, patch);
   await writeSettings(s);
 }

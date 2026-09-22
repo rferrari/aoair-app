@@ -8,6 +8,7 @@ import { CatalogItemCard, CatalogRowState } from "./CatalogItemCard";
 import { PersonalitySettings } from "./PersonalitySettings";
 import { UsageStatsContent } from "./UsageStatsContent";
 import { VoiceSettings } from "./VoiceSettings";
+import { MemorySettings } from "./MemorySettings";
 import { SegmentedTabs } from "./SegmentedTabs";
 import { Toast } from "./Toast";
 
@@ -18,10 +19,11 @@ type Props =
   | { mode: "required"; onReady: () => void }
   | { mode: "optional"; onClose: () => void };
 
-type SettingsTab = "tone" | "knowledge" | "stats" | "voice";
+type SettingsTab = "tone" | "knowledge" | "memory" | "stats" | "voice";
 const SETTINGS_TABS = [
   { key: "tone" as const, icon: "🤖", label: "Tone & Model" },
   { key: "knowledge" as const, icon: "📦", label: "Knowledge Base" },
+  { key: "memory" as const, icon: "💾", label: "Memory" },
   { key: "stats" as const, icon: "⚡", label: "Stats & System" },
   { key: "voice" as const, icon: "🎙️", label: "Voice" },
 ];
@@ -339,6 +341,7 @@ export function ModelSetupScreen(props: Props) {
           />
         )}
 
+        {settingsTab === "memory" && <MemorySettings />}
         {settingsTab === "stats" && <UsageStatsContent />}
         {settingsTab === "voice" && <VoiceSettings />}
       </ScrollView>

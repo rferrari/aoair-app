@@ -114,6 +114,29 @@ ANN index) not attempted here. The architecture is designed so more packs can
 be added later within the 50GB storage budget without changing how any of
 this works — `MODEL_CATALOG`/`TIERS` are meant to grow.
 
+## Multi-session chat history & conversation memory
+
+Chat sessions/messages persist locally in the same SQLite database as the
+knowledge base (`src/rag/db.ts`'s `chat_sessions`/`chat_messages` tables) —
+`src/services/chatHistory.ts` is the CRUD layer, surfaced as a "Recent
+Chats" list in the drawer with auto-generated titles and per-session
+delete.
+
+For long conversations, `src/services/summarize.ts` condenses older turns
+into a running summary (prepended to the prompt alongside the last 3
+exchanges kept verbatim — see `assemblePrompt`'s `history` param in
+`src/rag/pure.ts`), instead of sending the whole transcript every time.
+
+**Concurrency constraint worth being explicit about**: title generation and
+summarization are themselves LLM calls through the *same* `llamaEngine`
+context as the main chat — `llama.cpp` contexts only run one completion at
+a time. These run as fire-and-forget background tasks after a response
+finishes (not literally blocking the UI thread), but if the user sends a
+new message while one is still in flight, `ChatScreen` calls
+`llamaEngine.stop()` and awaits it before starting the next generation
+(`cancelBackgroundTask`) — otherwise the new message would silently queue
+behind the background task on the same context.
+
 ## UI dependency choices
 
 The chat UI's animations (mic pulse/aura rings, processing indicator, drawer
