@@ -49,6 +49,7 @@ import { ProcessingIndicator, ProcessingStatus } from "./ProcessingIndicator";
 import { Drawer, DrawerItem } from "./Drawer";
 import { AboutScreen } from "./AboutScreen";
 import { ChatHeader } from "./ChatHeader";
+import { ModelLoadErrorCard } from "./ModelLoadErrorCard";
 import { recordQueryStats, trackPeakRss, startAppMemoryTracking } from "../services/telemetry";
 import { getMemoryInfo } from "ram-monitor";
 
@@ -78,7 +79,13 @@ async function resolveActiveModel(kind: "llm" | "embedding") {
   return MODEL_CATALOG.find((m) => m.id === activeId && m.kind === kind) ?? fallback;
 }
 
-export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) {
+export function ChatScreen({
+  onOpenSettings,
+  onRelaunchWizard,
+}: {
+  onOpenSettings?: () => void;
+  onRelaunchWizard?: () => void;
+}) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [ready, setReady] = useState(false);
@@ -433,9 +440,11 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
         />
 
         {loadError && (
-          <View style={styles.banner}>
-            <Text style={styles.bannerText}>Model failed to load: {loadError}</Text>
-          </View>
+          <ModelLoadErrorCard
+            error={loadError}
+            onOpenSettings={onOpenSettings}
+            onRelaunchWizard={onRelaunchWizard}
+          />
         )}
         {!ready && !loadError && (
           <View style={styles.banner}>

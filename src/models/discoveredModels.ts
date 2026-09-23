@@ -39,3 +39,8 @@ export async function removeDiscoveredModel(id: string): Promise<void> {
   const all = await readAll();
   await writeAll(all.filter((m) => m.id !== id));
 }
+
+/** Deletes the discovered-models list outright (used by appReset.ts). */
+export async function clearDiscoveredModels(): Promise<void> {
+  await FileSystem.deleteAsync(PATH, { idempotent: true });
+}

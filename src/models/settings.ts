@@ -49,6 +49,11 @@ async function writeSettings(s: Settings): Promise<void> {
   await FileSystem.writeAsStringAsync(SETTINGS_PATH, JSON.stringify(s));
 }
 
+/** Deletes the settings file outright (used by appReset.ts) — next read falls back to defaults. */
+export async function clearSettings(): Promise<void> {
+  await FileSystem.deleteAsync(SETTINGS_PATH, { idempotent: true });
+}
+
 /** The user's chosen model for this kind, or null to fall back to the default. */
 export async function getActiveModelId(kind: AssetKind): Promise<string | null> {
   const s = await readSettings();

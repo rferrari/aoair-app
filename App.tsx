@@ -33,10 +33,17 @@ export default function App() {
           <ModelSetupScreen mode="required" onReady={() => setScreen("chat")} />
         )}
         {screen === "chat" && (
-          <ChatScreen onOpenSettings={() => setScreen("models")} />
+          <ChatScreen
+            onOpenSettings={() => setScreen("models")}
+            onRelaunchWizard={() => setScreen("required-setup")}
+          />
         )}
         {screen === "models" && (
-          <ModelSetupScreen mode="optional" onClose={() => setScreen("chat")} />
+          <ModelSetupScreen
+            mode="optional"
+            onClose={() => setScreen("chat")}
+            onRelaunchWizard={() => setScreen("required-setup")}
+          />
         )}
       </SafeAreaView>
     </SafeAreaProvider>

@@ -48,6 +48,19 @@ export function isDownloading(assetId: string): boolean {
   return inFlight.has(assetId);
 }
 
+/**
+ * Forgets all tracked download state without cancelling any in-flight
+ * FileSystem transfer (there's no cancel handle stored here to call) — used
+ * by appReset.ts right before deleting the model files those transfers
+ * would have been writing to, so a stale/failed entry doesn't linger for a
+ * file that no longer exists.
+ */
+export function resetDownloadState(): void {
+  state.clear();
+  inFlight.clear();
+  notify();
+}
+
 /** Starts a download if one isn't already running for this asset; otherwise no-ops. */
 export function startDownload(asset: CatalogModel): Promise<void> {
   const existing = inFlight.get(asset.id);

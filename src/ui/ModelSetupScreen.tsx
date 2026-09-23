@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, FlatList, Pressable, ScrollView } from "react-native";
+import { View, Text, StyleSheet, FlatList, Pressable, ScrollView, Alert } from "react-native";
 import { MODEL_CATALOG, CatalogModel, AssetKind, TIERS, SetupTier, CORPUS_CATALOG } from "../models/manifest";
 import { ModelManager } from "../models/ModelManager";
 import { getActiveModelId, setActiveModelId } from "../models/settings";
 import { seedKnowledgeBaseIfEmpty } from "../rag/seedCorpus";
 import { startDownload, getDownloadState, isDownloading, subscribeDownloads } from "../services/downloadManager";
 import { listDiscoveredModels, removeDiscoveredModel } from "../models/discoveredModels";
+import { resetAllAppData } from "../services/appReset";
 import { CatalogItemCard, CatalogRowState } from "./CatalogItemCard";
 import { CorpusSettingsTab } from "./CorpusSettingsTab";
 import { ModelBrowser } from "./ModelBrowser";
@@ -21,7 +22,7 @@ const LLM_EMBEDDING_KINDS: AssetKind[] = ["llm", "embedding"];
 
 type Props =
   | { mode: "required"; onReady: () => void }
-  | { mode: "optional"; onClose: () => void };
+  | { mode: "optional"; onClose: () => void; onRelaunchWizard?: () => void };
 
 /**
  * Model catalog / setup screen, in two modes:
@@ -126,6 +127,46 @@ export function ModelSetupScreen(props: Props) {
     },
     [refreshStatus]
   );
+
+  const [resetting, setResetting] = useState(false);
+  const onRelaunchWizard = !requiredMode ? (props as { onRelaunchWizard?: () => void }).onRelaunchWizard : undefined;
+
+  const confirmClearAllData = useCallback(() => {
+    Alert.alert(
+      "Clear all data?",
+      "This deletes every downloaded model, your custom knowledge bases, and all chat history from this device.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Continue",
+          style: "destructive",
+          onPress: () => {
+            Alert.alert(
+              "⚠️ Are you absolutely sure?",
+              "This will delete all downloaded models, custom knowledge bases, and chat history. The app will restart into the Setup Wizard. This can't be undone.",
+              [
+                { text: "Cancel", style: "cancel" },
+                {
+                  text: "Clear All Data & Reset App",
+                  style: "destructive",
+                  onPress: async () => {
+                    setResetting(true);
+                    try {
+                      await resetAllAppData();
+                      onRelaunchWizard?.();
+                    } catch (e: any) {
+                      setResetting(false);
+                      Alert.alert("Reset failed", e?.message ?? String(e));
+                    }
+                  },
+                },
+              ]
+            );
+          },
+        },
+      ]
+    );
+  }, [onRelaunchWizard]);
 
   useEffect(() => {
     refreshStatus();
@@ -335,6 +376,35 @@ export function ModelSetupScreen(props: Props) {
         <AccordionSection icon="🎙️" title="Voice">
           <VoiceSettings />
         </AccordionSection>
+
+        <AccordionSection icon="🧰" title="App">
+          <Pressable
+            style={styles.wizardBtn}
+            onPress={() => onRelaunchWizard?.()}
+            disabled={!onRelaunchWizard}
+          >
+            <Text style={styles.wizardBtnText}>🪄 Re-run Setup Wizard</Text>
+          </Pressable>
+          <Text style={styles.hint}>
+            Switch model tiers or re-download the default models/knowledge base
+            from scratch.
+          </Text>
+
+          <Text style={styles.dangerHeading}>Danger Zone</Text>
+          <Pressable
+            style={[styles.dangerBtn, resetting && styles.dangerBtnDisabled]}
+            onPress={confirmClearAllData}
+            disabled={resetting}
+          >
+            <Text style={styles.dangerBtnText}>
+              {resetting ? "Clearing…" : "🚨 Clear All Data & Reset App"}
+            </Text>
+          </Pressable>
+          <Text style={styles.hint}>
+            Deletes all downloaded models, custom knowledge bases, and chat history,
+            then restarts into the Setup Wizard.
+          </Text>
+        </AccordionSection>
       </ScrollView>
 
       <Toast message={toast} onHide={() => setToast(null)} />
@@ -420,4 +490,33 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   secondaryBtnText: { color: "#8bf", fontWeight: "600", fontSize: 14 },
+  wizardBtn: {
+    marginHorizontal: 12,
+    marginTop: 8,
+    backgroundColor: "rgba(139,92,246,0.15)",
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  wizardBtnText: { color: "#c9a8ff", fontWeight: "700", fontSize: 14 },
+  hint: { color: "#888", fontSize: 11, marginHorizontal: 12, marginTop: 6, lineHeight: 16 },
+  dangerHeading: {
+    color: "#e05a5a",
+    fontSize: 13,
+    fontWeight: "700",
+    marginHorizontal: 12,
+    marginTop: 20,
+  },
+  dangerBtn: {
+    marginHorizontal: 12,
+    marginTop: 8,
+    backgroundColor: "rgba(224,90,90,0.15)",
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(224,90,90,0.4)",
+  },
+  dangerBtnDisabled: { opacity: 0.5 },
+  dangerBtnText: { color: "#f2a5a5", fontWeight: "700", fontSize: 14 },
 });

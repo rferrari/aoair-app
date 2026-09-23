@@ -16,6 +16,22 @@ export function getDb(): Promise<SQLite.SQLiteDatabase> {
   return dbPromise;
 }
 
+/**
+ * Closes and deletes the on-disk database (chat history, the whole
+ * knowledge base — bundled corpus, downloaded packs, and custom imported
+ * collections all live in this one file) and clears the cached connection
+ * so the next getDb() call creates a fresh one. Used by appReset.ts's
+ * "Clear All Data" — not called during normal operation.
+ */
+export async function resetDatabase(): Promise<void> {
+  if (dbPromise) {
+    const db = await dbPromise;
+    await db.closeAsync();
+    dbPromise = null;
+  }
+  await SQLite.deleteDatabaseAsync(DB_NAME);
+}
+
 async function openAndMigrate(): Promise<SQLite.SQLiteDatabase> {
   const db = await SQLite.openDatabaseAsync(DB_NAME);
 

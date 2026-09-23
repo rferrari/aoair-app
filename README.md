@@ -1,4 +1,8 @@
+<img src="./assets/boar.png" width="96" alt="BOAR mascot" align="left" />
+
 # BOAR — Best Offline AI Researcher (Android)
+
+<br clear="left" />
 
 A fully offline research assistant for Android: local LLM inference (`llama.cpp`
 via `llama.rn`) + local hybrid retrieval (SQLite FTS5 + on-device embeddings).
@@ -100,6 +104,26 @@ verified automatically after download, not a full sha256 (reading a
 multi-gigabyte file into memory for a hash isn't worth doing on every
 download; see `ModelManager.verifyChecksum`'s doc comment).
 
+## Recovering from a bad model load, or starting over
+
+If a model fails to load (corrupted/truncated download, the file went
+missing, etc.) the chat screen shows a readable diagnosis instead of a raw
+error, with shortcuts to Settings or straight back into the setup wizard —
+see `src/ui/ModelLoadErrorCard.tsx`.
+
+Settings > App also has:
+
+- **Re-run Setup Wizard** — jump back into first-run setup any time to
+  switch model tiers or re-download the defaults, without losing anything
+  else.
+- **Danger Zone > Clear All Data & Reset App** — a double-confirmed full
+  wipe (`src/services/appReset.ts`): deletes every downloaded model, the
+  whole local knowledge base (bundled + downloaded corpus packs + your own
+  imported collections), and all chat history/settings, then sends you back
+  to the setup wizard. This app doesn't use MMKV/AsyncStorage — persisted
+  state is either the SQLite knowledge base or small JSON files under the
+  app's document directory, and this is what actually gets cleared.
+
 ## Development
 
 ```bash
@@ -110,15 +134,8 @@ npx expo run:android           # build + launch on a connected device
 
 ## Open items
 
-- [ ] Actual build + install verification on real Android hardware — in
-      progress via EAS Build (see `eas.json`)
-- [ ] Benchmark chosen models on real hardware (tokens/sec, RSS) — `docs/MODELS.md`
-- [ ] Grow the offline knowledge base beyond the 58-doc bootstrap corpus in
-      `assets/corpus/corpus.json` (see `scripts/build-corpus.mjs`)
-- [ ] On-device validation of the 12GB RAM / 50GB storage caps across a few
-      real mid-range Android devices, using the `ram-monitor` module's readout
-- [ ] Publish to a public GitHub repo
-- [ ] Record demo video/screenshots for the bounty proof post
+See [SUBMISSION_CHECKLIST.md](./SUBMISSION_CHECKLIST.md) for what's left before
+this can be submitted.
 
 ## License
 
