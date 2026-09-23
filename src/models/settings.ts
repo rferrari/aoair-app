@@ -199,14 +199,26 @@ export async function setLanguageId(language: LanguageId): Promise<void> {
 }
 
 /**
- * "simple" is the default deliberately — see routing/profiles.ts's
- * PRESET_DEFINITIONS doc comment: Simple uses one model and no extra
- * routing overhead, so a user who never touches this setting sees no
- * behavior change from before adaptive routing existed.
+ * Default preset when nothing's been explicitly set. `getRoutingPreset()`
+ * has exactly one caller right now (`src/services/adaptiveChat.ts`'s
+ * `runAdaptiveChat`, Phase 9) — it's read only when the separate, still
+ * off-by-default `adaptiveRoutingEnabled` flag is on, so this default is
+ * inert for everyone who hasn't opted into that.
+ *
+ * Temporarily `"balanced"` (not `"simple"`) for real-device Phase 9
+ * testing: `"simple"` only ever declares a `general` role slot (see
+ * routing/profiles.ts's PRESET_DEFINITIONS), so with it, turning on
+ * Adaptive Routing alone — with no preset picker UI yet to change this —
+ * would never actually exercise any model switching, just silently
+ * resolve to the same single model every time. `"balanced"` is the
+ * smallest preset that unlocks the `fast` role, without inventing a new
+ * preset or touching the routing rules themselves (router.ts/classify.ts/
+ * profiles.ts are unchanged). Revert to `"simple"` (or replace with a real
+ * picker UI) once real-device testing no longer needs this.
  */
 export async function getRoutingPreset(): Promise<RoutingPreset> {
   const s = await readSettings();
-  return s.routingPreset ?? "simple";
+  return s.routingPreset ?? "balanced";
 }
 
 export async function setRoutingPreset(preset: RoutingPreset): Promise<void> {
