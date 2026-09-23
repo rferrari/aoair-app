@@ -148,6 +148,21 @@ npx expo run:android                   # build + launch on a connected device
 prebuild can leave a stale `android/` project around with the old values baked in — that's
 what a plain `npm install` alone will never fix, since it never touches `android/` at all.
 
+### Blank/white screen or "Failed to connect to \<LAN IP\>" after `make start`
+
+This is a Wi-Fi network problem, not a build problem: some routers (and most phone
+hotspots) enable **client/AP isolation**, which silently blocks the phone and this
+computer from reaching each other even on the same Wi-Fi network and subnet. The dev
+client keeps retrying your computer's LAN IP and timing out. USB debugging isn't
+affected — fix it by forcing Metro onto the USB `adb reverse` tunnel instead of Wi-Fi:
+
+```bash
+npx expo start --localhost
+```
+
+Then reopen the app; if it still shows the old server list, use its "Enter URL
+manually" field with `http://127.0.0.1:8081`.
+
 ## Open items
 
 See [SUBMISSION_CHECKLIST.md](./SUBMISSION_CHECKLIST.md) for what's left before
