@@ -33,6 +33,7 @@ import { useTheme, colors, typography } from "./theme";
 import { ThemeSelector } from "./components/ThemeSelector";
 import { LanguageSelector } from "./components/LanguageSelector";
 import { spacing, radii } from "./theme/spacing";
+import { AccordionSection } from "./AccordionSection";
 
 const modelManager = new ModelManager();
 
@@ -489,15 +490,6 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
             />
           </View>
 
-          {/* Interactive Theme & Font Legibility Customization */}
-          <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <Text style={styles.cardIcon}>🎨</Text>
-              <Text style={styles.cardTitle}>{t("setupWizard.step3.interfaceCustomization")}</Text>
-            </View>
-            <ThemeSelector />
-          </View>
-
           {/* Off-Grid Terminal Tips */}
           <View style={styles.tipBox}>
             <Text style={styles.tipLabel}>{t("setupWizard.step3.tipLabel")}</Text>
@@ -506,7 +498,9 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
 
           {/* Download failure — without this, a stalled/failed download had
               no visible error and no retry option anywhere in this mandatory
-              screen; the user was simply stuck. */}
+              screen; the user was simply stuck. Placed above Interface
+              Customization (rather than at the very bottom, past a
+              collapsed accordion) so it's impossible to miss. */}
           {failedAssets.length > 0 && (
             <View style={styles.errorBox}>
               <Text style={styles.errorLabel}>{t("setupWizard.step3.downloadFailedLabel")}</Text>
@@ -520,6 +514,16 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
               </Pressable>
             </View>
           )}
+
+          {/* Interactive Theme & Font Legibility Customization — collapsible,
+              same AccordionSection as Settings, last section on this page
+              since it's cosmetic/optional, not part of getting set up. */}
+          <AccordionSection icon="🎨" title={t("setupWizard.step3.interfaceCustomization")}>
+            <Text style={styles.customizeWhileWaitingText}>
+              {t("setupWizard.step3.customizeWhileWaiting")}
+            </Text>
+            <ThemeSelector />
+          </AccordionSection>
 
           {/* Ready Action */}
           <View style={styles.actionsBottom}>
@@ -939,6 +943,12 @@ const styles = StyleSheet.create({
   progressAssetLabel: {
     ...typography.mono.xs,
     color: colors.text.dim,
+  },
+  customizeWhileWaitingText: {
+    ...typography.mono.xs,
+    color: colors.text.dim,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.xs,
   },
   progressTrack: {
     height: 10,
