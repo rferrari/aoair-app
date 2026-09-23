@@ -190,8 +190,11 @@ export function ModelSetupScreen(props: Props) {
       </View>
 
       <ScrollView contentContainerStyle={styles.accordionScroll}>
-        <AccordionSection icon="🤖" title={t("modelSetupScreen.sections.toneModels")} defaultOpen>
+        <AccordionSection icon="🎭" title={t("modelSetupScreen.sections.tone")} defaultOpen>
           <PersonalitySettings />
+        </AccordionSection>
+
+        <AccordionSection icon="🤖" title={t("modelSetupScreen.sections.models")}>
           <Text style={styles.sectionHeading}>{t("modelSetupScreen.installedModels")}</Text>
           <FlatList
             data={[

@@ -128,7 +128,8 @@
       "subtitle": "BOAR — Inteligência Local Adaptativa"
     },
     "sections": {
-      "toneModels": "Tom & Modelos de Raciocínio",
+      "tone": "Tom do Assistente & Estilo de Resposta",
+      "models": "Modelos de Raciocínio",
       "knowledgeBase": "Base de Conhecimento Offline (RAG)",
       "memory": "Configurações de Memória e Contexto",
       "telemetry": "Telemetria de Hardware e Conformidade",

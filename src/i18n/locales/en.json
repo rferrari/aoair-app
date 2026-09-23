@@ -128,7 +128,8 @@
       "subtitle": "BOAR — Adaptive Local Intelligence"
     },
     "sections": {
-      "toneModels": "Tone & Reasoning Models",
+      "tone": "Assistant Tone & Response Style",
+      "models": "Reasoning Models",
       "knowledgeBase": "Offline Knowledge Base (RAG)",
       "memory": "Memory & Context Settings",
       "telemetry": "Hardware Telemetry & Compliance",
