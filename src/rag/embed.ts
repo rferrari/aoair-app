@@ -9,8 +9,17 @@ import * as FileSystem from "expo-file-system/legacy";
  */
 export class EmbeddingEngine {
   private context: LlamaContext | null = null;
+  private modelFilename: string | null = null;
 
   async load(modelFilename: string) {
+    // Same rationale as LlamaEngine.load: ChatScreen re-mounts (and calls
+    // load() again) every time Settings is closed, even if the user didn't
+    // touch the model — skip re-initializing the native context if it's
+    // already loaded with this exact file.
+    if (this.context && this.modelFilename === modelFilename) {
+      return;
+    }
+
     const modelPath = `${FileSystem.documentDirectory}${modelFilename}`;
     const info = await FileSystem.getInfoAsync(modelPath);
     if (!info.exists) {
@@ -23,6 +32,7 @@ export class EmbeddingEngine {
       n_ctx: 512,
       n_threads: 2,
     });
+    this.modelFilename = modelFilename;
   }
 
   async embed(text: string): Promise<Float32Array> {
@@ -34,6 +44,7 @@ export class EmbeddingEngine {
   async unload() {
     await this.context?.release();
     this.context = null;
+    this.modelFilename = null;
   }
 }
 

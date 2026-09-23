@@ -36,6 +36,22 @@ export class LlamaEngine {
   private modelInfo: LoadedModelInfo | null = null;
 
   async load(modelFilename: string, opts?: { nCtx?: number; nThreads?: number }) {
+    const nCtx = opts?.nCtx ?? 4096;
+    const nThreads = opts?.nThreads ?? 4;
+
+    // ChatScreen re-mounts (and calls load() again) every time Settings is
+    // closed, even if the user didn't touch the model — re-initializing the
+    // native llama.cpp context is expensive (seconds, for a multi-GB model),
+    // so skip it entirely when nothing actually changed.
+    if (
+      this.context &&
+      this.modelInfo?.filename === modelFilename &&
+      this.modelInfo.nCtx === nCtx &&
+      this.modelInfo.nThreads === nThreads
+    ) {
+      return;
+    }
+
     const modelPath = `${FileSystem.documentDirectory}${modelFilename}`;
     const info = await FileSystem.getInfoAsync(modelPath);
     if (!info.exists) {
@@ -45,9 +61,8 @@ export class LlamaEngine {
     }
     const fileSizeBytes = (info as { size?: number }).size ?? 0;
 
-    // Release any previously loaded model first (e.g. switching models from
-    // Settings re-mounts ChatScreen and calls load() again) so we don't leak
-    // the old context's native memory.
+    // Release any previously loaded model first (e.g. actually switching
+    // models from Settings) so we don't leak the old context's native memory.
     await this.unload();
 
     // Pre-flight check: a clear "this probably won't fit" message beats a
@@ -62,9 +77,6 @@ export class LlamaEngine {
           `Try a smaller model from Settings > Tone & Model.`
       );
     }
-
-    const nCtx = opts?.nCtx ?? 4096;
-    const nThreads = opts?.nThreads ?? 4;
 
     try {
       this.context = await initLlama({
