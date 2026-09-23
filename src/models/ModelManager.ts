@@ -222,9 +222,29 @@ export class ModelManager {
 
     const info = await FileSystem.getInfoAsync(destPath);
     if (!info.exists || info.size !== asset.sizeBytes) {
+      const actualSize = info.exists ? info.size ?? 0 : 0;
+      // A multi-hundred-MB+ GGUF landing at a few KB almost always means the
+      // "download" actually succeeded at the HTTP level but the body wasn't
+      // the model — e.g. a rate-limit/error page served with a 200 status,
+      // which a plain byte-count check alone can't distinguish from a truly
+      // corrupt transfer. Surfacing the actual size (and a text snippet when
+      // it's small enough to plausibly be one of those pages) turns "size
+      // mismatch" from a dead end into an actionable signal instead of
+      // silently deleting the only evidence of what really happened.
+      let snippet = "";
+      if (actualSize > 0 && actualSize < 65536) {
+        try {
+          const text = await FileSystem.readAsStringAsync(destPath, {
+            encoding: FileSystem.EncodingType.UTF8,
+          });
+          snippet = ` Response body: ${text.slice(0, 300)}`;
+        } catch {
+          // Not decodable as UTF8 (genuinely partial binary) — no snippet, still report sizes.
+        }
+      }
       await FileSystem.deleteAsync(destPath, { idempotent: true });
       throw new Error(
-        `Download of ${asset.label} failed verification (size mismatch) — deleted.`
+        `Download of ${asset.label} failed verification — got ${actualSize} bytes, expected ${asset.sizeBytes}.${snippet}`
       );
     }
   }
