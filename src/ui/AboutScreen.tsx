@@ -5,18 +5,18 @@ export function AboutScreen({ onClose }: { onClose: () => void }) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>About aoair</Text>
+        <Text style={styles.title}>About BOAR</Text>
         <Pressable onPress={onClose} hitSlop={8}>
           <Text style={styles.closeBtn}>Close</Text>
         </Pressable>
       </View>
       <ScrollView contentContainerStyle={styles.body}>
-        <Text style={styles.icon}>⛺</Text>
+        <Text style={styles.icon}>🐗</Text>
         <Text style={styles.paragraph}>
-          aoair is a fully offline AI research assistant for Android — local
-          LLM inference (llama.cpp via llama.rn) and local hybrid retrieval
-          (SQLite FTS5 + on-device embeddings), no cloud calls once the
-          one-time model setup is done.
+          BOAR (Best Offline AI Researcher) is a fully offline AI research
+          assistant for Android — local LLM inference (llama.cpp via
+          llama.rn) and local hybrid retrieval (SQLite FTS5 + on-device
+          embeddings), no cloud calls once the one-time model setup is done.
         </Text>
         <Text style={styles.paragraph}>
           Built for the "Best Offline AI Research App" community,
@@ -30,7 +30,7 @@ export function AboutScreen({ onClose }: { onClose: () => void }) {
         </Text>
         <Text style={styles.sectionHeading}>Source</Text>
         <Text style={styles.paragraph}>
-          Public repository: github.com/rferrari/aoair-app — includes all
+          Public repository: github.com/rferrari/boar-app — includes all
           code, the model/corpus manifest, and setup scripts.
         </Text>
       </ScrollView>

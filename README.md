@@ -1,4 +1,4 @@
-# aoair — offline AI research assistant (Android)
+# BOAR — Best Offline AI Researcher (Android)
 
 A fully offline research assistant for Android: local LLM inference (`llama.cpp`
 via `llama.rn`) + local hybrid retrieval (SQLite FTS5 + on-device embeddings).

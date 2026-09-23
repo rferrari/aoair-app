@@ -1,7 +1,7 @@
 {
-  "name": "aoair",
+  "name": "boar-app",
   "version": "0.1.0",
-  "description": "Offline AI research assistant for Android (local LLM inference + local RAG, no network required after install)",
+  "description": "BOAR - Best Offline AI Researcher: offline AI research assistant for Android (local LLM inference + local RAG, no network required after install)",
   "license": "MIT",
   "main": "index.ts",
   "dependencies": {

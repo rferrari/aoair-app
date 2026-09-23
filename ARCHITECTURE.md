@@ -121,7 +121,7 @@ aoair_app/
       real `expo run:android` compile
 - [x] EAS Build configured (`eas.json`) and project linked (`ao-air`) for
       cloud builds without a local Android SDK
-- [x] Public GitHub repo: https://github.com/rferrari/aoair-app
+- [x] Public GitHub repo: https://github.com/rferrari/boar-app
 - [x] Unit tests (vitest, 14 tests) for pure retrieval/manifest/tier logic + CI
 - [ ] Benchmark chosen models on real hardware (tokens/sec, RSS) — not yet measured
 - [ ] whisper.cpp binding for voice input on devices with no system speech

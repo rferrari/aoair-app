@@ -48,6 +48,7 @@ import { VoiceInputButton } from "./VoiceInputButton";
 import { ProcessingIndicator, ProcessingStatus } from "./ProcessingIndicator";
 import { Drawer, DrawerItem } from "./Drawer";
 import { AboutScreen } from "./AboutScreen";
+import { ChatHeader } from "./ChatHeader";
 import { recordQueryStats, trackPeakRss, startAppMemoryTracking } from "../services/telemetry";
 import { getMemoryInfo } from "ram-monitor";
 
@@ -419,40 +420,17 @@ export function ChatScreen({ onOpenSettings }: { onOpenSettings?: () => void }) 
       <View style={styles.ambientGlowBottom} pointerEvents="none" />
 
       <View style={[styles.flex, { paddingBottom: keyboardHeight }]}>
-        <View style={styles.headerRow}>
-          <Pressable
-            style={styles.hamburgerBtn}
-            onPress={() => {
-              refreshSessions();
-              setDrawerOpen(true);
-            }}
-            hitSlop={8}
-          >
-            <Text style={styles.hamburgerIcon}>☰</Text>
-          </Pressable>
-          <Pressable style={styles.tonePill} onPress={cycleTone} hitSlop={8}>
-            <Text style={styles.tonePillText}>
-              {getPersonality(personalityId).icon}
-            </Text>
-          </Pressable>
-          {deepResearchActive && (
-            <View style={styles.deepResearchBadge}>
-              <Text style={styles.deepResearchBadgeText}>🔬 Deep Research</Text>
-            </View>
-          )}
-          {liveTokPerSec != null && (
-            <View style={styles.tokBadge}>
-              <Text style={styles.tokBadgeText}>{liveTokPerSec.toFixed(1)} tok/s</Text>
-            </View>
-          )}
-          <Pressable
-            style={styles.newChatBtn}
-            onPress={resetToNewChat}
-            hitSlop={8}
-          >
-            <Text style={styles.newChatIcon}>+</Text>
-          </Pressable>
-        </View>
+        <ChatHeader
+          toneIcon={getPersonality(personalityId).icon}
+          deepResearchActive={deepResearchActive}
+          liveTokPerSec={liveTokPerSec}
+          onOpenDrawer={() => {
+            refreshSessions();
+            setDrawerOpen(true);
+          }}
+          onCycleTone={cycleTone}
+          onNewChat={resetToNewChat}
+        />
 
         {loadError && (
           <View style={styles.banner}>
@@ -572,47 +550,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#112233",
     opacity: 0.4,
   },
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "rgba(255,255,255,0.08)",
-  },
-  hamburgerBtn: { padding: 4 },
-  hamburgerIcon: { color: "#eee", fontSize: 20 },
-  tonePill: {
-    backgroundColor: "rgba(255,255,255,0.08)",
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  tonePillText: { fontSize: 14 },
-  tokBadge: {
-    backgroundColor: "rgba(139,92,246,0.2)",
-    borderRadius: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  tokBadgeText: { color: "#c9a8ff", fontSize: 10, fontWeight: "700" },
-  deepResearchBadge: {
-    backgroundColor: "rgba(59,130,246,0.2)",
-    borderRadius: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  deepResearchBadgeText: { color: "#7db4ff", fontSize: 10, fontWeight: "700" },
-  newChatBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  newChatIcon: { color: "#eee", fontSize: 16, fontWeight: "700" },
   banner: {
     flexDirection: "row",
     alignItems: "center",

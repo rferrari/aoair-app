@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "aoair_app",
-    "slug": "ao-air",
+    "name": "BOAR",
+    "slug": "boar-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
