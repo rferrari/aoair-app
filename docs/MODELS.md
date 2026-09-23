@@ -236,6 +236,39 @@ verified working but not used by default) can bake the default models directly
 into the APK instead, for a build that needs zero network ever — see
 `ARCHITECTURE.md`.
 
+### Pre-seeding models you already have locally
+
+Two different situations, two different mechanisms:
+
+- **Building your own APK** and you already have the GGUF files on your dev
+  machine: drop them into `assets/models/` with the exact filenames
+  `scripts/setup-models.sh` expects (`primary-llm.gguf`,
+  `qwen2.5-1.5b-instruct-q4km.gguf`, `embedding.gguf`) before running the
+  script — it sha256-verifies whatever's already there and skips
+  re-downloading anything that already matches, before `expo prebuild`
+  bundles them into the APK (see previous paragraph). Does nothing for an
+  app already installed on a device.
+- **An already-installed dev-client build**, skipping the in-app download
+  entirely: push the files straight into the app's private storage with
+  `adb`. The app's storage isn't directly writable by `adb push`, so stage
+  on `/sdcard` first and use `run-as` (only works on a **debuggable**
+  build, e.g. `expo-dev-client` — a signed release build will refuse this):
+
+  ```bash
+  adb push primary-llm.gguf /sdcard/Download/
+  adb shell run-as team.sopa.aoair mkdir -p files/models
+  adb shell run-as team.sopa.aoair cp /sdcard/Download/primary-llm.gguf files/models/primary-llm.gguf
+  ```
+
+  Repeat per asset. Two things must match exactly or `ModelManager.statusOf`
+  treats the file as corrupt/absent and deletes it: the **filename**
+  (`models/<name>.gguf`, per `src/models/manifest.ts`'s `filename` field)
+  and the **byte size** (`sizeBytes` in the same file — this is the only
+  check the app makes at runtime; sha256 is only checked on demand, nothing
+  calls it automatically). Worth confirming with `ls -la` against the
+  manifest before pushing, since a re-uploaded or differently-quantized
+  file from Hugging Face can silently differ in size.
+
 ## Verification
 
 Every catalog entry is declared in `src/models/manifest.ts` with a `sha256` and
