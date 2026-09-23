@@ -179,7 +179,7 @@ export function UsageStatsContent() {
         {/* Visual Memory Gauge against 12GB limit */}
         <View style={styles.gaugeContainer}>
           <View style={styles.gaugeHeader}>
-            <Text style={styles.gaugeLabel}>APP PROCESS RSS (MMAP WEIGHTS)</Text>
+            <Text style={styles.gaugeLabel}>APP PROCESS RSS</Text>
             <Text style={styles.gaugeValue}>{formatGB(appRss)} / 12.00 GB</Text>
           </View>
           <View style={styles.gaugeTrack}>
@@ -235,7 +235,7 @@ export function UsageStatsContent() {
         <View style={styles.cardHeader}>
           <View style={styles.cardTitleRow}>
             <Text style={styles.cardIcon}>💾</Text>
-            <Text style={styles.cardTitle}>OFFLINE STORAGE BREAKDOWN</Text>
+            <Text style={styles.cardTitle}>APP STORAGE BREAKDOWN</Text>
           </View>
           <View
             style={[
@@ -341,7 +341,7 @@ export function UsageStatsContent() {
         {modelInfo ? (
           <View style={styles.statsTable}>
             <TelemetryRow
-              label="Model Architecture"
+              label="Model"
               value={modelCatalogEntry?.label ?? modelInfo.filename}
               highlight={colors.text.heading}
             />
@@ -350,7 +350,7 @@ export function UsageStatsContent() {
             {modelCatalogEntry && (
               <TelemetryRow label="Open Weights License" value={modelCatalogEntry.license} />
             )}
-            <TelemetryRow label="Inference Engine" value="llama.cpp / llama.rn (Offline)" />
+            <TelemetryRow label="Inference" value="llama.cpp / llama.rn" />
           </View>
         ) : (
           <Text style={styles.emptyNotice}>No GGUF model currently loaded.</Text>
