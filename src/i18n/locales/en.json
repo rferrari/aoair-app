@@ -278,14 +278,16 @@
     "clearAllChatHistory": "Clear All Chat History"
   },
   "voiceSettings": {
-    "title": "Voice & preferences",
+    "title": "Voice Input",
     "speechEngineLabel": "Speech-to-text engine",
     "checking": "Checking…",
     "available": "Android SpeechRecognizer (offline)",
     "unavailable": "Unavailable on this device",
-    "unavailableNote": "No system speech-recognition service was found — common on GrapheneOS / de-Googled builds. An embedded whisper.cpp model would remove this dependency but is a separate project on the scale of the llama.rn integration itself; not implemented in this version.",
+    "unavailableNote": "No system speech-recognition service was found — common on GrapheneOS / de-Googled builds. An embedded whisper.cpp model would remove this dependency but is a separate project on the scale of the llama.rn integration itself; not implemented in this version."
+  },
+  "interfaceSettings": {
     "hapticFeedbackLabel": "Haptic feedback",
-    "hapticFeedbackValue": "Vibrate on stop / response finished"
+    "hapticFeedbackValue": "Vibrate on taps, sends, and responses finishing — app-wide, not just voice input."
   },
   "knowledgeBaseScreen": {
     "title": "MY DOCUMENTS"

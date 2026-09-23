@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ActivityIndicator, Alert } from "react-native";
-import * as Haptics from "expo-haptics";
+import { impact, ImpactFeedbackStyle } from "../services/haptics";
 import { useTranslation } from "react-i18next";
 import { CatalogModel } from "../models/manifest";
 import { computeCompatibility } from "../models/compatibility";
@@ -71,7 +71,7 @@ export function CatalogItemCard({ item, row, isActive, onDownload, onUse, onRemo
   const calculating = t("catalogItemCard.calculating");
 
   const confirmRemove = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    impact(ImpactFeedbackStyle.Medium);
     Alert.alert(
       isCorpus ? t("catalogItemCard.removeCorpusTitle") : t("catalogItemCard.removeModelTitle"),
       isCorpus
@@ -89,7 +89,7 @@ export function CatalogItemCard({ item, row, isActive, onDownload, onUse, onRemo
   };
 
   const handleAction = (cb: () => void) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    impact(ImpactFeedbackStyle.Light);
     cb();
   };
 

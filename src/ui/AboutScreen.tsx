@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, Image } from "react-native";
-import * as Haptics from "expo-haptics";
+import { impact, ImpactFeedbackStyle } from "../services/haptics";
 import { useTranslation } from "react-i18next";
 import { colors } from "./theme/colors";
 import { typography } from "./theme/typography";
@@ -9,7 +9,7 @@ import { spacing, radii } from "./theme/spacing";
 export function AboutScreen({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
   const handleClose = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    impact(ImpactFeedbackStyle.Light);
     onClose();
   };
 

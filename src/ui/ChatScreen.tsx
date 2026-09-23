@@ -12,7 +12,7 @@ import {
   AppState,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import * as Haptics from "expo-haptics";
+import { impact, notification, ImpactFeedbackStyle, NotificationFeedbackType } from "../services/haptics";
 import * as Clipboard from "expo-clipboard";
 import { useTranslation } from "react-i18next";
 import { llamaEngine } from "../inference/LlamaEngine";
@@ -30,7 +30,6 @@ import {
   setPersonalityId,
   getCustomSystemPrompt,
   getMaxTokens,
-  getHapticsEnabled,
   getMemorySettings,
   MemorySettings as MemorySettingsType,
   DEFAULT_MEMORY_SETTINGS,
@@ -149,7 +148,6 @@ export function ChatScreen({
   // that was already finished/failed before this screen mounted) doesn't
   // produce a false "download complete" toast.
   const seenDownloadingRef = useRef<Set<string>>(new Set());
-  const hapticsEnabledRef = useRef(true);
   const memorySettingsRef = useRef<MemorySettingsType>(DEFAULT_MEMORY_SETTINGS);
   const deepResearchModeRef = useRef(false);
   const sessionSummaryRef = useRef<string | null>(null);
@@ -215,7 +213,6 @@ export function ChatScreen({
       const hide = await getHidePromptIdeas();
       if (!hide) setShowPromptIdeas(true);
       setPersonalityIdState(await getPersonalityId());
-      hapticsEnabledRef.current = await getHapticsEnabled();
       memorySettingsRef.current = await getMemorySettings();
       const drMode = await getDeepResearchMode();
       deepResearchModeRef.current = drMode;
@@ -224,18 +221,14 @@ export function ChatScreen({
     })();
   }, [refreshSessions]);
 
-  const haptic = useCallback((fn: () => Promise<void>) => {
-    if (hapticsEnabledRef.current) fn().catch(() => {});
-  }, []);
-
   const copyMessage = useCallback(
     async (id: string, text: string) => {
       await Clipboard.setStringAsync(text);
-      haptic(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light));
+      impact(ImpactFeedbackStyle.Light);
       setCopiedMessageId(id);
       setTimeout(() => setCopiedMessageId((cur) => (cur === id ? null : cur)), 1500);
     },
-    [haptic]
+    []
   );
 
   // Tapping the currently-active thumb again clears the rating (matches
@@ -245,11 +238,11 @@ export function ChatScreen({
     async (id: string, rating: "up" | "down") => {
       const current = messagesRef.current.find((m) => m.id === id)?.feedback ?? null;
       const next = current === rating ? null : rating;
-      haptic(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light));
+      impact(ImpactFeedbackStyle.Light);
       setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, feedback: next } : m)));
       await setMessageFeedback(id, next);
     },
-    [haptic]
+    []
   );
 
   const toggleDeepResearch = useCallback(async () => {
@@ -257,15 +250,15 @@ export function ChatScreen({
     setDeepResearchEnabled(next);
     deepResearchModeRef.current = next;
     await setDeepResearchMode(next);
-    haptic(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium));
-  }, [deepResearchEnabled, haptic]);
+    impact(ImpactFeedbackStyle.Medium);
+  }, [deepResearchEnabled]);
 
   const cycleTone = useCallback(async () => {
     const next = personalityId === "succinct" ? "detailed" : "succinct";
     setPersonalityIdState(next);
     await setPersonalityId(next);
-    haptic(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light));
-  }, [personalityId, haptic]);
+    impact(ImpactFeedbackStyle.Light);
+  }, [personalityId]);
 
   const initModels = useCallback(async () => {
     try {
@@ -298,9 +291,9 @@ export function ChatScreen({
 
   const stopGeneration = useCallback(async () => {
     stopRequestedRef.current = true;
-    haptic(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy));
+    impact(ImpactFeedbackStyle.Heavy);
     await llamaEngine.stop();
-  }, [haptic]);
+  }, []);
 
   const cancelBackgroundTask = useCallback(async () => {
     if (!backgroundTaskRef.current) return;
@@ -363,8 +356,8 @@ export function ChatScreen({
     setMessages([]);
     setActiveSessionId(null);
     sessionSummaryRef.current = null;
-    haptic(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium));
-  }, [stopAndAwaitGeneration, cancelBackgroundTask, haptic]);
+    impact(ImpactFeedbackStyle.Medium);
+  }, [stopAndAwaitGeneration, cancelBackgroundTask]);
 
   const selectSession = useCallback(async (id: string) => {
     await stopAndAwaitGeneration();
@@ -601,11 +594,7 @@ export function ChatScreen({
           m.id === assistantId ? { ...m, citations: chunks, stopped: wasStopped } : m
         )
       );
-      haptic(() =>
-        Haptics.notificationAsync(
-          wasStopped ? Haptics.NotificationFeedbackType.Warning : Haptics.NotificationFeedbackType.Success
-        )
-      );
+      notification(wasStopped ? NotificationFeedbackType.Warning : NotificationFeedbackType.Success);
 
       const durationMs = performance.now() - startTime;
       const finalStats: QueryStats = {
@@ -710,7 +699,7 @@ export function ChatScreen({
       setLiveTokPerSec(null);
       setDeepResearchActive(false);
     }
-  }, [input, generating, haptic, activeSessionId, cancelBackgroundTask, refreshSessions]);
+  }, [input, generating, activeSessionId, cancelBackgroundTask, refreshSessions]);
 
   // send() itself isn't awaited by its callers (onPress/onSubmitEditing) —
   // stopAndAwaitGeneration needs a handle on the in-flight promise so a

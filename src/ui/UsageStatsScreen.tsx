@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView } from "react-native";
-import * as Haptics from "expo-haptics";
+import { impact, ImpactFeedbackStyle } from "../services/haptics";
 import { useTranslation } from "react-i18next";
 import { UsageStatsContent } from "./UsageStatsContent";
 import { colors } from "./theme/colors";
@@ -17,7 +17,7 @@ interface Props {
 export function UsageStatsScreen({ onClose }: Props) {
   const { t } = useTranslation();
   const handleClose = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    impact(ImpactFeedbackStyle.Light);
     onClose?.();
   };
 

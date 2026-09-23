@@ -8,12 +8,13 @@ import {
   ScrollView,
   Modal,
   ActivityIndicator,
+  Switch,
 } from "react-native";
-import * as Haptics from "expo-haptics";
+import { impact, notification, ImpactFeedbackStyle, NotificationFeedbackType, setHapticsEnabledCache } from "../services/haptics";
 import { useTranslation } from "react-i18next";
 import { MODEL_CATALOG, CatalogModel, AssetKind, CORPUS_CATALOG } from "../models/manifest";
 import { ModelManager } from "../models/ModelManager";
-import { getActiveModelId, setActiveModelId } from "../models/settings";
+import { getActiveModelId, setActiveModelId, getHapticsEnabled, setHapticsEnabled } from "../models/settings";
 import { seedKnowledgeBaseIfEmpty } from "../rag/seedCorpus";
 import {
   startDownload,
@@ -61,6 +62,7 @@ export function ModelSetupScreen(props: Props) {
   const [dangerModalVisible, setDangerModalVisible] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [, forceRender] = useState(0);
+  const [hapticsEnabled, setHapticsEnabledState] = useState(true);
 
   const refreshDiscovered = useCallback(async () => {
     const models = await listDiscoveredModels();
@@ -93,6 +95,21 @@ export function ModelSetupScreen(props: Props) {
     refreshStatus();
   }, [refreshStatus]);
 
+  useEffect(() => {
+    getHapticsEnabled().then(setHapticsEnabledState);
+  }, []);
+
+  const toggleHaptics = useCallback(async (value: boolean) => {
+    setHapticsEnabledState(value);
+    // Cache update happens immediately, not just after the persisted
+    // write resolves — a haptic tap could otherwise fire once more (or
+    // not fire) between flipping the switch and setHapticsEnabled()
+    // finishing, since src/services/haptics.ts reads from an in-memory
+    // cache, not settings.ts, on every tap.
+    setHapticsEnabledCache(value);
+    await setHapticsEnabled(value);
+  }, []);
+
   const getRow = useCallback(
     (item: CatalogModel): CatalogRowState => {
       const dl = getDownloadState(item.id);
@@ -112,7 +129,7 @@ export function ModelSetupScreen(props: Props) {
 
   const download = useCallback(
     async (model: CatalogModel) => {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+      impact(ImpactFeedbackStyle.Medium);
       await startDownload(model);
       await refreshStatus();
 
@@ -138,7 +155,7 @@ export function ModelSetupScreen(props: Props) {
 
   const useModel = useCallback(
     async (model: CatalogModel) => {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+      impact(ImpactFeedbackStyle.Light);
       await setActiveModelId(model.kind, model.id);
       await refreshStatus();
       setToast(t("modelSetupScreen.toasts.activeSet", { kind: model.kind, name: model.label }));
@@ -151,7 +168,7 @@ export function ModelSetupScreen(props: Props) {
     : undefined;
 
   const handleExecuteReset = async () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+    notification(NotificationFeedbackType.Warning);
     setResetting(true);
     try {
       await resetAllAppData();
@@ -243,6 +260,17 @@ export function ModelSetupScreen(props: Props) {
           <View style={styles.themeSectionWrapper}>
             <ThemeSelector />
           </View>
+          <View style={styles.hapticRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.hapticRowLabel}>{t("interfaceSettings.hapticFeedbackLabel")}</Text>
+              <Text style={styles.hapticRowValue}>{t("interfaceSettings.hapticFeedbackValue")}</Text>
+            </View>
+            <Switch
+              value={hapticsEnabled}
+              onValueChange={toggleHaptics}
+              trackColor={{ false: "#333", true: "#3a7a4a" }}
+            />
+          </View>
         </AccordionSection>
 
         <AccordionSection icon="🌐" title={t("modelSetupScreen.sections.language")}>
@@ -285,7 +313,7 @@ export function ModelSetupScreen(props: Props) {
               <Pressable
                 style={styles.dangerActionBtn}
                 onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {});
+                  impact(ImpactFeedbackStyle.Heavy);
                   setDangerModalVisible(true);
                 }}
               >
@@ -424,6 +452,26 @@ const styles = StyleSheet.create({
   themeSectionWrapper: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
+  },
+  hapticRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border.subtle,
+  },
+  hapticRowLabel: {
+    ...typography.ui.subtext,
+    color: colors.text.heading,
+    fontWeight: "700",
+  },
+  hapticRowValue: {
+    ...typography.mono.xs,
+    fontSize: 10,
+    color: colors.text.dim,
+    marginTop: 2,
   },
   recoveryContainer: {
     padding: spacing.md,

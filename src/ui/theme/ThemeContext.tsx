@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from "react";
-import * as Haptics from "expo-haptics";
+import { impact, ImpactFeedbackStyle } from "../../services/haptics";
 import {
   ThemeId,
   FontScale,
@@ -46,13 +46,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   const setTheme = useCallback(async (newTheme: ThemeId) => {
     setThemeIdState(newTheme);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    impact(ImpactFeedbackStyle.Light);
     await persistThemeId(newTheme);
   }, []);
 
   const setFontScale = useCallback(async (newScale: FontScale) => {
     setFontScaleState(newScale);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    impact(ImpactFeedbackStyle.Light);
     await persistFontScale(newScale);
   }, []);
 

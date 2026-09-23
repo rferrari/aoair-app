@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, Pressable, StyleSheet, Image } from "react-native";
-import * as Haptics from "expo-haptics";
+import { impact, ImpactFeedbackStyle } from "../services/haptics";
 import { useTranslation } from "react-i18next";
 import { colors } from "./theme/colors";
 import { typography } from "./theme/typography";
@@ -34,8 +34,8 @@ export function ChatHeader({
   onToggleDeepResearch,
 }: Props) {
   const { t } = useTranslation();
-  const handlePress = (callback: () => void, feedback = Haptics.ImpactFeedbackStyle.Light) => {
-    Haptics.impactAsync(feedback).catch(() => {});
+  const handlePress = (callback: () => void, feedback: ImpactFeedbackStyle = ImpactFeedbackStyle.Light) => {
+    impact(feedback);
     callback();
   };
 
@@ -93,7 +93,7 @@ export function ChatHeader({
           {/* New Chat Button */}
           <Pressable
             style={styles.newChatBtn}
-            onPress={() => handlePress(onNewChat, Haptics.ImpactFeedbackStyle.Medium)}
+            onPress={() => handlePress(onNewChat, ImpactFeedbackStyle.Medium)}
             hitSlop={6}
             accessibilityLabel={t("chatHeader.newChatSession")}
           >
@@ -110,7 +110,7 @@ export function ChatHeader({
               styles.deepResearchPill,
               deepResearchActive && styles.deepResearchPillActive,
             ]}
-            onPress={() => handlePress(onToggleDeepResearch, Haptics.ImpactFeedbackStyle.Medium)}
+            onPress={() => handlePress(onToggleDeepResearch, ImpactFeedbackStyle.Medium)}
             hitSlop={6}
           >
             <Text style={styles.deepResearchIcon}>🔬</Text>

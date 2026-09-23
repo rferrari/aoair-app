@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Alert } from "react-native";
-import * as Haptics from "expo-haptics";
+import { impact, ImpactFeedbackStyle } from "../services/haptics";
 import { useTranslation } from "react-i18next";
 import {
   listRecentExecutions,
@@ -67,12 +67,12 @@ export function ExecutionTelemetryScreen({ onClose }: Props) {
   }, [refresh]);
 
   const handleClose = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    impact(ImpactFeedbackStyle.Light);
     onClose?.();
   };
 
   const handleExport = async (format: "json" | "csv") => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    impact(ImpactFeedbackStyle.Light);
     setExporting(true);
     try {
       await exportExecutionTelemetry(format);

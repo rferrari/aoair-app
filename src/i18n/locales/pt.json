@@ -278,14 +278,16 @@
     "clearAllChatHistory": "Limpar Todo o Histórico de Conversas"
   },
   "voiceSettings": {
-    "title": "Voz e preferências",
+    "title": "Entrada de Voz",
     "speechEngineLabel": "Mecanismo de reconhecimento de voz",
     "checking": "Verificando…",
     "available": "Android SpeechRecognizer (offline)",
     "unavailable": "Indisponível neste dispositivo",
-    "unavailableNote": "Nenhum serviço de reconhecimento de voz do sistema foi encontrado — comum em builds GrapheneOS / sem Google. Um modelo whisper.cpp embarcado eliminaria essa dependência, mas é um projeto separado do porte da própria integração com o llama.rn; não implementado nesta versão.",
+    "unavailableNote": "Nenhum serviço de reconhecimento de voz do sistema foi encontrado — comum em builds GrapheneOS / sem Google. Um modelo whisper.cpp embarcado eliminaria essa dependência, mas é um projeto separado do porte da própria integração com o llama.rn; não implementado nesta versão."
+  },
+  "interfaceSettings": {
     "hapticFeedbackLabel": "Feedback tátil",
-    "hapticFeedbackValue": "Vibrar ao parar / finalizar resposta"
+    "hapticFeedbackValue": "Vibrar ao tocar, enviar e ao finalizar respostas — em todo o app, não só na entrada de voz."
   },
   "knowledgeBaseScreen": {
     "title": "MEUS DOCUMENTOS"

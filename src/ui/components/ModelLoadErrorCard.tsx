@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
-import * as Haptics from "expo-haptics";
+import { impact, ImpactFeedbackStyle } from "../../services/haptics";
 import { useTranslation } from "react-i18next";
 import { colors } from "../theme/colors";
 import { typography } from "../theme/typography";
@@ -66,7 +66,7 @@ export function ModelLoadErrorCard({
   const diagnosis = diagnose(error, t);
 
   const handleAction = (callback?: () => void) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    impact(ImpactFeedbackStyle.Light);
     callback?.();
   };
 

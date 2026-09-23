@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, Switch } from "react-native";
-import * as Haptics from "expo-haptics";
+import { impact, ImpactFeedbackStyle } from "../services/haptics";
 import { useTranslation } from "react-i18next";
 import { setHidePromptIdeas } from "../models/settings";
 import { colors } from "./theme/colors";
@@ -66,23 +66,23 @@ export function PromptIdeasCarousel({ onUsePrompt, onDismiss }: Props) {
   const isFirst = index === 0;
 
   const dismiss = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    impact(ImpactFeedbackStyle.Light);
     if (dontShowAgain) await setHidePromptIdeas(true);
     onDismiss();
   };
 
   const next = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    impact(ImpactFeedbackStyle.Light);
     setIndex((i) => Math.min(PROMPT_IDEAS.length - 1, i + 1));
   };
 
   const back = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    impact(ImpactFeedbackStyle.Light);
     setIndex((i) => Math.max(0, i - 1));
   };
 
   const use = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    impact(ImpactFeedbackStyle.Medium);
     onUsePrompt(idea.prompt);
   };
 

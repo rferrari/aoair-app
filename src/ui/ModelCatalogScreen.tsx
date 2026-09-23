@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, FlatList, Pressable, ScrollView } from "react-native";
-import * as Haptics from "expo-haptics";
+import { impact, ImpactFeedbackStyle } from "../services/haptics";
 import { useTranslation } from "react-i18next";
 import { MODEL_CATALOG, CatalogModel, AssetKind } from "../models/manifest";
 import { ModelManager } from "../models/ModelManager";
@@ -84,7 +84,7 @@ export function ModelCatalogScreen({ onClose }: Props) {
 
   const download = useCallback(
     async (model: CatalogModel) => {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+      impact(ImpactFeedbackStyle.Medium);
       await startDownload(model);
       await refreshStatus();
     },
@@ -105,7 +105,7 @@ export function ModelCatalogScreen({ onClose }: Props) {
 
   const useModel = useCallback(
     async (model: CatalogModel) => {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+      impact(ImpactFeedbackStyle.Light);
       await setActiveModelId(model.kind, model.id);
       await refreshStatus();
       setToast(t("modelCatalogScreen.activeModelToast", { kind: model.kind, label: model.label }));
@@ -149,7 +149,7 @@ export function ModelCatalogScreen({ onClose }: Props) {
               key={tab}
               style={[styles.tabBtn, isSelected && styles.tabBtnActive]}
               onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                impact(ImpactFeedbackStyle.Light);
                 setSelectedFilter(tab);
               }}
             >

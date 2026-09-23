@@ -1,23 +1,19 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, Switch } from "react-native";
+import { View, Text, StyleSheet } from "react-native";
 import { useTranslation } from "react-i18next";
-import { getHapticsEnabled, setHapticsEnabled } from "../models/settings";
 import { isVoiceInputAvailable } from "../voice/VoiceInput";
 
+// Haptic feedback is an app-wide setting (src/services/haptics.ts), not
+// voice-specific — its toggle lives in the Display & Theme section now
+// (ModelSetupScreen.tsx), alongside the rest of the interface/feedback
+// preferences, not here.
 export function VoiceSettings() {
   const { t } = useTranslation();
-  const [haptics, setHaptics] = useState(true);
   const [voiceAvailable, setVoiceAvailable] = useState<boolean | null>(null);
 
   useEffect(() => {
-    getHapticsEnabled().then(setHaptics);
     isVoiceInputAvailable().then(setVoiceAvailable).catch(() => setVoiceAvailable(false));
   }, []);
-
-  const toggleHaptics = async (value: boolean) => {
-    setHaptics(value);
-    await setHapticsEnabled(value);
-  };
 
   return (
     <View style={styles.card}>
@@ -38,20 +34,6 @@ export function VoiceSettings() {
       {voiceAvailable === false && (
         <Text style={styles.note}>{t("voiceSettings.unavailableNote")}</Text>
       )}
-
-      <View style={styles.divider} />
-
-      <View style={styles.row}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.rowLabel}>{t("voiceSettings.hapticFeedbackLabel")}</Text>
-          <Text style={styles.rowValue}>{t("voiceSettings.hapticFeedbackValue")}</Text>
-        </View>
-        <Switch
-          value={haptics}
-          onValueChange={toggleHaptics}
-          trackColor={{ false: "#333", true: "#3a7a4a" }}
-        />
-      </View>
     </View>
   );
 }
@@ -63,5 +45,4 @@ const styles = StyleSheet.create({
   rowLabel: { color: "#eee", fontSize: 13, fontWeight: "600" },
   rowValue: { color: "#999", fontSize: 12, marginTop: 2 },
   note: { color: "#666", fontSize: 11, lineHeight: 16 },
-  divider: { height: StyleSheet.hairlineWidth, backgroundColor: "rgba(255,255,255,0.1)" },
 });

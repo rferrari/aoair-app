@@ -10,7 +10,7 @@ import {
   AppState,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import * as Haptics from "expo-haptics";
+import { impact, notification, ImpactFeedbackStyle, NotificationFeedbackType } from "../services/haptics";
 import { useTranslation } from "react-i18next";
 import * as FileSystem from "expo-file-system/legacy";
 import { getDeviceTotalRamBytes } from "ram-monitor";
@@ -133,7 +133,7 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
   const allAssetsPresent = tierAssets.every((m) => presence[m.id]);
 
   const handleStartDownloads = useCallback(async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    impact(ImpactFeedbackStyle.Medium);
     setStep(3);
     const presMap = await refreshPresence();
 
@@ -157,7 +157,7 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
           setIndexingPhase("building");
           await seedKnowledgeBaseIfEmpty();
           setIndexingPhase("ready");
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+          notification(NotificationFeedbackType.Success);
         } catch (e: any) {
           setIndexingError(e?.message ?? String(e));
           setIndexingPhase("error");
@@ -206,7 +206,7 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
   }
 
   const retryFailedDownloads = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    impact(ImpactFeedbackStyle.Medium);
     for (const { asset } of failedAssets) {
       startDownload(asset).finally(() => refreshPresence());
     }
@@ -224,7 +224,7 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
   // + restarts every not-yet-present asset regardless of what the UI
   // currently believes its state is.
   const restartAllDownloads = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    impact(ImpactFeedbackStyle.Medium);
     for (const asset of tierAssets) {
       if (!presence[asset.id]) {
         restartDownload(asset).finally(() => refreshPresence());
@@ -332,7 +332,7 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
             <Pressable
               style={styles.primaryBtn}
               onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                impact(ImpactFeedbackStyle.Light);
                 setStep(2);
               }}
             >
@@ -357,7 +357,7 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
                 key={tier.id}
                 style={[styles.tierCard, isSelected && styles.tierCardActive]}
                 onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                  impact(ImpactFeedbackStyle.Light);
                   setSelectedTier(tier.id);
                 }}
               >
@@ -560,7 +560,7 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
               <Pressable
                 style={[styles.primaryBtn, styles.launchBtn]}
                 onPress={() => {
-                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+                  notification(NotificationFeedbackType.Success);
                   onReady();
                 }}
               >

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { View, Text, Pressable, StyleSheet, LayoutAnimation, Platform, UIManager } from "react-native";
-import * as Haptics from "expo-haptics";
+import { impact } from "../services/haptics";
 import { colors } from "./theme/colors";
 import { typography } from "./theme/typography";
 import { spacing, radii } from "./theme/spacing";
@@ -21,7 +21,7 @@ export function AccordionSection({ icon, title, defaultOpen = false, children }:
   const [open, setOpen] = useState(defaultOpen);
 
   const toggle = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    impact();
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setOpen((o) => !o);
   };

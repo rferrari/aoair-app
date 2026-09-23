@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from "react";
-import * as Haptics from "expo-haptics";
+import { impact, ImpactFeedbackStyle } from "../services/haptics";
 import i18n from "./index";
 import { LanguageId, getLanguageId, setLanguageId as persistLanguageId } from "../models/settings";
 
@@ -37,7 +37,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
   const setLanguage = useCallback(async (id: LanguageId) => {
     setLanguageIdState(id);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    impact(ImpactFeedbackStyle.Light);
     await i18n.changeLanguage(id);
     await persistLanguageId(id);
   }, []);
