@@ -146,17 +146,31 @@ export class ModelManager {
    * (e.g. a stale reference left over from a dev Fast Refresh mid-download,
    * or a native task that silently stopped calling back). Unlike the
    * timeout/backgrounding path, this doesn't wait for anything to detect
-   * the stall — it's user-triggered, cancels whatever's tracked, and wipes
-   * the partial file so the next downloadCatalogModel() call is guaranteed
-   * to start genuinely from scratch rather than resuming from
-   * possibly-corrupt state.
+   * the stall — it's user-triggered.
+   *
+   * Split into two steps (signal, then delete) rather than one, because
+   * `pauseAsync()` resolving only means cancellation was *requested* — the
+   * native write loop notices `isPausing` and stops on its next iteration,
+   * which is asynchronous and not awaited by pause() itself. Deleting the
+   * file and starting a new download immediately after signalling cancel
+   * (as an earlier version of this method did) raced the old, now-orphaned
+   * writer: if its stream happened to close *after* the new download
+   * finished, it silently truncated the file right back down — the new
+   * download would verify as `0 bytes` despite having fully completed.
+   * Callers MUST await the corresponding downloadCatalogModel() promise's
+   * settlement between calling signalCancelDownload and
+   * deletePartialDownload (see downloadManager.restartDownload) so the old
+   * writer is actually gone before the file is touched again.
    */
-  async forceRestartDownload(asset: CatalogModel): Promise<void> {
+  async signalCancelDownload(asset: CatalogModel): Promise<void> {
     const active = this.pausedDownloads.get(asset.id);
     if (active) {
       await active.pauseAsync().catch(() => {});
       this.pausedDownloads.delete(asset.id);
     }
+  }
+
+  async deletePartialDownload(asset: CatalogModel): Promise<void> {
     await FileSystem.deleteAsync(assetPath(asset), { idempotent: true }).catch(() => {});
   }
 

@@ -77,9 +77,22 @@ export function resetDownloadState(): void {
  * `startDownload`, this doesn't check that guard — it clears the tracked
  * state unconditionally and cancels+deletes whatever ModelManager was
  * actually holding, then starts clean.
+ *
+ * Ordering matters: signal cancel, then AWAIT the stale in-flight promise's
+ * settlement, and only then delete the file and start over. Deleting the
+ * file right after signalling cancel (without waiting) races the old
+ * download's writer, which doesn't stop touching the file the instant
+ * pauseAsync() resolves — if it closes its stream after the new download
+ * already finished, it silently truncates the file back down, and a fully-
+ * downloaded model comes back verified as 0 bytes.
  */
 export async function restartDownload(asset: CatalogModel): Promise<void> {
-  await modelManager.forceRestartDownload(asset);
+  const stale = inFlight.get(asset.id);
+  await modelManager.signalCancelDownload(asset);
+  if (stale) {
+    await stale.catch(() => {});
+  }
+  await modelManager.deletePartialDownload(asset);
   inFlight.delete(asset.id);
   state.delete(asset.id);
   downloadTimestamps.delete(asset.id);
