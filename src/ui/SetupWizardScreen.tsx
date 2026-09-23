@@ -169,6 +169,13 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
   let activeSpeed = 0;
   let maxEta = 0;
   let isAnyDownloading = false;
+  // Before this, a stalled/failed download just silently reverted to
+  // "PENDING" with no way to know why or to retry — the mandatory first-run
+  // wizard had no escape hatch at all (see docs/ADAPTIVE_ROUTING.md's
+  // timeout/backgrounding findings; downloads had the exact same gap
+  // generation timeouts did). failedAssets makes the error visible and
+  // retriable instead.
+  const failedAssets: { asset: CatalogModel; error: string }[] = [];
 
   for (const asset of tierAssets) {
     const dl = getDownloadState(asset.id);
@@ -181,9 +188,19 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
         isAnyDownloading = true;
         if (dl.speedBytesPerSec) activeSpeed += dl.speedBytesPerSec;
         if (dl.etaSeconds && dl.etaSeconds > maxEta) maxEta = dl.etaSeconds;
+      } else if (dl.error) {
+        failedAssets.push({ asset, error: dl.error });
       }
     }
   }
+
+  const retryFailedDownloads = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    for (const { asset } of failedAssets) {
+      startDownload(asset).finally(() => refreshPresence());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [failedAssets, refreshPresence]);
 
   const aggregateProgress =
     totalBytesExpected > 0 ? Math.min(totalBytesWritten / totalBytesExpected, 1) : 0;
@@ -442,6 +459,23 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
             <Text style={styles.tipLabel}>{t("setupWizard.step3.tipLabel")}</Text>
             <Text style={styles.tipText}>{t("setupWizard.step3.tipText")}</Text>
           </View>
+
+          {/* Download failure — without this, a stalled/failed download had
+              no visible error and no retry option anywhere in this mandatory
+              screen; the user was simply stuck. */}
+          {failedAssets.length > 0 && (
+            <View style={styles.errorBox}>
+              <Text style={styles.errorLabel}>{t("setupWizard.step3.downloadFailedLabel")}</Text>
+              {failedAssets.map(({ asset, error }) => (
+                <Text key={asset.id} style={styles.errorText}>
+                  {asset.label}: {error}
+                </Text>
+              ))}
+              <Pressable style={styles.retryBtn} onPress={retryFailedDownloads}>
+                <Text style={styles.retryBtnText}>{t("setupWizard.step3.retryDownloads")}</Text>
+              </Pressable>
+            </View>
+          )}
 
           {/* Ready Action */}
           <View style={styles.actionsBottom}>
@@ -986,6 +1020,36 @@ const styles = StyleSheet.create({
     ...typography.ui.caption,
     color: colors.text.secondary,
     lineHeight: 18,
+  },
+  errorBox: {
+    backgroundColor: colors.crimson.bgSubtle,
+    borderColor: colors.crimson.border,
+    borderWidth: 1,
+    borderRadius: radii.md,
+    padding: spacing.sm,
+    gap: 6,
+  },
+  errorLabel: {
+    ...typography.mono.xs,
+    color: colors.crimson[400],
+    fontWeight: "700",
+  },
+  errorText: {
+    ...typography.ui.caption,
+    color: colors.text.secondary,
+    lineHeight: 18,
+  },
+  retryBtn: {
+    marginTop: 4,
+    backgroundColor: colors.crimson[600],
+    borderRadius: radii.sm,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  retryBtnText: {
+    ...typography.ui.titleSm,
+    color: "#FFFFFF",
+    fontWeight: "800",
   },
   actionsBottom: {
     marginTop: spacing.md,

@@ -210,7 +210,9 @@
       "launchButton": "🐗 Iniciar Terminal BOAR",
       "indexingError": "Erro de indexação: {{error}}",
       "buildingIndex": "Construindo base de conhecimento SQLite local & índice vetorial…",
-      "waitingForDownloads": "Aguardando downloads…"
+      "waitingForDownloads": "Aguardando downloads…",
+      "downloadFailedLabel": "Falha no download",
+      "retryDownloads": "Repetir Download"
     },
     "phaseStatus": {
       "complete": "COMPLETO",

@@ -21,6 +21,10 @@ export interface DownloadProgress {
   totalBytesExpectedToWrite: number;
 }
 
+// How long a download can go with zero progress callbacks before it's
+// treated as stalled and cancelled — see downloadCatalogModel's doc comment.
+const DOWNLOAD_INACTIVITY_TIMEOUT_MS = 60_000;
+
 function assetPath(asset: Pick<CatalogModel, "filename">): string {
   return `${FileSystem.documentDirectory}${asset.filename}`;
 }
@@ -136,18 +140,50 @@ export class ModelManager {
     const destDir = destPath.substring(0, destPath.lastIndexOf("/"));
     await FileSystem.makeDirectoryAsync(destDir, { intermediates: true }).catch(() => {});
 
+    // Inactivity timeout, not a flat deadline: a large model on a slow-but-
+    // working connection can legitimately take many minutes, but zero
+    // progress callbacks for this long (rate limiting, a hung TCP
+    // connection, a server that accepted the request and never responds)
+    // means something is actually wrong — before this, a stalled download
+    // sat at 0% forever with no error, no retry option, and no way for the
+    // user to escape the mandatory first-run setup screen.
+    let timedOut = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const resetInactivityTimer = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        timedOut = true;
+        downloadResumable.cancelAsync().catch(() => {});
+      }, DOWNLOAD_INACTIVITY_TIMEOUT_MS);
+    };
+
     const downloadResumable = FileSystem.createDownloadResumable(
       asset.sourceUrl,
       destPath,
       {},
-      (data) =>
+      (data) => {
+        resetInactivityTimer();
         onProgress?.({
           totalBytesWritten: data.totalBytesWritten,
           totalBytesExpectedToWrite: data.totalBytesExpectedToWrite,
-        })
+        });
+      }
     );
+    resetInactivityTimer();
 
-    await downloadResumable.downloadAsync();
+    try {
+      await downloadResumable.downloadAsync();
+    } catch (e: any) {
+      await FileSystem.deleteAsync(destPath, { idempotent: true }).catch(() => {});
+      if (timedOut) {
+        throw new Error(
+          `Download of ${asset.label} stalled (no progress for ${DOWNLOAD_INACTIVITY_TIMEOUT_MS / 1000}s) — check your connection and try again.`
+        );
+      }
+      throw e;
+    } finally {
+      clearTimeout(timer);
+    }
 
     const info = await FileSystem.getInfoAsync(destPath);
     if (!info.exists || info.size !== asset.sizeBytes) {
