@@ -300,6 +300,7 @@
     "initializingCore": "Inicializando núcleo offline local…",
     "mountingWeights": "Carregando pesos GGUF locais…",
     "indexingKnowledgeBase": "Indexando base de conhecimento offline…",
+    "modelDownloadComplete": "✅ Download de \"{{label}}\" concluído",
     "drawerItems": {
       "prompts": "Ideias de Prompts",
       "myDocuments": "Meus Documentos",

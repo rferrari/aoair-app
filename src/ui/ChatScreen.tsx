@@ -19,7 +19,9 @@ import { llamaEngine } from "../inference/LlamaEngine";
 import { embeddingEngine } from "../rag/embed";
 import { retrieve, assemblePrompt, RetrievedChunk, ConversationTurn } from "../rag/retrieve";
 import { seedKnowledgeBaseIfEmpty } from "../rag/seedCorpus";
-import { MODEL_CATALOG, REQUIRED_MODELS, CatalogModel } from "../models/manifest";
+import { MODEL_CATALOG, CORPUS_CATALOG, REQUIRED_MODELS, CatalogModel } from "../models/manifest";
+import { listDiscoveredModels } from "../models/discoveredModels";
+import { subscribeDownloads, listDownloadStates } from "../services/downloadManager";
 import {
   getActiveModelId,
   getHidePromptIdeas,
@@ -55,6 +57,7 @@ import { Drawer, DrawerItem } from "./Drawer";
 import { AboutScreen } from "./AboutScreen";
 import { KnowledgeBaseScreen } from "./KnowledgeBaseScreen";
 import { ChatHeader } from "./ChatHeader";
+import { Toast } from "./Toast";
 import { ModelLoadErrorCard } from "./components/ModelLoadErrorCard";
 import { MarkdownMessage } from "./components/MarkdownMessage";
 import { SourceFootnotes } from "./components/SourceFootnotes";
@@ -122,9 +125,22 @@ export function ChatScreen({
   const [activeModel, setActiveModel] = useState<CatalogModel | null>(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [downloadToast, setDownloadToast] = useState<string | null>(null);
 
   const listRef = useRef<FlatList<Message>>(null);
   const inputRef = useRef<TextInput>(null);
+  // Labels for whatever's downloadable — the built-in catalog (sync,
+  // available immediately) plus anything the user added via the Hugging
+  // Face browser (loaded once on mount; discoveredModels.ts persists these
+  // separately from MODEL_CATALOG, see that file's own comment).
+  const assetLabelsRef = useRef<Record<string, string>>(
+    Object.fromEntries([...MODEL_CATALOG, ...CORPUS_CATALOG].map((m) => [m.id, m.label]))
+  );
+  // Which asset ids we've personally observed mid-download, so a
+  // downloadManager notification firing for an unrelated reason (or one
+  // that was already finished/failed before this screen mounted) doesn't
+  // produce a false "download complete" toast.
+  const seenDownloadingRef = useRef<Set<string>>(new Set());
   const hapticsEnabledRef = useRef(true);
   const memorySettingsRef = useRef<MemorySettingsType>(DEFAULT_MEMORY_SETTINGS);
   const deepResearchModeRef = useRef(false);
@@ -154,6 +170,33 @@ export function ChatScreen({
       hideSub.remove();
     };
   }, []);
+
+  useEffect(() => {
+    listDiscoveredModels().then((models) => {
+      for (const m of models) assetLabelsRef.current[m.id] = m.label;
+    });
+  }, []);
+
+  // downloadManager is a module-level singleton (see its own comment) —
+  // a download started from the Models screen keeps running after that
+  // screen unmounts, so this fires here too once the user's back in chat.
+  // Only toasts a transition we actually watched happen (downloading ->
+  // done, no error), not anything already finished/failed before mount.
+  useEffect(() => {
+    return subscribeDownloads(() => {
+      for (const { assetId, state: dl } of listDownloadStates()) {
+        if (dl.downloading) {
+          seenDownloadingRef.current.add(assetId);
+        } else if (seenDownloadingRef.current.has(assetId)) {
+          seenDownloadingRef.current.delete(assetId);
+          if (!dl.error) {
+            const label = assetLabelsRef.current[assetId] ?? assetId;
+            setDownloadToast(t("chatScreen.modelDownloadComplete", { label }));
+          }
+        }
+      }
+    });
+  }, [t]);
 
   const refreshSessions = useCallback(async () => {
     setSessions(await listSessions());
@@ -730,6 +773,8 @@ export function ChatScreen({
         onSelectSession={selectSession}
         onDeleteSession={removeSession}
       />
+
+      {downloadToast && <Toast message={downloadToast} onHide={() => setDownloadToast(null)} />}
     </LinearGradient>
   );
 }

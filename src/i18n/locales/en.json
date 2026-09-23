@@ -300,6 +300,7 @@
     "initializingCore": "Initializing local offline core…",
     "mountingWeights": "Mounting local GGUF weights…",
     "indexingKnowledgeBase": "Indexing offline knowledge base…",
+    "modelDownloadComplete": "✅ \"{{label}}\" download complete",
     "drawerItems": {
       "prompts": "Prompt Ideas",
       "myDocuments": "My Documents",

@@ -54,6 +54,18 @@ export function isDownloading(assetId: string): boolean {
 }
 
 /**
+ * All currently-tracked download states, keyed by asset id. Used by
+ * screens that don't already know the specific set of asset ids to watch —
+ * e.g. ChatScreen surfacing a "download complete" toast for whatever
+ * optional model the user started downloading from the Models screen,
+ * without needing its own copy of the full catalog+discovered-models list
+ * just to enumerate what to check.
+ */
+export function listDownloadStates(): Array<{ assetId: string; state: DownloadState }> {
+  return Array.from(state.entries()).map(([assetId, s]) => ({ assetId, state: s }));
+}
+
+/**
  * Forgets all tracked download state without cancelling any in-flight
  * FileSystem transfer (there's no cancel handle stored here to call) — used
  * by appReset.ts right before deleting the model files those transfers
