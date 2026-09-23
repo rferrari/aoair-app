@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
+import { useTranslation } from "react-i18next";
 import * as FileSystem from "expo-file-system/legacy";
 import { getDeviceTotalRamBytes } from "ram-monitor";
 import {
@@ -52,15 +53,15 @@ function formatGB(bytes: number): string {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }
 
-function formatSpeed(bytesPerSec?: number): string {
-  if (!bytesPerSec || bytesPerSec <= 0) return "Calculating…";
+function formatSpeed(bytesPerSec: number | undefined, calculatingLabel: string): string {
+  if (!bytesPerSec || bytesPerSec <= 0) return calculatingLabel;
   return bytesPerSec >= 1024 * 1024
     ? `${(bytesPerSec / (1024 * 1024)).toFixed(1)} MB/s`
     : `${(bytesPerSec / 1024).toFixed(0)} KB/s`;
 }
 
-function formatEta(seconds?: number): string {
-  if (seconds == null || seconds <= 0 || !isFinite(seconds)) return "Estimating…";
+function formatEta(seconds: number | undefined, estimatingLabel: string): string {
+  if (seconds == null || seconds <= 0 || !isFinite(seconds)) return estimatingLabel;
   if (seconds < 60) return `${Math.ceil(seconds)}s`;
   const m = Math.floor(seconds / 60);
   const s = Math.ceil(seconds % 60);
@@ -69,6 +70,7 @@ function formatEta(seconds?: number): string {
 
 export function SetupWizardScreen({ onReady, onSkip }: Props) {
   const { colors, typography } = useTheme();
+  const { t } = useTranslation();
   const [step, setStep] = useState<WizardStep>(1);
   const [selectedTier, setSelectedTier] = useState<SetupTier>("standard");
   const [presence, setPresence] = useState<Record<string, boolean>>({});
@@ -77,7 +79,8 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
     freeStorageBytes: 0,
     scanned: false,
   });
-  const [indexingStatus, setIndexingStatus] = useState<string>("Waiting for downloads…");
+  const [indexingPhase, setIndexingPhase] = useState<"waiting" | "building" | "ready" | "error">("waiting");
+  const [indexingError, setIndexingError] = useState<string | null>(null);
   const [, forceRender] = useState(0);
 
   // Subscribe to live download progress
@@ -148,12 +151,13 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
     if (step === 3 && allAssetsPresent) {
       (async () => {
         try {
-          setIndexingStatus("Building local SQLite knowledge base & vector index…");
+          setIndexingPhase("building");
           await seedKnowledgeBaseIfEmpty();
-          setIndexingStatus("Ready");
+          setIndexingPhase("ready");
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
         } catch (e: any) {
-          setIndexingStatus(`Indexing error: ${e?.message ?? e}`);
+          setIndexingError(e?.message ?? String(e));
+          setIndexingPhase("error");
         }
       })();
     }
@@ -189,11 +193,11 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
       {/* Wizard Progress Steps Bar */}
       <View style={styles.wizardProgressBar}>
         <View style={styles.stepsRow}>
-          <StepBadge num={1} label="HARDWARE" active={step === 1} completed={step > 1} />
+          <StepBadge num={1} label={t("setupWizard.steps.hardware")} active={step === 1} completed={step > 1} />
           <View style={[styles.stepLine, step > 1 && styles.stepLineCompleted]} />
-          <StepBadge num={2} label="MODEL TIER" active={step === 2} completed={step > 2} />
+          <StepBadge num={2} label={t("setupWizard.steps.modelTier")} active={step === 2} completed={step > 2} />
           <View style={[styles.stepLine, step > 2 && styles.stepLineCompleted]} />
-          <StepBadge num={3} label="INDEXING" active={step === 3} completed={allAssetsPresent} />
+          <StepBadge num={3} label={t("setupWizard.steps.indexing")} active={step === 3} completed={allAssetsPresent} />
         </View>
       </View>
 
@@ -203,7 +207,7 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
           <View style={styles.mascotBanner}>
             <Image source={require("../../assets/boar.png")} style={styles.mascotHero} />
             <Text style={styles.heroTitle}>BOAR</Text>
-            <Text style={styles.heroSubtitle}>BEST OFFLINE AI RESEARCHER</Text>
+            <Text style={styles.heroSubtitle}>{t("aboutScreen.heroSubtitle")}</Text>
           </View>
 
           <View style={styles.card}>
@@ -213,52 +217,48 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
           <View style={styles.card}>
             <View style={styles.cardHeader}>
               <Text style={styles.cardIcon}>🛡️</Text>
-              <Text style={styles.cardTitle}>AIR-GAPPED FIELD TERMINAL</Text>
+              <Text style={styles.cardTitle}>{t("setupWizard.step1.terminalTitle")}</Text>
             </View>
-            <Text style={styles.cardText}>
-              Designed for remote expeditions, crisis zones, and off-grid research.
-              After this initial setup, BOAR operates 100% locally with zero network
-              telemetry, no accounts, and no cloud dependencies.
-            </Text>
+            <Text style={styles.cardText}>{t("setupWizard.step1.terminalText")}</Text>
           </View>
 
           {/* Hardware Diagnostic Results */}
           <View style={styles.card}>
             <View style={styles.cardHeader}>
               <Text style={styles.cardIcon}>🔍</Text>
-              <Text style={styles.cardTitle}>DEVICE HARDWARE VERIFICATION</Text>
+              <Text style={styles.cardTitle}>{t("setupWizard.step1.hardwareTitle")}</Text>
             </View>
 
             <View style={styles.hardwareSpecs}>
               <View style={styles.specRow}>
-                <Text style={styles.specLabel}>Device RAM</Text>
+                <Text style={styles.specLabel}>{t("setupWizard.step1.deviceRam")}</Text>
                 <Text style={styles.specValue}>
-                  {hardware.totalRamBytes > 0 ? formatGB(hardware.totalRamBytes) : "Verified"}
+                  {hardware.totalRamBytes > 0 ? formatGB(hardware.totalRamBytes) : t("setupWizard.step1.verified")}
                 </Text>
               </View>
               <View style={styles.specRow}>
-                <Text style={styles.specLabel}>Available Disk Storage</Text>
+                <Text style={styles.specLabel}>{t("setupWizard.step1.availableStorage")}</Text>
                 <Text style={styles.specValue}>
                   {hardware.freeStorageBytes > 0
                     ? formatGB(hardware.freeStorageBytes)
-                    : "Sufficient"}
+                    : t("setupWizard.step1.sufficient")}
                 </Text>
               </View>
               <View style={styles.specRow}>
-                <Text style={styles.specLabel}>Bounty RAM Budget</Text>
+                <Text style={styles.specLabel}>{t("setupWizard.step1.ramBudget")}</Text>
                 <Text style={[styles.specValue, { color: colors.text.accentEmerald }]}>
-                  Under 12GB Limit
+                  {t("setupWizard.step1.under12gb")}
                 </Text>
               </View>
               <View style={styles.specRow}>
-                <Text style={styles.specLabel}>Inference Engine</Text>
-                <Text style={styles.specValue}>ARM64 llama.rn (Offline)</Text>
+                <Text style={styles.specLabel}>{t("setupWizard.step1.inferenceEngine")}</Text>
+                <Text style={styles.specValue}>{t("setupWizard.step1.inferenceEngineValue")}</Text>
               </View>
             </View>
 
             <View style={styles.verifiedBadge}>
               <View style={styles.verifiedDot} />
-              <Text style={styles.verifiedText}>HARDWARE VERIFIED FOR LOCAL INFERENCE</Text>
+              <Text style={styles.verifiedText}>{t("setupWizard.step1.verifiedBadge")}</Text>
             </View>
           </View>
 
@@ -270,7 +270,7 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
                 setStep(2);
               }}
             >
-              <Text style={styles.primaryBtnText}>Select Model Tier ➔</Text>
+              <Text style={styles.primaryBtnText}>{t("setupWizard.step1.selectTierButton")}</Text>
             </Pressable>
           </View>
         </ScrollView>
@@ -280,10 +280,8 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
       {step === 2 && (
         <ScrollView contentContainerStyle={styles.stepContent}>
           <View style={styles.stepHeader}>
-            <Text style={styles.stepTitle}>SELECT OFFLINE MODEL TIER</Text>
-            <Text style={styles.stepSubtitle}>
-              Weights are downloaded once to local storage and executed via mmap.
-            </Text>
+            <Text style={styles.stepTitle}>{t("setupWizard.step2.title")}</Text>
+            <Text style={styles.stepSubtitle}>{t("setupWizard.step2.subtitle")}</Text>
           </View>
 
           {TIERS.map((tier) => {
@@ -302,7 +300,7 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
                     <Text style={styles.tierName}>{tier.label}</Text>
                     {tier.id === "standard" && (
                       <View style={styles.recommendedPill}>
-                        <Text style={styles.recommendedText}>RECOMMENDED</Text>
+                        <Text style={styles.recommendedText}>{t("setupWizard.step2.recommended")}</Text>
                       </View>
                     )}
                   </View>
@@ -320,9 +318,9 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
 
                 <View style={styles.tierMetaRow}>
                   <View style={styles.compatPillGreen}>
-                    <Text style={styles.compatPillGreenText}>🟢 Runs Great</Text>
+                    <Text style={styles.compatPillGreenText}>{t("setupWizard.step2.runsGreat")}</Text>
                   </View>
-                  <Text style={styles.tierFootprint}>RAM: ~2.5 GB Working Set</Text>
+                  <Text style={styles.tierFootprint}>{t("setupWizard.step2.ramFootprint")}</Text>
                 </View>
               </Pressable>
             );
@@ -330,14 +328,14 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
 
           <View style={styles.actionsBottom}>
             <Pressable style={styles.primaryBtn} onPress={handleStartDownloads}>
-              <Text style={styles.primaryBtnText}>Install Weights & Index ➔</Text>
+              <Text style={styles.primaryBtnText}>{t("setupWizard.step2.installButton")}</Text>
             </Pressable>
             <Pressable
               style={styles.textBtn}
               onPress={() => setStep(1)}
               hitSlop={8}
             >
-              <Text style={styles.textBtnText}>‹ Back to Diagnostics</Text>
+              <Text style={styles.textBtnText}>{t("setupWizard.step2.backButton")}</Text>
             </Pressable>
           </View>
         </ScrollView>
@@ -347,10 +345,8 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
       {step === 3 && (
         <ScrollView contentContainerStyle={styles.stepContent}>
           <View style={styles.stepHeader}>
-            <Text style={styles.stepTitle}>OFFLINE CORE INITIALIZATION</Text>
-            <Text style={styles.stepSubtitle}>
-              Fetching open-weights and seeding local SQLite knowledge base.
-            </Text>
+            <Text style={styles.stepTitle}>{t("setupWizard.step3.title")}</Text>
+            <Text style={styles.stepSubtitle}>{t("setupWizard.step3.subtitle")}</Text>
           </View>
 
           {/* Aggregate Download Progress Card */}
@@ -359,7 +355,7 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
               <View style={styles.progressLeft}>
                 {isAnyDownloading && <ActivityIndicator size="small" color={colors.emerald[400]} />}
                 <Text style={styles.progressTitle}>
-                  {allAssetsPresent ? "ASSETS CACHED TO DISK" : "DOWNLOADING WEIGHTS"}
+                  {allAssetsPresent ? t("setupWizard.step3.assetsCached") : t("setupWizard.step3.downloadingWeights")}
                 </Text>
               </View>
               <Text style={styles.progressPctText}>
@@ -382,9 +378,13 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
               </Text>
               {isAnyDownloading && (
                 <View style={styles.telemetryRight}>
-                  <Text style={styles.telemetrySpeed}>{formatSpeed(activeSpeed)}</Text>
+                  <Text style={styles.telemetrySpeed}>
+                    {formatSpeed(activeSpeed, t("setupWizard.calculating"))}
+                  </Text>
                   <Text style={styles.telemetryDot}>•</Text>
-                  <Text style={styles.telemetryEta}>ETA: {formatEta(maxEta)}</Text>
+                  <Text style={styles.telemetryEta}>
+                    {t("setupWizard.step3.eta", { eta: formatEta(maxEta, t("setupWizard.estimating")) })}
+                  </Text>
                 </View>
               )}
             </View>
@@ -394,7 +394,7 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
           <View style={styles.phasesCard}>
             <PhaseRow
               index="1"
-              title="GGUF Reasoning Model"
+              title={t("setupWizard.step3.phaseModel")}
               status={
                 presence[MODEL_CATALOG.find((m) => m.kind === "llm" && m.required)?.id ?? ""]
                   ? "COMPLETE"
@@ -402,26 +402,29 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
                   ? "STREAMING"
                   : "PENDING"
               }
+              t={t}
             />
             <PhaseRow
               index="2"
-              title="Embedding Model & Vectors"
+              title={t("setupWizard.step3.phaseEmbedding")}
               status={
                 presence[MODEL_CATALOG.find((m) => m.kind === "embedding" && m.required)?.id ?? ""]
                   ? "COMPLETE"
                   : "PENDING"
               }
+              t={t}
             />
             <PhaseRow
               index="3"
-              title="Offline Knowledge Base & FTS"
+              title={t("setupWizard.step3.phaseKnowledgeBase")}
               status={
-                indexingStatus === "Ready"
+                indexingPhase === "ready"
                   ? "COMPLETE"
                   : allAssetsPresent
                   ? "INDEXING"
                   : "QUEUED"
               }
+              t={t}
             />
           </View>
 
@@ -429,23 +432,20 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
           <View style={styles.card}>
             <View style={styles.cardHeader}>
               <Text style={styles.cardIcon}>🎨</Text>
-              <Text style={styles.cardTitle}>INTERFACE CUSTOMIZATION</Text>
+              <Text style={styles.cardTitle}>{t("setupWizard.step3.interfaceCustomization")}</Text>
             </View>
             <ThemeSelector />
           </View>
 
           {/* Off-Grid Terminal Tips */}
           <View style={styles.tipBox}>
-            <Text style={styles.tipLabel}>💡 FIELD TERMINAL NOTICE</Text>
-            <Text style={styles.tipText}>
-              Once initialized, BOAR is completely self-contained. You can toggle airplane mode
-              and use the app in complete isolation without loss of functionality.
-            </Text>
+            <Text style={styles.tipLabel}>{t("setupWizard.step3.tipLabel")}</Text>
+            <Text style={styles.tipText}>{t("setupWizard.step3.tipText")}</Text>
           </View>
 
           {/* Ready Action */}
           <View style={styles.actionsBottom}>
-            {indexingStatus === "Ready" || allAssetsPresent ? (
+            {indexingPhase === "ready" || allAssetsPresent ? (
               <Pressable
                 style={[styles.primaryBtn, styles.launchBtn]}
                 onPress={() => {
@@ -453,12 +453,18 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
                   onReady();
                 }}
               >
-                <Text style={styles.launchBtnText}>🐗 Launch BOAR Terminal</Text>
+                <Text style={styles.launchBtnText}>{t("setupWizard.step3.launchButton")}</Text>
               </Pressable>
             ) : (
               <View style={styles.waitingContainer}>
                 <ActivityIndicator color={colors.emerald[400]} />
-                <Text style={styles.waitingText}>{indexingStatus}</Text>
+                <Text style={styles.waitingText}>
+                  {indexingPhase === "error"
+                    ? t("setupWizard.step3.indexingError", { error: indexingError })
+                    : indexingPhase === "building"
+                    ? t("setupWizard.step3.buildingIndex")
+                    : t("setupWizard.step3.waitingForDownloads")}
+                </Text>
               </View>
             )}
           </View>
@@ -504,14 +510,24 @@ function StepBadge({
   );
 }
 
+const PHASE_STATUS_KEYS: Record<string, string> = {
+  COMPLETE: "setupWizard.phaseStatus.complete",
+  STREAMING: "setupWizard.phaseStatus.streaming",
+  INDEXING: "setupWizard.phaseStatus.indexing",
+  PENDING: "setupWizard.phaseStatus.pending",
+  QUEUED: "setupWizard.phaseStatus.queued",
+};
+
 function PhaseRow({
   index,
   title,
   status,
+  t,
 }: {
   index: string;
   title: string;
   status: "COMPLETE" | "STREAMING" | "INDEXING" | "PENDING" | "QUEUED";
+  t: (key: string) => string;
 }) {
   const isDone = status === "COMPLETE";
   const isInProgress = status === "STREAMING" || status === "INDEXING";
@@ -540,7 +556,7 @@ function PhaseRow({
             isInProgress && styles.phaseProgressText,
           ]}
         >
-          {status}
+          {t(PHASE_STATUS_KEYS[status])}
         </Text>
       </View>
     </View>

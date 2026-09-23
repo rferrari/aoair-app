@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, Switch, Pressable, Alert } from "react-native";
+import { useTranslation } from "react-i18next";
 import { getMemorySettings, setMemorySettings, MemorySettings as MemorySettingsType } from "../models/settings";
 import { clearAllHistory } from "../services/chatHistory";
 
@@ -8,10 +9,11 @@ const SESSION_OPTIONS = [
   { value: 10, label: "10" },
   { value: 25, label: "25" },
   { value: 50, label: "50" },
-  { value: 0, label: "Unlimited" },
+  { value: 0, label: null },
 ] as const;
 
 export function MemorySettings({ onCleared }: { onCleared?: () => void }) {
+  const { t } = useTranslation();
   const [settings, setSettings] = useState<MemorySettingsType | null>(null);
 
   useEffect(() => {
@@ -25,12 +27,12 @@ export function MemorySettings({ onCleared }: { onCleared?: () => void }) {
 
   const confirmClearAll = () => {
     Alert.alert(
-      "Clear all chat history?",
-      "This permanently deletes every saved chat session and message on this device. This can't be undone.",
+      t("memorySettings.clearAllConfirmTitle"),
+      t("memorySettings.clearAllConfirmMessage"),
       [
-        { text: "Cancel", style: "cancel" },
+        { text: t("common.cancel"), style: "cancel" },
         {
-          text: "Clear All",
+          text: t("memorySettings.clearAllButton"),
           style: "destructive",
           onPress: async () => {
             await clearAllHistory();
@@ -45,14 +47,12 @@ export function MemorySettings({ onCleared }: { onCleared?: () => void }) {
 
   return (
     <View style={styles.card}>
-      <Text style={styles.title}>💾 Chat history & memory</Text>
+      <Text style={styles.title}>💾 {t("memorySettings.title")}</Text>
 
       <View style={styles.row}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.rowLabel}>Background context summarization</Text>
-          <Text style={styles.rowValue}>
-            Condenses older turns so long chats don't lose context
-          </Text>
+          <Text style={styles.rowLabel}>{t("memorySettings.autoSummarizeLabel")}</Text>
+          <Text style={styles.rowValue}>{t("memorySettings.autoSummarizeValue")}</Text>
         </View>
         <Switch
           value={settings.autoSummarize}
@@ -61,7 +61,7 @@ export function MemorySettings({ onCleared }: { onCleared?: () => void }) {
         />
       </View>
 
-      <Text style={styles.subheading}>Recent turns before summarizing</Text>
+      <Text style={styles.subheading}>{t("memorySettings.turnsBeforeSummarizing")}</Text>
       <View style={styles.pillRow}>
         {TURN_OPTIONS.map((n) => (
           <Pressable
@@ -76,7 +76,7 @@ export function MemorySettings({ onCleared }: { onCleared?: () => void }) {
         ))}
       </View>
 
-      <Text style={styles.subheading}>Max saved chat sessions</Text>
+      <Text style={styles.subheading}>{t("memorySettings.maxSavedSessions")}</Text>
       <View style={styles.pillRow}>
         {SESSION_OPTIONS.map((opt) => (
           <Pressable
@@ -87,7 +87,7 @@ export function MemorySettings({ onCleared }: { onCleared?: () => void }) {
             <Text
               style={[styles.pillText, settings.maxSavedSessions === opt.value && styles.pillTextSelected]}
             >
-              {opt.label}
+              {opt.label ?? t("memorySettings.unlimited")}
             </Text>
           </Pressable>
         ))}
@@ -95,8 +95,8 @@ export function MemorySettings({ onCleared }: { onCleared?: () => void }) {
 
       <View style={styles.row}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.rowLabel}>Auto-generate chat titles</Text>
-          <Text style={styles.rowValue}>Names new chats from your first message</Text>
+          <Text style={styles.rowLabel}>{t("memorySettings.autoTitlesLabel")}</Text>
+          <Text style={styles.rowValue}>{t("memorySettings.autoTitlesValue")}</Text>
         </View>
         <Switch
           value={settings.autoGenerateTitles}
@@ -106,7 +106,7 @@ export function MemorySettings({ onCleared }: { onCleared?: () => void }) {
       </View>
 
       <Pressable style={styles.clearBtn} onPress={confirmClearAll}>
-        <Text style={styles.clearBtnText}>🗑️ Clear All Chat History</Text>
+        <Text style={styles.clearBtnText}>🗑️ {t("memorySettings.clearAllChatHistory")}</Text>
       </Pressable>
     </View>
   );

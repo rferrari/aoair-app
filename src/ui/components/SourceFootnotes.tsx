@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, Pressable } from "react-native";
 import * as Haptics from "expo-haptics";
+import { useTranslation } from "react-i18next";
 import { RetrievedChunk } from "../../rag/retrieve";
 import { colors } from "../theme/colors";
 import { typography } from "../theme/typography";
@@ -11,6 +12,7 @@ interface Props {
 }
 
 export function SourceFootnotes({ citations }: Props) {
+  const { t } = useTranslation();
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
 
   if (!citations || citations.length === 0) return null;
@@ -25,7 +27,7 @@ export function SourceFootnotes({ citations }: Props) {
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Text style={styles.headerIcon}>📚</Text>
-          <Text style={styles.headerTitle}>OFFLINE VERIFIED SOURCES</Text>
+          <Text style={styles.headerTitle}>{t("sourceFootnotes.title")}</Text>
         </View>
         <Text style={styles.sourceCountBadge}>{citations.length}</Text>
       </View>
@@ -55,7 +57,7 @@ export function SourceFootnotes({ citations }: Props) {
               {isExpanded && (
                 <View style={styles.snippetBox}>
                   <View style={styles.snippetMeta}>
-                    <Text style={styles.snippetPackTag}>LOCAL INDEX</Text>
+                    <Text style={styles.snippetPackTag}>{t("sourceFootnotes.localIndex")}</Text>
                     <Text style={styles.snippetDocId} numberOfLines={1}>
                       {c.docId || c.title}
                     </Text>

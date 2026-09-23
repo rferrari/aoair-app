@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, Switch } from "react-native";
+import { useTranslation } from "react-i18next";
 import { getHapticsEnabled, setHapticsEnabled } from "../models/settings";
 import { isVoiceInputAvailable } from "../voice/VoiceInput";
 
 export function VoiceSettings() {
+  const { t } = useTranslation();
   const [haptics, setHaptics] = useState(true);
   const [voiceAvailable, setVoiceAvailable] = useState<boolean | null>(null);
 
@@ -19,35 +21,30 @@ export function VoiceSettings() {
 
   return (
     <View style={styles.card}>
-      <Text style={styles.title}>🎙️ Voice & preferences</Text>
+      <Text style={styles.title}>🎙️ {t("voiceSettings.title")}</Text>
 
       <View style={styles.row}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.rowLabel}>Speech-to-text engine</Text>
+          <Text style={styles.rowLabel}>{t("voiceSettings.speechEngineLabel")}</Text>
           <Text style={styles.rowValue}>
             {voiceAvailable == null
-              ? "Checking…"
+              ? t("voiceSettings.checking")
               : voiceAvailable
-                ? "Android SpeechRecognizer (offline)"
-                : "Unavailable on this device"}
+                ? t("voiceSettings.available")
+                : t("voiceSettings.unavailable")}
           </Text>
         </View>
       </View>
       {voiceAvailable === false && (
-        <Text style={styles.note}>
-          No system speech-recognition service was found — common on GrapheneOS /
-          de-Googled builds. An embedded whisper.cpp model would remove this
-          dependency but is a separate project on the scale of the llama.rn
-          integration itself; not implemented in this version.
-        </Text>
+        <Text style={styles.note}>{t("voiceSettings.unavailableNote")}</Text>
       )}
 
       <View style={styles.divider} />
 
       <View style={styles.row}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.rowLabel}>Haptic feedback</Text>
-          <Text style={styles.rowValue}>Vibrate on stop / response finished</Text>
+          <Text style={styles.rowLabel}>{t("voiceSettings.hapticFeedbackLabel")}</Text>
+          <Text style={styles.rowValue}>{t("voiceSettings.hapticFeedbackValue")}</Text>
         </View>
         <Switch
           value={haptics}

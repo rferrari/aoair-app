@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, Pressable, TextInput, Switch, Alert, ActivityIndicator } from "react-native";
+import { useTranslation } from "react-i18next";
 import {
   pickDocuments,
   importDocuments,
@@ -23,6 +24,7 @@ function formatBytes(bytes: number): string {
  * drawer-accessible screen (KnowledgeBaseScreen) without duplicating logic.
  */
 export function PersonalDocumentsManager() {
+  const { t } = useTranslation();
   const [collections, setCollections] = useState<CustomCollection[]>([]);
   const [newName, setNewName] = useState("");
   const [importProgress, setImportProgress] = useState<ImportProgress | null>(null);
@@ -39,7 +41,7 @@ export function PersonalDocumentsManager() {
   const handleImport = useCallback(async () => {
     const name = newName.trim();
     if (!name) {
-      Alert.alert("Name required", "Give this collection a name before importing.");
+      Alert.alert(t("personalDocumentsManager.nameRequiredTitle"), t("personalDocumentsManager.nameRequiredMessage"));
       return;
     }
     const files = await pickDocuments();
@@ -51,7 +53,7 @@ export function PersonalDocumentsManager() {
       setNewName("");
       await refresh();
     } catch (e: any) {
-      Alert.alert("Import failed", e?.message ?? String(e));
+      Alert.alert(t("personalDocumentsManager.importFailedTitle"), e?.message ?? String(e));
     } finally {
       setImportProgress(null);
     }
@@ -68,12 +70,12 @@ export function PersonalDocumentsManager() {
   const handleDelete = useCallback(
     (collection: CustomCollection) => {
       Alert.alert(
-        "Remove this collection?",
-        `This deletes "${collection.name}" (${collection.chunkCount} chunks) from your local knowledge base. This can't be undone — export it first if you want to keep a copy.`,
+        t("personalDocumentsManager.removeConfirmTitle"),
+        t("personalDocumentsManager.removeConfirmMessage", { name: collection.name, count: collection.chunkCount }),
         [
-          { text: "Cancel", style: "cancel" },
+          { text: t("common.cancel"), style: "cancel" },
           {
-            text: "Remove",
+            text: t("common.remove"),
             style: "destructive",
             onPress: async () => {
               await deleteCustomCollection(collection.id);
@@ -91,7 +93,7 @@ export function PersonalDocumentsManager() {
     try {
       await exportCollection(collection);
     } catch (e: any) {
-      Alert.alert("Export failed", e?.message ?? String(e));
+      Alert.alert(t("personalDocumentsManager.exportFailedTitle"), e?.message ?? String(e));
     } finally {
       setBusyId(null);
     }
@@ -99,16 +101,12 @@ export function PersonalDocumentsManager() {
 
   return (
     <View style={{ gap: 4 }}>
-      <Text style={styles.hint}>
-        Import your own .txt, .md, .csv, .json, or .pdf notes — indexed on this device only,
-        never uploaded anywhere. PDFs need selectable text (scanned/image-only pages won't
-        extract — there's no OCR), and password-protected PDFs aren't supported.
-      </Text>
+      <Text style={styles.hint}>{t("personalDocumentsManager.hint")}</Text>
 
       <View style={styles.importCard}>
         <TextInput
           style={styles.nameInput}
-          placeholder="Collection name (e.g. Project Specs)"
+          placeholder={t("personalDocumentsManager.namePlaceholder")}
           placeholderTextColor="#666"
           value={newName}
           onChangeText={setNewName}
@@ -122,21 +120,24 @@ export function PersonalDocumentsManager() {
           {importProgress ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.importBtnText}>📄 Pick Files & Import</Text>
+            <Text style={styles.importBtnText}>📄 {t("personalDocumentsManager.pickButton")}</Text>
           )}
         </Pressable>
         {importProgress && (
           <Text style={styles.progressText}>
-            {importProgress.stage === "reading" && "Reading files…"}
-            {importProgress.stage === "chunking" && "Splitting into chunks…"}
+            {importProgress.stage === "reading" && t("personalDocumentsManager.stageReading")}
+            {importProgress.stage === "chunking" && t("personalDocumentsManager.stageChunking")}
             {importProgress.stage === "embedding" &&
-              `Embedding ${(importProgress.chunkIndex ?? 0) + 1}/${importProgress.chunkCount}…`}
+              t("personalDocumentsManager.stageEmbedding", {
+                current: (importProgress.chunkIndex ?? 0) + 1,
+                total: importProgress.chunkCount,
+              })}
           </Text>
         )}
       </View>
 
       {collections.length === 0 && !importProgress && (
-        <Text style={styles.empty}>No custom collections yet.</Text>
+        <Text style={styles.empty}>{t("personalDocumentsManager.empty")}</Text>
       )}
 
       <View style={styles.list}>
@@ -147,11 +148,16 @@ export function PersonalDocumentsManager() {
               <Switch value={c.active} onValueChange={(v) => handleToggle(c, v)} />
             </View>
             <Text style={styles.collectionMeta}>
-              {c.docCount} doc{c.docCount === 1 ? "" : "s"} · {c.chunkCount} chunks · {formatBytes(c.sizeBytes)}
+              {t("personalDocumentsManager.docCount", { count: c.docCount })} · {" "}
+              {t("personalDocumentsManager.chunkCount", { count: c.chunkCount })} · {formatBytes(c.sizeBytes)}
             </Text>
             <View style={styles.collectionActions}>
               <Pressable onPress={() => handleExport(c)} disabled={busyId === c.id} style={styles.exportBtn}>
-                <Text style={styles.exportBtnText}>{busyId === c.id ? "Exporting…" : "📤 Export / Share"}</Text>
+                <Text style={styles.exportBtnText}>
+                  {busyId === c.id
+                    ? t("personalDocumentsManager.exporting")
+                    : `📤 ${t("personalDocumentsManager.exportButton")}`}
+                </Text>
               </Pressable>
               <Pressable onPress={() => handleDelete(c)} hitSlop={8} style={styles.trashBtn}>
                 <Text style={styles.trashIcon}>🗑️</Text>

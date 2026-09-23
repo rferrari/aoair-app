@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
+import { useTranslation } from "react-i18next";
 import { llamaEngine } from "../inference/LlamaEngine";
 import { embeddingEngine } from "../rag/embed";
 import { retrieve, assemblePrompt, RetrievedChunk, ConversationTurn } from "../rag/retrieve";
@@ -70,12 +71,15 @@ interface Message {
 
 const VERBATIM_MESSAGE_COUNT = 6;
 
-function researchStageLabel(p: ResearchProgress): string {
-  if (p.stage === "decomposing") return "🔬 Breaking question into sub-questions…";
+function researchStageLabel(p: ResearchProgress, t: (key: string, opts?: Record<string, unknown>) => string): string {
+  if (p.stage === "decomposing") return t("chatScreen.research.decomposing");
   if (p.stage === "researching") {
-    return `🔬 Researching sub-question ${(p.subQuestionIndex ?? 0) + 1}/${p.subQuestionCount ?? 1}…`;
+    return t("chatScreen.research.researching", {
+      index: (p.subQuestionIndex ?? 0) + 1,
+      count: p.subQuestionCount ?? 1,
+    });
   }
-  return "🔬 Synthesizing offline findings…";
+  return t("chatScreen.research.synthesizing");
 }
 
 async function resolveActiveModel(kind: "llm" | "embedding"): Promise<CatalogModel> {
@@ -93,10 +97,11 @@ export function ChatScreen({
   onRelaunchWizard?: () => void;
 }) {
   const { colors, typography } = useTheme();
+  const { t } = useTranslation();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [ready, setReady] = useState(false);
-  const [loadStatus, setLoadStatus] = useState("Initializing local offline core…");
+  const [loadStatus, setLoadStatus] = useState(t("chatScreen.initializingCore"));
   const [loadError, setLoadError] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [showPromptIdeas, setShowPromptIdeas] = useState(false);
@@ -181,7 +186,7 @@ export function ChatScreen({
     try {
       setLoadError(null);
       setReady(false);
-      setLoadStatus("Mounting local GGUF weights…");
+      setLoadStatus(t("chatScreen.mountingWeights"));
       const llm = await resolveActiveModel("llm");
       const emb = await resolveActiveModel("embedding");
       setActiveModel(llm);
@@ -192,13 +197,13 @@ export function ChatScreen({
       ]);
       startAppMemoryTracking();
 
-      setLoadStatus("Indexing offline knowledge base…");
+      setLoadStatus(t("chatScreen.indexingKnowledgeBase"));
       await seedKnowledgeBaseIfEmpty();
       setReady(true);
     } catch (e: any) {
       setLoadError(e?.message ?? String(e));
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     initModels();
@@ -348,7 +353,7 @@ export function ChatScreen({
           history,
           maxTokens,
           (p: ResearchProgress) => {
-            setProcessing({ messageId: assistantId, status: "thinking", label: researchStageLabel(p) });
+            setProcessing({ messageId: assistantId, status: "thinking", label: researchStageLabel(p, t) });
           },
           onToken,
           () => stopRequestedRef.current
@@ -453,12 +458,12 @@ export function ChatScreen({
   }, [send]);
 
   const drawerItems: DrawerItem[] = [
-    { key: "prompts", icon: "💡", label: "Prompt Ideas", onPress: () => setShowPromptIdeas(true) },
-    { key: "knowledge", icon: "📚", label: "My Documents", onPress: () => setShowKnowledgeBase(true) },
+    { key: "prompts", icon: "💡", label: t("chatScreen.drawerItems.prompts"), onPress: () => setShowPromptIdeas(true) },
+    { key: "knowledge", icon: "📚", label: t("chatScreen.drawerItems.myDocuments"), onPress: () => setShowKnowledgeBase(true) },
     ...(onOpenSettings
-      ? [{ key: "settings", icon: "⚙️", label: "Settings", onPress: onOpenSettings }]
+      ? [{ key: "settings", icon: "⚙️", label: t("chatScreen.drawerItems.settings"), onPress: onOpenSettings }]
       : []),
-    { key: "about", icon: "ℹ️", label: "About & Info", onPress: () => setShowAbout(true) },
+    { key: "about", icon: "ℹ️", label: t("chatScreen.drawerItems.about"), onPress: () => setShowAbout(true) },
   ];
 
   if (showKnowledgeBase) {
@@ -507,7 +512,7 @@ export function ChatScreen({
             <View style={styles.deepBannerPill}>
               <Text style={styles.deepBannerIcon}>🔬</Text>
               <Text style={[styles.deepBannerText, { color: colors.frontier.text }]}>
-                MIXTURE-OF-AGENTS: DECOMPOSE ➔ LOCAL EMBEDDINGS ➔ SYNTHESIS
+                {t("chatScreen.deepResearchBanner")}
               </Text>
             </View>
           </View>
@@ -559,7 +564,7 @@ export function ChatScreen({
                         : [styles.assistantRoleLabel, { color: colors.text.accentEmerald }],
                     ]}
                   >
-                    {item.role === "user" ? "YOU" : "🐗 BOAR RESEARCHER"}
+                    {item.role === "user" ? t("chatScreen.roleYou") : t("chatScreen.roleAssistant")}
                   </Text>
                 </View>
 
@@ -578,7 +583,7 @@ export function ChatScreen({
 
                 {item.stopped && (
                   <View style={[styles.stoppedBadge, { backgroundColor: colors.amber.bgSubtle, borderColor: colors.amber.border }]}>
-                    <Text style={[styles.stoppedTag, { color: colors.text.accentAmber }]}>⏹ Stopped by user</Text>
+                    <Text style={[styles.stoppedTag, { color: colors.text.accentAmber }]}>⏹ {t("chatScreen.stoppedByUser")}</Text>
                   </View>
                 )}
               </View>
@@ -598,7 +603,7 @@ export function ChatScreen({
               style={[styles.input, { backgroundColor: colors.bg.input, color: colors.text.primary, borderColor: colors.border.default }]}
               value={input}
               onChangeText={setInput}
-              placeholder="Ask an offline research question…"
+              placeholder={t("chatScreen.inputPlaceholder")}
               placeholderTextColor={colors.text.dim}
               editable={ready && !generating}
               onSubmitEditing={handleSend}
@@ -610,7 +615,7 @@ export function ChatScreen({
                 style={styles.stopBtn}
                 onPress={stopGeneration}
                 hitSlop={8}
-                accessibilityLabel="Stop generation"
+                accessibilityLabel={t("chatScreen.stopGeneration")}
               >
                 <Text style={styles.stopBtnText}>⏹</Text>
               </Pressable>
@@ -620,7 +625,7 @@ export function ChatScreen({
                 onPress={handleSend}
                 disabled={!ready || !input.trim()}
                 hitSlop={8}
-                accessibilityLabel="Send message"
+                accessibilityLabel={t("chatScreen.sendMessage")}
               >
                 <Text style={styles.sendBtnText}>➤</Text>
               </Pressable>

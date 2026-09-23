@@ -1,5 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet, FlatList } from "react-native";
+import { useTranslation } from "react-i18next";
 import { CatalogModel } from "../models/manifest";
 import { CatalogItemCard, CatalogRowState } from "./CatalogItemCard";
 import { PersonalDocumentsManager } from "./PersonalDocumentsManager";
@@ -18,9 +19,10 @@ interface Props {
  * KnowledgeBaseScreen — same component, not duplicated).
  */
 export function CorpusSettingsTab({ corpusItems, getRow, download, remove }: Props) {
+  const { t } = useTranslation();
   return (
     <View style={{ gap: 4 }}>
-      <Text style={styles.sectionHeading}>Downloadable knowledge packs</Text>
+      <Text style={styles.sectionHeading}>{t("corpusSettingsTab.downloadablePacks")}</Text>
       <FlatList
         data={corpusItems}
         keyExtractor={(m) => m.id}
@@ -38,7 +40,7 @@ export function CorpusSettingsTab({ corpusItems, getRow, download, remove }: Pro
         )}
       />
 
-      <Text style={styles.sectionHeading}>Your documents</Text>
+      <Text style={styles.sectionHeading}>{t("corpusSettingsTab.yourDocuments")}</Text>
       <PersonalDocumentsManager />
     </View>
   );

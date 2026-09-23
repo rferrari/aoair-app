@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView } from "react-native";
 import * as Haptics from "expo-haptics";
+import { useTranslation } from "react-i18next";
 import { PersonalDocumentsManager } from "./PersonalDocumentsManager";
 import { colors } from "./theme/colors";
 import { typography } from "./theme/typography";
@@ -14,6 +15,7 @@ import { spacing, radii } from "./theme/spacing";
  * its own path too, alongside the downloadable corpus packs.
  */
 export function KnowledgeBaseScreen({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation();
   const handleClose = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     onClose();
@@ -24,10 +26,10 @@ export function KnowledgeBaseScreen({ onClose }: { onClose: () => void }) {
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Text style={styles.headerIcon}>📚</Text>
-          <Text style={styles.title}>MY DOCUMENTS</Text>
+          <Text style={styles.title}>{t("knowledgeBaseScreen.title")}</Text>
         </View>
         <Pressable onPress={handleClose} hitSlop={8} style={styles.closeBtn}>
-          <Text style={styles.closeBtnText}>DONE</Text>
+          <Text style={styles.closeBtnText}>{t("common.done")}</Text>
         </Pressable>
       </View>
       <ScrollView contentContainerStyle={styles.body}>

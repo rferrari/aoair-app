@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, Pressable, StyleSheet, Image } from "react-native";
 import * as Haptics from "expo-haptics";
+import { useTranslation } from "react-i18next";
 import { colors } from "./theme/colors";
 import { typography } from "./theme/typography";
 import { spacing, radii } from "./theme/spacing";
@@ -32,6 +33,7 @@ export function ChatHeader({
   onNewChat,
   onToggleDeepResearch,
 }: Props) {
+  const { t } = useTranslation();
   const handlePress = (callback: () => void, feedback = Haptics.ImpactFeedbackStyle.Light) => {
     Haptics.impactAsync(feedback).catch(() => {});
     callback();
@@ -50,7 +52,7 @@ export function ChatHeader({
           style={styles.iconBtn}
           onPress={() => handlePress(onOpenDrawer)}
           hitSlop={10}
-          accessibilityLabel="Open Navigation Drawer"
+          accessibilityLabel={t("chatHeader.openDrawer")}
         >
           <Text style={styles.hamburgerIcon}>☰</Text>
         </Pressable>
@@ -67,11 +69,11 @@ export function ChatHeader({
               <Text style={styles.titleText}>BOAR</Text>
               <View style={styles.offlineStatusPill}>
                 <View style={styles.offlineDot} />
-                <Text style={styles.offlineText}>OFFLINE</Text>
+                <Text style={styles.offlineText}>{t("chatHeader.offline")}</Text>
               </View>
             </View>
             <Text style={styles.modelPillText} numberOfLines={1}>
-              {activeModelLabel ? activeModelLabel.toUpperCase() : "LOCAL LLM CORE"}
+              {activeModelLabel ? activeModelLabel.toUpperCase() : t("chatHeader.localLlmCore")}
             </Text>
           </View>
         </View>
@@ -83,7 +85,7 @@ export function ChatHeader({
             style={styles.tonePill}
             onPress={() => handlePress(onCycleTone)}
             hitSlop={6}
-            accessibilityLabel="Cycle Assistant Tone"
+            accessibilityLabel={t("chatHeader.cycleTone")}
           >
             <Text style={styles.tonePillEmoji}>{toneIcon}</Text>
           </Pressable>
@@ -93,7 +95,7 @@ export function ChatHeader({
             style={styles.newChatBtn}
             onPress={() => handlePress(onNewChat, Haptics.ImpactFeedbackStyle.Medium)}
             hitSlop={6}
-            accessibilityLabel="New Chat Session"
+            accessibilityLabel={t("chatHeader.newChatSession")}
           >
             <Text style={styles.newChatIcon}>+</Text>
           </Pressable>
@@ -118,7 +120,7 @@ export function ChatHeader({
                 deepResearchActive && styles.deepResearchTextActive,
               ]}
             >
-              Deep Research
+              {t("chatHeader.deepResearch")}
             </Text>
             <View
               style={[
@@ -131,7 +133,7 @@ export function ChatHeader({
           <View style={[styles.deepResearchPill, styles.deepResearchPillActive]}>
             <Text style={styles.deepResearchIcon}>🔬</Text>
             <Text style={[styles.deepResearchText, styles.deepResearchTextActive]}>
-              Deep Research Active
+              {t("chatHeader.deepResearchActive")}
             </Text>
           </View>
         ) : null}

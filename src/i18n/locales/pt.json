@@ -5,7 +5,8 @@
     "close": "Fechar",
     "back": "Voltar",
     "remove": "Remover",
-    "retry": "Tentar novamente"
+    "retry": "Tentar novamente",
+    "dismiss": "Dispensar"
   },
   "time": {
     "justNow": "agora mesmo",
@@ -102,5 +103,235 @@
     "actionRequired": "AÇÃO NECESSÁRIA",
     "settings": "Configurações",
     "setupWizard": "Assistente de Configuração"
+  },
+  "usageStatsScreen": {
+    "back": "‹ VOLTAR",
+    "title": "TELEMETRIA DO SISTEMA",
+    "subtitle": "Auditoria de Hardware e Conformidade",
+    "live": "AO VIVO"
+  },
+  "systemMonitor": {
+    "title": "MEDIDORES DE CONFORMIDADE DA BOUNTY",
+    "diskLabel": "Armazenamento em Disco (Limite: 50GB)",
+    "ramLabel": "Memória RSS do Processo (Limite: 12GB)",
+    "exceeded": "⚠️ EXCEDIDO",
+    "noRssNote": "A leitura de RSS do processo requer uma build nativa de desenvolvimento para Android."
+  },
+  "drawerFooterStats": {
+    "ram": "RAM",
+    "disk": "DISCO",
+    "lastQuery": "{{rate}} tok/s na última consulta"
+  },
+  "modelSetupScreen": {
+    "header": {
+      "title": "CONFIGURAÇÕES",
+      "subtitle": "BOAR Assistente de Pesquisa Offline"
+    },
+    "sections": {
+      "toneModels": "Tom & Modelos de Raciocínio",
+      "knowledgeBase": "Base de Conhecimento Offline (RAG)",
+      "memory": "Configurações de Memória e Contexto",
+      "telemetry": "Telemetria de Hardware e Conformidade",
+      "displayTheme": "Exibição & Tema",
+      "language": "Idioma",
+      "voice": "Configuração de Entrada de Voz",
+      "recovery": "Recuperação do Sistema & Zona de Perigo"
+    },
+    "installedModels": "MODELOS INSTALADOS",
+    "discoverHfModels": "DESCOBRIR MODELOS GGUF NO HUGGING FACE",
+    "toasts": {
+      "indexed": "\"{{name}}\" indexado na base de conhecimento offline",
+      "removed": "\"{{name}}\" removido",
+      "activeSet": "Modelo {{kind}} ativo definido como \"{{name}}\"",
+      "resetFailed": "Falha ao redefinir: {{error}}"
+    },
+    "recovery": {
+      "wizardTitle": "ASSISTENTE DE CONFIGURAÇÃO",
+      "wizardDesc": "Execute novamente o fluxo inicial de 3 etapas para reescanear o hardware do aparelho ou trocar o nível do modelo base.",
+      "wizardButton": "Reabrir Assistente de Configuração ➔",
+      "dangerBadge": "ZONA DE PERIGO CRÍTICA",
+      "dangerDesc": "Apaga permanentemente todos os pesos GGUF baixados, índices do banco SQLite offline e registros de conversas deste aparelho.",
+      "dangerButton": "🚨 Apagar Todos os Dados & Redefinir App"
+    },
+    "dangerModal": {
+      "title": "CONFIRMAR REDEFINIÇÃO DESTRUTIVA",
+      "subtitle": "Esta ação é imediata, permanente e não pode ser desfeita.",
+      "consequencesHeader": "O SEGUINTE SERÁ REMOVIDO:",
+      "consequenceModels": "Todos os arquivos de modelo GGUF baixados (~2,3 GB+)",
+      "consequenceEmbeddings": "Todas as coleções de documentos e embeddings do SQLite offline",
+      "consequenceHistory": "Todo o histórico de sessões de chat e resumos gerados",
+      "confirmButton": "Apagar Todos os Dados"
+    }
+  },
+  "setupWizard": {
+    "calculating": "Calculando…",
+    "estimating": "Estimando…",
+    "steps": {
+      "hardware": "HARDWARE",
+      "modelTier": "NÍVEL DO MODELO",
+      "indexing": "INDEXAÇÃO"
+    },
+    "step1": {
+      "terminalTitle": "TERMINAL DE CAMPO ISOLADO",
+      "terminalText": "Projetado para expedições remotas, zonas de crise e pesquisa offline. Após esta configuração inicial, o BOAR opera 100% localmente, sem telemetria de rede, contas ou dependências de nuvem.",
+      "hardwareTitle": "VERIFICAÇÃO DE HARDWARE DO APARELHO",
+      "deviceRam": "RAM do Aparelho",
+      "verified": "Verificado",
+      "availableStorage": "Armazenamento Disponível",
+      "sufficient": "Suficiente",
+      "ramBudget": "Orçamento de RAM da Bounty",
+      "under12gb": "Abaixo do Limite de 12GB",
+      "inferenceEngine": "Motor de Inferência",
+      "inferenceEngineValue": "ARM64 llama.rn (Offline)",
+      "verifiedBadge": "HARDWARE VERIFICADO PARA INFERÊNCIA LOCAL",
+      "selectTierButton": "Selecionar Nível do Modelo ➔"
+    },
+    "step2": {
+      "title": "SELECIONE O NÍVEL DO MODELO OFFLINE",
+      "subtitle": "Os pesos são baixados uma vez para o armazenamento local e executados via mmap.",
+      "recommended": "RECOMENDADO",
+      "runsGreat": "🟢 Funciona Muito Bem",
+      "ramFootprint": "RAM: ~2,5 GB em Uso",
+      "installButton": "Instalar Pesos & Indexar ➔",
+      "backButton": "‹ Voltar ao Diagnóstico"
+    },
+    "step3": {
+      "title": "INICIALIZAÇÃO DO NÚCLEO OFFLINE",
+      "subtitle": "Baixando pesos abertos e preenchendo a base de conhecimento SQLite local.",
+      "assetsCached": "RECURSOS ARMAZENADOS EM DISCO",
+      "downloadingWeights": "BAIXANDO PESOS",
+      "eta": "Tempo restante: {{eta}}",
+      "phaseModel": "Modelo de Raciocínio GGUF",
+      "phaseEmbedding": "Modelo de Embedding & Vetores",
+      "phaseKnowledgeBase": "Base de Conhecimento Offline & FTS",
+      "interfaceCustomization": "PERSONALIZAÇÃO DA INTERFACE",
+      "tipLabel": "💡 AVISO DO TERMINAL DE CAMPO",
+      "tipText": "Após a inicialização, o BOAR é completamente autônomo. Você pode ativar o modo avião e usar o app em total isolamento, sem perda de funcionalidade.",
+      "launchButton": "🐗 Iniciar Terminal BOAR",
+      "indexingError": "Erro de indexação: {{error}}",
+      "buildingIndex": "Construindo base de conhecimento SQLite local & índice vetorial…",
+      "waitingForDownloads": "Aguardando downloads…"
+    },
+    "phaseStatus": {
+      "complete": "COMPLETO",
+      "streaming": "EM ANDAMENTO",
+      "indexing": "INDEXANDO",
+      "pending": "PENDENTE",
+      "queued": "NA FILA"
+    }
+  },
+  "personalitySettings": {
+    "title": "Tom do assistente e estilo de resposta",
+    "customPromptPlaceholder": "Escreva seu próprio prompt de sistema…",
+    "maxOutputTokens": "Máximo de tokens de saída",
+    "maxOutputTokensNote": "Limita o tamanho de uma única resposta — quanto menor, mais rápido e mais econômico para a bateria do celular.",
+    "deepResearchTitle": "Modo Pesquisa Profunda",
+    "deepResearchNote": "Divide sua pergunta em subperguntas, pesquisa cada uma separadamente e depois sintetiza uma resposta. Várias chamadas sequenciais ao mesmo modelo — visivelmente mais lento que uma resposta normal, não é o mesmo que múltiplos modelos de IA rodando ao mesmo tempo. Independente do estilo de resposta acima: isso muda o quanto de pesquisa entra na resposta, não o seu tom — os dois se combinam (ex.: Pesquisa Profunda + Sucinto ainda sintetiza uma resposta final curta)."
+  },
+  "corpusSettingsTab": {
+    "downloadablePacks": "Pacotes de conhecimento para download",
+    "yourDocuments": "Seus documentos"
+  },
+  "personalDocumentsManager": {
+    "hint": "Importe suas próprias notas em .txt, .md, .csv, .json ou .pdf — indexadas apenas neste dispositivo, nunca enviadas a lugar nenhum. PDFs precisam de texto selecionável (páginas digitalizadas/somente imagem não são extraídas — não há OCR), e PDFs protegidos por senha não são suportados.",
+    "nameRequiredTitle": "Nome obrigatório",
+    "nameRequiredMessage": "Dê um nome a esta coleção antes de importar.",
+    "importFailedTitle": "Falha na importação",
+    "exportFailedTitle": "Falha na exportação",
+    "removeConfirmTitle": "Remover esta coleção?",
+    "removeConfirmMessage": "Isso exclui \"{{name}}\" ({{count}} trechos) da sua base de conhecimento local. Isso não pode ser desfeito — exporte antes se quiser guardar uma cópia.",
+    "namePlaceholder": "Nome da coleção (ex.: Especificações do Projeto)",
+    "pickButton": "Selecionar Arquivos e Importar",
+    "stageReading": "Lendo arquivos…",
+    "stageChunking": "Dividindo em trechos…",
+    "stageEmbedding": "Gerando embeddings {{current}}/{{total}}…",
+    "empty": "Nenhuma coleção personalizada ainda.",
+    "docCount_one": "{{count}} documento",
+    "docCount_other": "{{count}} documentos",
+    "chunkCount_one": "{{count}} trecho",
+    "chunkCount_other": "{{count}} trechos",
+    "exportButton": "Exportar / Compartilhar",
+    "exporting": "Exportando…"
+  },
+  "memorySettings": {
+    "title": "Histórico de conversas e memória",
+    "autoSummarizeLabel": "Resumo automático de contexto",
+    "autoSummarizeValue": "Condensa trocas antigas para que conversas longas não percam contexto",
+    "turnsBeforeSummarizing": "Trocas recentes antes de resumir",
+    "maxSavedSessions": "Máximo de sessões salvas",
+    "unlimited": "Ilimitado",
+    "autoTitlesLabel": "Gerar títulos automaticamente",
+    "autoTitlesValue": "Nomeia novas conversas com base na primeira mensagem",
+    "clearAllConfirmTitle": "Limpar todo o histórico de conversas?",
+    "clearAllConfirmMessage": "Isso exclui permanentemente todas as sessões e mensagens salvas neste dispositivo. Isso não pode ser desfeito.",
+    "clearAllButton": "Limpar Tudo",
+    "clearAllChatHistory": "Limpar Todo o Histórico de Conversas"
+  },
+  "voiceSettings": {
+    "title": "Voz e preferências",
+    "speechEngineLabel": "Mecanismo de reconhecimento de voz",
+    "checking": "Verificando…",
+    "available": "Android SpeechRecognizer (offline)",
+    "unavailable": "Indisponível neste dispositivo",
+    "unavailableNote": "Nenhum serviço de reconhecimento de voz do sistema foi encontrado — comum em builds GrapheneOS / sem Google. Um modelo whisper.cpp embarcado eliminaria essa dependência, mas é um projeto separado do porte da própria integração com o llama.rn; não implementado nesta versão.",
+    "hapticFeedbackLabel": "Feedback tátil",
+    "hapticFeedbackValue": "Vibrar ao parar / finalizar resposta"
+  },
+  "knowledgeBaseScreen": {
+    "title": "MEUS DOCUMENTOS"
+  },
+  "chatHeader": {
+    "openDrawer": "Abrir menu de navegação",
+    "offline": "OFFLINE",
+    "localLlmCore": "NÚCLEO LLM LOCAL",
+    "cycleTone": "Alternar tom do assistente",
+    "newChatSession": "Nova sessão de chat",
+    "deepResearch": "Pesquisa Aprofundada",
+    "deepResearchActive": "Pesquisa Aprofundada Ativa"
+  },
+  "chatScreen": {
+    "initializingCore": "Inicializando núcleo offline local…",
+    "mountingWeights": "Carregando pesos GGUF locais…",
+    "indexingKnowledgeBase": "Indexando base de conhecimento offline…",
+    "drawerItems": {
+      "prompts": "Ideias de Prompts",
+      "myDocuments": "Meus Documentos",
+      "settings": "Configurações",
+      "about": "Sobre & Informações"
+    },
+    "inputPlaceholder": "Faça uma pergunta de pesquisa offline…",
+    "stopGeneration": "Parar geração",
+    "sendMessage": "Enviar mensagem",
+    "research": {
+      "decomposing": "🔬 Dividindo a pergunta em subperguntas…",
+      "researching": "🔬 Pesquisando subpergunta {{index}}/{{count}}…",
+      "synthesizing": "🔬 Sintetizando descobertas offline…"
+    },
+    "roleYou": "VOCÊ",
+    "roleAssistant": "🐗 PESQUISADOR BOAR",
+    "stoppedByUser": "Interrompido pelo usuário",
+    "deepResearchBanner": "MISTURA DE AGENTES: DECOMPOR ➔ EMBEDDINGS LOCAIS ➔ SINTETIZAR"
+  },
+  "aboutScreen": {
+    "title": "SOBRE O BOAR",
+    "heroSubtitle": "MELHOR PESQUISADOR DE IA OFFLINE",
+    "versionBadge": "v0.1.0 • BUILD DE PRODUÇÃO",
+    "airGappedTitle": "IA SOBERANA E ISOLADA DA REDE",
+    "airGappedBody": "O BOAR é um assistente de pesquisa por IA totalmente offline e isolado da rede, desenvolvido para hardware móvel Android. Ele realiza inferência local de LLM via llama.rn / llama.cpp e busca híbrida local (SQLite FTS5 + embeddings no dispositivo) sem nenhuma dependência de nuvem.",
+    "hardwareTitle": "ARQUITETURA DE HARDWARE E ORÇAMENTO",
+    "hardwareBody": "Atende a restrições rígidas de uso em campo: a memória residente permanece limitada a 12GB de RAM usando pesos mapeados em memória (mmap), e o armazenamento total é auditado contra um limite de 50GB.",
+    "repoTitle": "REPOSITÓRIO DE CÓDIGO ABERTO",
+    "repoBody": "O código-fonte, os manifestos de modelos quantizados e os scripts de indexação offline estão disponíveis em:"
+  },
+  "sourceFootnotes": {
+    "title": "FONTES VERIFICADAS OFFLINE",
+    "localIndex": "ÍNDICE LOCAL"
+  },
+  "promptIdeasCarousel": {
+    "title": "PROMPTS DE PESQUISA DE REFERÊNCIA",
+    "prev": "Anterior",
+    "usePrompt": "Usar Este Prompt de Pesquisa",
+    "next": "Próximo",
+    "dontShowAgain": "Não mostrar novamente"
   }
 }

@@ -5,7 +5,8 @@
     "close": "Close",
     "back": "Back",
     "remove": "Remove",
-    "retry": "Retry"
+    "retry": "Retry",
+    "dismiss": "Dismiss"
   },
   "time": {
     "justNow": "just now",
@@ -102,5 +103,235 @@
     "actionRequired": "ACTION REQUIRED",
     "settings": "Settings",
     "setupWizard": "Setup Wizard"
+  },
+  "usageStatsScreen": {
+    "back": "‹ BACK",
+    "title": "SYSTEM TELEMETRY",
+    "subtitle": "Hardware & Compliance Audit",
+    "live": "LIVE"
+  },
+  "systemMonitor": {
+    "title": "LIVE BOUNTY COMPLIANCE GAUGES",
+    "diskLabel": "Disk Storage (Cap: 50GB)",
+    "ramLabel": "Process RSS Memory (Cap: 12GB)",
+    "exceeded": "⚠️ EXCEEDED",
+    "noRssNote": "Process RSS readout requires Android native dev-client build."
+  },
+  "drawerFooterStats": {
+    "ram": "RAM",
+    "disk": "DISK",
+    "lastQuery": "{{rate}} tok/s last query"
+  },
+  "modelSetupScreen": {
+    "header": {
+      "title": "SETTINGS & CONFIGURATION",
+      "subtitle": "BOAR Offline Research Assistant"
+    },
+    "sections": {
+      "toneModels": "Tone & Reasoning Models",
+      "knowledgeBase": "Offline Knowledge Base (RAG)",
+      "memory": "Memory & Context Settings",
+      "telemetry": "Hardware Telemetry & Compliance",
+      "displayTheme": "Display & Theme",
+      "language": "Language",
+      "voice": "Voice Input Configuration",
+      "recovery": "System Recovery & Danger Zone"
+    },
+    "installedModels": "INSTALLED MODELS",
+    "discoverHfModels": "DISCOVER HUGGING FACE GGUF MODELS",
+    "toasts": {
+      "indexed": "Indexed \"{{name}}\" in offline knowledge base",
+      "removed": "Removed \"{{name}}\"",
+      "activeSet": "Active {{kind}} model set to \"{{name}}\"",
+      "resetFailed": "Reset failed: {{error}}"
+    },
+    "recovery": {
+      "wizardTitle": "SETUP WIZARD",
+      "wizardDesc": "Re-run the initial 3-step onboarding flow to re-scan device hardware or switch your base model tier.",
+      "wizardButton": "Relaunch Setup Wizard ➔",
+      "dangerBadge": "CRITICAL DANGER ZONE",
+      "dangerDesc": "Permanently wipes all downloaded GGUF weights, offline SQLite database indices, and conversation logs from this device.",
+      "dangerButton": "🚨 Purge All Data & Reset App"
+    },
+    "dangerModal": {
+      "title": "CONFIRM DESTRUCTIVE RESET",
+      "subtitle": "This action is immediate, permanent, and cannot be undone.",
+      "consequencesHeader": "THE FOLLOWING WILL BE REMOVED:",
+      "consequenceModels": "All downloaded GGUF model files (~2.3 GB+)",
+      "consequenceEmbeddings": "All offline SQLite document collections & embeddings",
+      "consequenceHistory": "All chat session history and generated summaries",
+      "confirmButton": "Purge All Data"
+    }
+  },
+  "setupWizard": {
+    "calculating": "Calculating…",
+    "estimating": "Estimating…",
+    "steps": {
+      "hardware": "HARDWARE",
+      "modelTier": "MODEL TIER",
+      "indexing": "INDEXING"
+    },
+    "step1": {
+      "terminalTitle": "AIR-GAPPED FIELD TERMINAL",
+      "terminalText": "Designed for remote expeditions, crisis zones, and off-grid research. After this initial setup, BOAR operates 100% locally with zero network telemetry, no accounts, and no cloud dependencies.",
+      "hardwareTitle": "DEVICE HARDWARE VERIFICATION",
+      "deviceRam": "Device RAM",
+      "verified": "Verified",
+      "availableStorage": "Available Disk Storage",
+      "sufficient": "Sufficient",
+      "ramBudget": "Bounty RAM Budget",
+      "under12gb": "Under 12GB Limit",
+      "inferenceEngine": "Inference Engine",
+      "inferenceEngineValue": "ARM64 llama.rn (Offline)",
+      "verifiedBadge": "HARDWARE VERIFIED FOR LOCAL INFERENCE",
+      "selectTierButton": "Select Model Tier ➔"
+    },
+    "step2": {
+      "title": "SELECT OFFLINE MODEL TIER",
+      "subtitle": "Weights are downloaded once to local storage and executed via mmap.",
+      "recommended": "RECOMMENDED",
+      "runsGreat": "🟢 Runs Great",
+      "ramFootprint": "RAM: ~2.5 GB Working Set",
+      "installButton": "Install Weights & Index ➔",
+      "backButton": "‹ Back to Diagnostics"
+    },
+    "step3": {
+      "title": "OFFLINE CORE INITIALIZATION",
+      "subtitle": "Fetching open-weights and seeding local SQLite knowledge base.",
+      "assetsCached": "ASSETS CACHED TO DISK",
+      "downloadingWeights": "DOWNLOADING WEIGHTS",
+      "eta": "ETA: {{eta}}",
+      "phaseModel": "GGUF Reasoning Model",
+      "phaseEmbedding": "Embedding Model & Vectors",
+      "phaseKnowledgeBase": "Offline Knowledge Base & FTS",
+      "interfaceCustomization": "INTERFACE CUSTOMIZATION",
+      "tipLabel": "💡 FIELD TERMINAL NOTICE",
+      "tipText": "Once initialized, BOAR is completely self-contained. You can toggle airplane mode and use the app in complete isolation without loss of functionality.",
+      "launchButton": "🐗 Launch BOAR Terminal",
+      "indexingError": "Indexing error: {{error}}",
+      "buildingIndex": "Building local SQLite knowledge base & vector index…",
+      "waitingForDownloads": "Waiting for downloads…"
+    },
+    "phaseStatus": {
+      "complete": "COMPLETE",
+      "streaming": "STREAMING",
+      "indexing": "INDEXING",
+      "pending": "PENDING",
+      "queued": "QUEUED"
+    }
+  },
+  "personalitySettings": {
+    "title": "Assistant tone & response style",
+    "customPromptPlaceholder": "Write your own system prompt…",
+    "maxOutputTokens": "Max output tokens",
+    "maxOutputTokensNote": "Caps how long a single response can be — lower is faster and more battery-friendly on phone hardware.",
+    "deepResearchTitle": "Deep Research Mode",
+    "deepResearchNote": "Breaks your question into sub-questions, researches each separately, then synthesizes one answer. Several sequential model calls on the same model — noticeably slower than a normal reply, not multiple AI models running at once. Independent from the response style above: it changes how much research goes into an answer, not its tone — the two combine (e.g. Deep Research + Succinct still synthesizes a short final answer)."
+  },
+  "corpusSettingsTab": {
+    "downloadablePacks": "Downloadable knowledge packs",
+    "yourDocuments": "Your documents"
+  },
+  "personalDocumentsManager": {
+    "hint": "Import your own .txt, .md, .csv, .json, or .pdf notes — indexed on this device only, never uploaded anywhere. PDFs need selectable text (scanned/image-only pages won't extract — there's no OCR), and password-protected PDFs aren't supported.",
+    "nameRequiredTitle": "Name required",
+    "nameRequiredMessage": "Give this collection a name before importing.",
+    "importFailedTitle": "Import failed",
+    "exportFailedTitle": "Export failed",
+    "removeConfirmTitle": "Remove this collection?",
+    "removeConfirmMessage": "This deletes \"{{name}}\" ({{count}} chunks) from your local knowledge base. This can't be undone — export it first if you want to keep a copy.",
+    "namePlaceholder": "Collection name (e.g. Project Specs)",
+    "pickButton": "Pick Files & Import",
+    "stageReading": "Reading files…",
+    "stageChunking": "Splitting into chunks…",
+    "stageEmbedding": "Embedding {{current}}/{{total}}…",
+    "empty": "No custom collections yet.",
+    "docCount_one": "{{count}} doc",
+    "docCount_other": "{{count}} docs",
+    "chunkCount_one": "{{count}} chunk",
+    "chunkCount_other": "{{count}} chunks",
+    "exportButton": "Export / Share",
+    "exporting": "Exporting…"
+  },
+  "memorySettings": {
+    "title": "Chat history & memory",
+    "autoSummarizeLabel": "Background context summarization",
+    "autoSummarizeValue": "Condenses older turns so long chats don't lose context",
+    "turnsBeforeSummarizing": "Recent turns before summarizing",
+    "maxSavedSessions": "Max saved chat sessions",
+    "unlimited": "Unlimited",
+    "autoTitlesLabel": "Auto-generate chat titles",
+    "autoTitlesValue": "Names new chats from your first message",
+    "clearAllConfirmTitle": "Clear all chat history?",
+    "clearAllConfirmMessage": "This permanently deletes every saved chat session and message on this device. This can't be undone.",
+    "clearAllButton": "Clear All",
+    "clearAllChatHistory": "Clear All Chat History"
+  },
+  "voiceSettings": {
+    "title": "Voice & preferences",
+    "speechEngineLabel": "Speech-to-text engine",
+    "checking": "Checking…",
+    "available": "Android SpeechRecognizer (offline)",
+    "unavailable": "Unavailable on this device",
+    "unavailableNote": "No system speech-recognition service was found — common on GrapheneOS / de-Googled builds. An embedded whisper.cpp model would remove this dependency but is a separate project on the scale of the llama.rn integration itself; not implemented in this version.",
+    "hapticFeedbackLabel": "Haptic feedback",
+    "hapticFeedbackValue": "Vibrate on stop / response finished"
+  },
+  "knowledgeBaseScreen": {
+    "title": "MY DOCUMENTS"
+  },
+  "chatHeader": {
+    "openDrawer": "Open Navigation Drawer",
+    "offline": "OFFLINE",
+    "localLlmCore": "LOCAL LLM CORE",
+    "cycleTone": "Cycle Assistant Tone",
+    "newChatSession": "New Chat Session",
+    "deepResearch": "Deep Research",
+    "deepResearchActive": "Deep Research Active"
+  },
+  "chatScreen": {
+    "initializingCore": "Initializing local offline core…",
+    "mountingWeights": "Mounting local GGUF weights…",
+    "indexingKnowledgeBase": "Indexing offline knowledge base…",
+    "drawerItems": {
+      "prompts": "Prompt Ideas",
+      "myDocuments": "My Documents",
+      "settings": "Settings",
+      "about": "About & Info"
+    },
+    "inputPlaceholder": "Ask an offline research question…",
+    "stopGeneration": "Stop generation",
+    "sendMessage": "Send message",
+    "research": {
+      "decomposing": "🔬 Breaking question into sub-questions…",
+      "researching": "🔬 Researching sub-question {{index}}/{{count}}…",
+      "synthesizing": "🔬 Synthesizing offline findings…"
+    },
+    "roleYou": "YOU",
+    "roleAssistant": "🐗 BOAR RESEARCHER",
+    "stoppedByUser": "Stopped by user",
+    "deepResearchBanner": "MIXTURE-OF-AGENTS: DECOMPOSE ➔ LOCAL EMBEDDINGS ➔ SYNTHESIS"
+  },
+  "aboutScreen": {
+    "title": "ABOUT BOAR",
+    "heroSubtitle": "BEST OFFLINE AI RESEARCHER",
+    "versionBadge": "v0.1.0 • PRODUCTION BUILD",
+    "airGappedTitle": "AIR-GAPPED SOVEREIGN AI",
+    "airGappedBody": "BOAR is a fully offline, air-gapped AI research assistant engineered for Android mobile hardware. It performs local LLM inference via llama.rn / llama.cpp and local hybrid retrieval (SQLite FTS5 + on-device embeddings) with zero cloud dependencies.",
+    "hardwareTitle": "HARDWARE ARCHITECTURE & BUDGET",
+    "hardwareBody": "Complies with strict mobile field constraints: resident memory remains capped under 12GB RAM using memory-mapped weights (mmap), and total storage is audited against a 50GB storage envelope.",
+    "repoTitle": "OPEN SOURCE REPOSITORY",
+    "repoBody": "Source code, quantized model manifests, and offline indexing scripts are available at:"
+  },
+  "sourceFootnotes": {
+    "title": "OFFLINE VERIFIED SOURCES",
+    "localIndex": "LOCAL INDEX"
+  },
+  "promptIdeasCarousel": {
+    "title": "RESEARCH PROMPT BENCHMARKS",
+    "prev": "Prev",
+    "usePrompt": "Use This Research Prompt",
+    "next": "Next",
+    "dontShowAgain": "Don't show again"
   }
 }

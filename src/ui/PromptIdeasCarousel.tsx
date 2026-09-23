@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, Switch } from "react-native";
 import * as Haptics from "expo-haptics";
+import { useTranslation } from "react-i18next";
 import { setHidePromptIdeas } from "../models/settings";
 import { colors } from "./theme/colors";
 import { typography } from "./theme/typography";
@@ -57,6 +58,7 @@ interface Props {
 }
 
 export function PromptIdeasCarousel({ onUsePrompt, onDismiss }: Props) {
+  const { t } = useTranslation();
   const [index, setIndex] = useState(0);
   const [dontShowAgain, setDontShowAgain] = useState(false);
   const idea = PROMPT_IDEAS[index];
@@ -90,7 +92,7 @@ export function PromptIdeasCarousel({ onUsePrompt, onDismiss }: Props) {
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <Text style={styles.headerIcon}>💡</Text>
-            <Text style={styles.headerTitle}>RESEARCH PROMPT BENCHMARKS</Text>
+            <Text style={styles.headerTitle}>{t("promptIdeasCarousel.title")}</Text>
           </View>
           <Pressable onPress={dismiss} hitSlop={8} style={styles.closeBtn}>
             <Text style={styles.closeBtnText}>✕</Text>
@@ -120,17 +122,17 @@ export function PromptIdeasCarousel({ onUsePrompt, onDismiss }: Props) {
             disabled={isFirst}
             onPress={back}
           >
-            <Text style={styles.navBtnText}>‹ Prev</Text>
+            <Text style={styles.navBtnText}>‹ {t("promptIdeasCarousel.prev")}</Text>
           </Pressable>
           <Pressable style={styles.useBtn} onPress={use}>
-            <Text style={styles.useBtnText}>Use This Research Prompt</Text>
+            <Text style={styles.useBtnText}>{t("promptIdeasCarousel.usePrompt")}</Text>
           </Pressable>
           <Pressable
             style={[styles.navBtn, isLast && styles.navBtnDisabled]}
             disabled={isLast}
             onPress={next}
           >
-            <Text style={styles.navBtnText}>Next ›</Text>
+            <Text style={styles.navBtnText}>{t("promptIdeasCarousel.next")} ›</Text>
           </Pressable>
         </View>
 
@@ -146,10 +148,10 @@ export function PromptIdeasCarousel({ onUsePrompt, onDismiss }: Props) {
               trackColor={{ false: "#1E293B", true: colors.emerald[600] }}
               thumbColor={dontShowAgain ? colors.emerald[400] : colors.text.dim}
             />
-            <Text style={styles.dismissLabel}>Don't show again</Text>
+            <Text style={styles.dismissLabel}>{t("promptIdeasCarousel.dontShowAgain")}</Text>
           </Pressable>
           <Pressable onPress={dismiss} hitSlop={8}>
-            <Text style={styles.dismissBtn}>Dismiss</Text>
+            <Text style={styles.dismissBtn}>{t("common.dismiss")}</Text>
           </Pressable>
         </View>
       </View>

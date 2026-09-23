@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import * as Haptics from "expo-haptics";
+import { useTranslation } from "react-i18next";
 import { MODEL_CATALOG, CatalogModel, AssetKind, CORPUS_CATALOG } from "../models/manifest";
 import { ModelManager } from "../models/ModelManager";
 import { getActiveModelId, setActiveModelId } from "../models/settings";
@@ -51,6 +52,7 @@ type Props =
  */
 export function ModelSetupScreen(props: Props) {
   const { colors, typography } = useTheme();
+  const { t } = useTranslation();
   const requiredMode = props.mode === "required";
   const [presence, setPresence] = useState<Record<string, boolean>>({});
   const [activeIds, setActiveIds] = useState<Partial<Record<AssetKind, string>>>({});
@@ -116,10 +118,10 @@ export function ModelSetupScreen(props: Props) {
 
       if (model.kind === "corpus" && !requiredMode && !getDownloadState(model.id)?.error) {
         await seedKnowledgeBaseIfEmpty();
-        setToast(`Indexed "${model.label}" in offline knowledge base`);
+        setToast(t("modelSetupScreen.toasts.indexed", { name: model.label }));
       }
     },
-    [requiredMode, refreshStatus]
+    [requiredMode, refreshStatus, t]
   );
 
   const remove = useCallback(
@@ -129,9 +131,9 @@ export function ModelSetupScreen(props: Props) {
         await removeDiscoveredModel(model.id);
       }
       await refreshStatus();
-      setToast(`Removed "${model.label}"`);
+      setToast(t("modelSetupScreen.toasts.removed", { name: model.label }));
     },
-    [refreshStatus]
+    [refreshStatus, t]
   );
 
   const useModel = useCallback(
@@ -139,9 +141,9 @@ export function ModelSetupScreen(props: Props) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
       await setActiveModelId(model.kind, model.id);
       await refreshStatus();
-      setToast(`Active ${model.kind} model set to "${model.label}"`);
+      setToast(t("modelSetupScreen.toasts.activeSet", { kind: model.kind, name: model.label }));
     },
-    [refreshStatus]
+    [refreshStatus, t]
   );
 
   const onRelaunchWizard = !requiredMode
@@ -157,7 +159,7 @@ export function ModelSetupScreen(props: Props) {
       onRelaunchWizard?.();
     } catch (e: any) {
       setResetting(false);
-      setToast(`Reset failed: ${e?.message ?? e}`);
+      setToast(t("modelSetupScreen.toasts.resetFailed", { error: e?.message ?? e }));
     }
   };
 
@@ -174,8 +176,8 @@ export function ModelSetupScreen(props: Props) {
         <View style={styles.headerLeft}>
           <Text style={styles.mascotIcon}>🐗</Text>
           <View>
-            <Text style={styles.title}>SETTINGS & CONFIGURATION</Text>
-            <Text style={styles.subtitle}>BOAR Offline Research Assistant</Text>
+            <Text style={styles.title}>{t("modelSetupScreen.header.title")}</Text>
+            <Text style={styles.subtitle}>{t("modelSetupScreen.header.subtitle")}</Text>
           </View>
         </View>
         <Pressable
@@ -183,14 +185,14 @@ export function ModelSetupScreen(props: Props) {
           onPress={(props as { onClose: () => void }).onClose}
           hitSlop={8}
         >
-          <Text style={styles.closeBtnText}>DONE</Text>
+          <Text style={styles.closeBtnText}>{t("common.done")}</Text>
         </Pressable>
       </View>
 
       <ScrollView contentContainerStyle={styles.accordionScroll}>
-        <AccordionSection icon="🤖" title="Tone & Reasoning Models" defaultOpen>
+        <AccordionSection icon="🤖" title={t("modelSetupScreen.sections.toneModels")} defaultOpen>
           <PersonalitySettings />
-          <Text style={styles.sectionHeading}>INSTALLED MODELS</Text>
+          <Text style={styles.sectionHeading}>{t("modelSetupScreen.installedModels")}</Text>
           <FlatList
             data={[
               ...MODEL_CATALOG.filter((m) => m.kind === "llm" || m.kind === "embedding"),
@@ -211,13 +213,13 @@ export function ModelSetupScreen(props: Props) {
             )}
           />
 
-          <Text style={styles.sectionHeading}>DISCOVER HUGGING FACE GGUF MODELS</Text>
+          <Text style={styles.sectionHeading}>{t("modelSetupScreen.discoverHfModels")}</Text>
           <View style={styles.browserWrapper}>
             <ModelBrowser onAdded={refreshDiscovered} />
           </View>
         </AccordionSection>
 
-        <AccordionSection icon="📦" title="Offline Knowledge Base (RAG)">
+        <AccordionSection icon="📦" title={t("modelSetupScreen.sections.knowledgeBase")}>
           <CorpusSettingsTab
             corpusItems={CORPUS_CATALOG}
             getRow={getRow}
@@ -226,49 +228,46 @@ export function ModelSetupScreen(props: Props) {
           />
         </AccordionSection>
 
-        <AccordionSection icon="💾" title="Memory & Context Settings">
+        <AccordionSection icon="💾" title={t("modelSetupScreen.sections.memory")}>
           <MemorySettings />
         </AccordionSection>
 
-        <AccordionSection icon="⚡" title="Hardware Telemetry & Compliance">
+        <AccordionSection icon="⚡" title={t("modelSetupScreen.sections.telemetry")}>
           <UsageStatsContent />
         </AccordionSection>
 
-        <AccordionSection icon="🎨" title="Display & Theme">
+        <AccordionSection icon="🎨" title={t("modelSetupScreen.sections.displayTheme")}>
           <View style={styles.themeSectionWrapper}>
             <ThemeSelector />
           </View>
         </AccordionSection>
 
-        <AccordionSection icon="🌐" title="Language">
+        <AccordionSection icon="🌐" title={t("modelSetupScreen.sections.language")}>
           <View style={styles.themeSectionWrapper}>
             <LanguageSelector />
           </View>
         </AccordionSection>
 
-        <AccordionSection icon="🎙️" title="Voice Input Configuration">
+        <AccordionSection icon="🎙️" title={t("modelSetupScreen.sections.voice")}>
           <VoiceSettings />
         </AccordionSection>
 
         {/* RECOVERY & DANGER ZONE SECTION */}
-        <AccordionSection icon="⚠️" title="System Recovery & Danger Zone">
+        <AccordionSection icon="⚠️" title={t("modelSetupScreen.sections.recovery")}>
           <View style={styles.recoveryContainer}>
             {/* Setup Wizard Shortcut */}
             <View style={styles.recoveryCard}>
               <View style={styles.recoveryHeader}>
                 <Text style={styles.recoveryIcon}>🪄</Text>
-                <Text style={styles.recoveryTitle}>SETUP WIZARD</Text>
+                <Text style={styles.recoveryTitle}>{t("modelSetupScreen.recovery.wizardTitle")}</Text>
               </View>
-              <Text style={styles.recoveryDesc}>
-                Re-run the initial 3-step onboarding flow to re-scan device hardware or switch
-                your base model tier.
-              </Text>
+              <Text style={styles.recoveryDesc}>{t("modelSetupScreen.recovery.wizardDesc")}</Text>
               <Pressable
                 style={styles.wizardBtn}
                 onPress={() => onRelaunchWizard?.()}
                 disabled={!onRelaunchWizard}
               >
-                <Text style={styles.wizardBtnText}>Relaunch Setup Wizard ➔</Text>
+                <Text style={styles.wizardBtnText}>{t("modelSetupScreen.recovery.wizardButton")}</Text>
               </Pressable>
             </View>
 
@@ -276,13 +275,10 @@ export function ModelSetupScreen(props: Props) {
             <View style={styles.dangerZoneCard}>
               <View style={styles.dangerHeader}>
                 <View style={styles.dangerBadge}>
-                  <Text style={styles.dangerBadgeText}>CRITICAL DANGER ZONE</Text>
+                  <Text style={styles.dangerBadgeText}>{t("modelSetupScreen.recovery.dangerBadge")}</Text>
                 </View>
               </View>
-              <Text style={styles.dangerDesc}>
-                Permanently wipes all downloaded GGUF weights, offline SQLite database indices,
-                and conversation logs from this device.
-              </Text>
+              <Text style={styles.dangerDesc}>{t("modelSetupScreen.recovery.dangerDesc")}</Text>
               <Pressable
                 style={styles.dangerActionBtn}
                 onPress={() => {
@@ -290,7 +286,7 @@ export function ModelSetupScreen(props: Props) {
                   setDangerModalVisible(true);
                 }}
               >
-                <Text style={styles.dangerActionBtnText}>🚨 Purge All Data & Reset App</Text>
+                <Text style={styles.dangerActionBtnText}>{t("modelSetupScreen.recovery.dangerButton")}</Text>
               </Pressable>
             </View>
           </View>
@@ -309,25 +305,23 @@ export function ModelSetupScreen(props: Props) {
             <View style={styles.modalIconCircle}>
               <Text style={styles.modalIconText}>⚠️</Text>
             </View>
-            <Text style={styles.modalTitle}>CONFIRM DESTRUCTIVE RESET</Text>
-            <Text style={styles.modalSubtitle}>
-              This action is immediate, permanent, and cannot be undone.
-            </Text>
+            <Text style={styles.modalTitle}>{t("modelSetupScreen.dangerModal.title")}</Text>
+            <Text style={styles.modalSubtitle}>{t("modelSetupScreen.dangerModal.subtitle")}</Text>
 
             {/* Itemized consequences list */}
             <View style={styles.consequencesBox}>
-              <Text style={styles.consequencesHeader}>THE FOLLOWING WILL BE REMOVED:</Text>
+              <Text style={styles.consequencesHeader}>{t("modelSetupScreen.dangerModal.consequencesHeader")}</Text>
               <View style={styles.consequenceItem}>
                 <Text style={styles.consequenceBullet}>•</Text>
-                <Text style={styles.consequenceText}>All downloaded GGUF model files (~2.3 GB+)</Text>
+                <Text style={styles.consequenceText}>{t("modelSetupScreen.dangerModal.consequenceModels")}</Text>
               </View>
               <View style={styles.consequenceItem}>
                 <Text style={styles.consequenceBullet}>•</Text>
-                <Text style={styles.consequenceText}>All offline SQLite document collections & embeddings</Text>
+                <Text style={styles.consequenceText}>{t("modelSetupScreen.dangerModal.consequenceEmbeddings")}</Text>
               </View>
               <View style={styles.consequenceItem}>
                 <Text style={styles.consequenceBullet}>•</Text>
-                <Text style={styles.consequenceText}>All chat session history and generated summaries</Text>
+                <Text style={styles.consequenceText}>{t("modelSetupScreen.dangerModal.consequenceHistory")}</Text>
               </View>
             </View>
 
@@ -337,7 +331,7 @@ export function ModelSetupScreen(props: Props) {
                 onPress={() => setDangerModalVisible(false)}
                 disabled={resetting}
               >
-                <Text style={styles.modalCancelText}>Cancel</Text>
+                <Text style={styles.modalCancelText}>{t("common.cancel")}</Text>
               </Pressable>
               <Pressable
                 style={[styles.modalConfirmBtn, resetting && styles.modalConfirmBtnDisabled]}
@@ -347,7 +341,7 @@ export function ModelSetupScreen(props: Props) {
                 {resetting ? (
                   <ActivityIndicator color="#FFFFFF" size="small" />
                 ) : (
-                  <Text style={styles.modalConfirmText}>Purge All Data</Text>
+                  <Text style={styles.modalConfirmText}>{t("modelSetupScreen.dangerModal.confirmButton")}</Text>
                 )}
               </Pressable>
             </View>

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, Pressable, TextInput, Switch } from "react-native";
+import { useTranslation } from "react-i18next";
 import { PERSONALITIES, PersonalityId, MAX_TOKENS_OPTIONS } from "../constants/personalities";
 import {
   getPersonalityId,
@@ -19,6 +20,7 @@ import {
  * ChatScreen.send(), not baked into the loaded model.
  */
 export function PersonalitySettings() {
+  const { t } = useTranslation();
   const [personalityId, setPersonalityIdState] = useState<PersonalityId>("succinct");
   const [customPrompt, setCustomPromptState] = useState("");
   const [maxTokens, setMaxTokensState] = useState(512);
@@ -56,7 +58,7 @@ export function PersonalitySettings() {
   return (
     <>
     <View style={styles.card}>
-      <Text style={styles.title}>Assistant tone & response style</Text>
+      <Text style={styles.title}>{t("personalitySettings.title")}</Text>
 
       {PERSONALITIES.map((p) => (
         <Pressable
@@ -81,13 +83,13 @@ export function PersonalitySettings() {
           style={styles.customInput}
           value={customPrompt}
           onChangeText={updateCustomPrompt}
-          placeholder="Write your own system prompt…"
+          placeholder={t("personalitySettings.customPromptPlaceholder")}
           placeholderTextColor="#666"
           multiline
         />
       )}
 
-      <Text style={styles.subheading}>Max output tokens</Text>
+      <Text style={styles.subheading}>{t("personalitySettings.maxOutputTokens")}</Text>
       <View style={styles.tokenRow}>
         {MAX_TOKENS_OPTIONS.map((n) => (
           <Pressable
@@ -101,26 +103,14 @@ export function PersonalitySettings() {
           </Pressable>
         ))}
       </View>
-      <Text style={styles.note}>
-        Caps how long a single response can be — lower is faster and more
-        battery-friendly on phone hardware.
-      </Text>
+      <Text style={styles.note}>{t("personalitySettings.maxOutputTokensNote")}</Text>
       </View>
 
       <View style={styles.card}>
         <View style={styles.deepResearchRow}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.title}>🔬 Deep Research Mode</Text>
-            <Text style={styles.note}>
-              Breaks your question into sub-questions, researches each
-              separately, then synthesizes one answer. Several sequential
-              model calls on the same model — noticeably slower than a
-              normal reply, not multiple AI models running at once.
-              Independent from the response style above: it changes how
-              much research goes into an answer, not its tone — the two
-              combine (e.g. Deep Research + Succinct still synthesizes a
-              short final answer).
-            </Text>
+            <Text style={styles.title}>🔬 {t("personalitySettings.deepResearchTitle")}</Text>
+            <Text style={styles.note}>{t("personalitySettings.deepResearchNote")}</Text>
           </View>
           <Switch
             value={deepResearch}

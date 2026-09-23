@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView } from "react-native";
 import * as Haptics from "expo-haptics";
+import { useTranslation } from "react-i18next";
 import { UsageStatsContent } from "./UsageStatsContent";
 import { colors } from "./theme/colors";
 import { typography } from "./theme/typography";
@@ -14,6 +15,7 @@ interface Props {
  * Fullscreen Hardware Telemetry & System Dashboard for field audit and compliance verification.
  */
 export function UsageStatsScreen({ onClose }: Props) {
+  const { t } = useTranslation();
   const handleClose = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     onClose?.();
@@ -25,19 +27,19 @@ export function UsageStatsScreen({ onClose }: Props) {
       <View style={styles.header}>
         {onClose ? (
           <Pressable style={styles.backBtn} onPress={handleClose} hitSlop={8}>
-            <Text style={styles.backBtnText}>‹ BACK</Text>
+            <Text style={styles.backBtnText}>{t("usageStatsScreen.back")}</Text>
           </Pressable>
         ) : (
           <View style={{ width: 40 }} />
         )}
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>SYSTEM TELEMETRY</Text>
-          <Text style={styles.headerSubtitle}>Hardware & Compliance Audit</Text>
+          <Text style={styles.headerTitle}>{t("usageStatsScreen.title")}</Text>
+          <Text style={styles.headerSubtitle}>{t("usageStatsScreen.subtitle")}</Text>
         </View>
         <View style={styles.headerRight}>
           <View style={styles.liveIndicator}>
             <View style={styles.liveDot} />
-            <Text style={styles.liveText}>LIVE</Text>
+            <Text style={styles.liveText}>{t("usageStatsScreen.live")}</Text>
           </View>
         </View>
       </View>

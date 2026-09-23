@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet } from "react-native";
+import { useTranslation } from "react-i18next";
 import { ModelManager } from "../models/ModelManager";
 import { RAM_BUDGET_BYTES, STORAGE_BUDGET_BYTES } from "../models/manifest";
 import { getMemoryInfo, MemoryInfo } from "ram-monitor";
@@ -19,11 +20,13 @@ function Bar({
   usedBytes,
   budgetBytes,
   accentColor,
+  exceededLabel,
 }: {
   label: string;
   usedBytes: number;
   budgetBytes: number;
   accentColor: string;
+  exceededLabel: string;
 }) {
   const fraction = Math.min(usedBytes / budgetBytes, 1);
   const over = usedBytes > budgetBytes;
@@ -40,7 +43,7 @@ function Bar({
           ]}
         >
           {formatGB(usedBytes)} / {formatGB(budgetBytes)}
-          {over ? " ⚠️ EXCEEDED" : ""}
+          {over ? ` ${exceededLabel}` : ""}
         </Text>
       </View>
       <View style={styles.track}>
@@ -57,6 +60,7 @@ function Bar({
 }
 
 export function SystemMonitor() {
+  const { t } = useTranslation();
   const [storageBytes, setStorageBytes] = useState<number>(0);
   const [memInfo, setMemInfo] = useState<MemoryInfo | null>(null);
 
@@ -87,26 +91,26 @@ export function SystemMonitor() {
     <View style={styles.card}>
       <View style={styles.titleRow}>
         <Text style={styles.icon}>📊</Text>
-        <Text style={styles.title}>LIVE BOUNTY COMPLIANCE GAUGES</Text>
+        <Text style={styles.title}>{t("systemMonitor.title")}</Text>
       </View>
 
       <Bar
-        label="Disk Storage (Cap: 50GB)"
+        label={t("systemMonitor.diskLabel")}
         usedBytes={storageBytes}
         budgetBytes={STORAGE_BUDGET_BYTES}
         accentColor={colors.cyan[400]}
+        exceededLabel={t("systemMonitor.exceeded")}
       />
       <Bar
-        label="Process RSS Memory (Cap: 12GB)"
+        label={t("systemMonitor.ramLabel")}
         usedBytes={memInfo?.rssBytes ?? 0}
         budgetBytes={RAM_BUDGET_BYTES}
         accentColor={colors.emerald[400]}
+        exceededLabel={t("systemMonitor.exceeded")}
       />
 
       {memInfo == null && (
-        <Text style={styles.note}>
-          Process RSS readout requires Android native dev-client build.
-        </Text>
+        <Text style={styles.note}>{t("systemMonitor.noRssNote")}</Text>
       )}
     </View>
   );

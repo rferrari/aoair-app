@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet } from "react-native";
+import { useTranslation } from "react-i18next";
 import { ModelManager } from "../models/ModelManager";
 import { RAM_BUDGET_BYTES, STORAGE_BUDGET_BYTES } from "../models/manifest";
 import { getMemoryInfo } from "ram-monitor";
@@ -38,6 +39,7 @@ function MiniBar({
 }
 
 export function DrawerFooterStats() {
+  const { t } = useTranslation();
   const [storageBytes, setStorageBytes] = useState(0);
   const [rssBytes, setRssBytes] = useState(0);
   const [tokPerSec, setTokPerSec] = useState<number | null>(
@@ -71,7 +73,7 @@ export function DrawerFooterStats() {
   return (
     <View style={styles.container}>
       <View style={styles.row}>
-        <Text style={styles.label}>RAM</Text>
+        <Text style={styles.label}>{t("drawerFooterStats.ram")}</Text>
         <MiniBar
           fraction={ramFraction}
           over={ramFraction > 1}
@@ -82,7 +84,7 @@ export function DrawerFooterStats() {
         </Text>
       </View>
       <View style={styles.row}>
-        <Text style={styles.label}>DISK</Text>
+        <Text style={styles.label}>{t("drawerFooterStats.disk")}</Text>
         <MiniBar
           fraction={storageFraction}
           over={storageFraction > 1}
@@ -95,7 +97,9 @@ export function DrawerFooterStats() {
       {tokPerSec != null && (
         <View style={styles.tokRow}>
           <Text style={styles.tokDot}>●</Text>
-          <Text style={styles.tokLine}>{tokPerSec.toFixed(1)} tok/s last query</Text>
+          <Text style={styles.tokLine}>
+            {t("drawerFooterStats.lastQuery", { rate: tokPerSec.toFixed(1) })}
+          </Text>
         </View>
       )}
     </View>
