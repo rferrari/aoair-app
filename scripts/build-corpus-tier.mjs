@@ -8,12 +8,36 @@
 // never runs this script or makes network calls beyond that one download.
 //
 // Usage: node scripts/build-corpus-tier.mjs <count> <output-path>
-import { writeFileSync, mkdirSync } from "node:fs";
+import { writeFileSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 
 const [, , countArg, outPath] = process.argv;
 const TARGET_COUNT = parseInt(countArg ?? "300", 10);
 const OUT_PATH = outPath ?? `assets/corpus/corpus-standard.json`;
 const BATCH_SIZE = 20;
+
+// Avoid the same Wikipedia article turning up in two different corpus
+// packs (e.g. both Standard and Full) — scans every *.json already in
+// assets/corpus/ (run tiers in dependency order: minimum, then standard,
+// then full, writing each before starting the next) and excludes their
+// titles up front.
+function existingTitles() {
+  const titles = new Set();
+  let files = [];
+  try {
+    files = readdirSync("assets/corpus").filter((f) => f.endsWith(".json"));
+  } catch {
+    return titles;
+  }
+  for (const f of files) {
+    try {
+      const docs = JSON.parse(readFileSync(`assets/corpus/${f}`, "utf8"));
+      for (const d of docs) titles.add(d.title);
+    } catch {
+      // skip unreadable/malformed files
+    }
+  }
+  return titles;
+}
 
 async function fetchRandomBatch(attempt = 1) {
   const url =
@@ -45,6 +69,8 @@ async function fetchRandomBatch(attempt = 1) {
 }
 
 async function main() {
+  const exclude = existingTitles();
+  console.log(`Excluding ${exclude.size} titles already used by other corpus packs.`);
   const seen = new Map();
   let batchNum = 0;
 
@@ -54,7 +80,7 @@ async function main() {
     const docs = await fetchRandomBatch();
     let added = 0;
     for (const doc of docs) {
-      if (!seen.has(doc.title)) {
+      if (!seen.has(doc.title) && !exclude.has(doc.title)) {
         seen.set(doc.title, doc);
         added++;
       }

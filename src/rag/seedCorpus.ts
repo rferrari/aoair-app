@@ -9,7 +9,7 @@ import { CORPUS_CATALOG } from "../models/manifest";
  *
  * 1. APP_TOPIC_DOCS — a handful of docs about the app's own architecture
  *    (useful for the bounty's own eval questions about MoE/mmap/RAM budgeting).
- * 2. minimumCorpus (assets/corpus/corpus.json) — 58 Wikipedia-derived docs,
+ * 2. minimumCorpus (assets/corpus/corpus.json) — 300 Wikipedia-derived docs,
  *    bundled directly in the JS bundle, always present, no download needed.
  * 3. Downloaded corpus packs (CORPUS_CATALOG entries, "standard"/"full"
  *    tiers) — read from disk if the user downloaded them via Settings or

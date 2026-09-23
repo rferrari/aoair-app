@@ -112,7 +112,7 @@ boar-app/
       Apache-2.0 LLM alternatives (Qwen2.5-1.5B/7B-Instruct), all
       sha256-verified, GGUF headers validated
 - [x] Three setup tiers (Minimum/Standard/Full) with downloadable corpus packs
-      (58/358/1,358 topics), hosted via `raw.githubusercontent.com` off this
+      (300/1,300/5,300 topics), hosted via `raw.githubusercontent.com` off this
       public repo, sha256-verified like every other catalog asset
 - [x] Native modules: `ram-monitor` (real process RSS), `bundled-assets` +
       `withBundledModels` (alternate fully-bundled build path, not default),
