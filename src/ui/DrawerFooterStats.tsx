@@ -4,20 +4,32 @@ import { ModelManager } from "../models/ModelManager";
 import { RAM_BUDGET_BYTES, STORAGE_BUDGET_BYTES } from "../models/manifest";
 import { getMemoryInfo } from "ram-monitor";
 import { getLastQueryStats, subscribeQueryStats } from "../services/telemetry";
+import { colors } from "./theme/colors";
+import { typography } from "./theme/typography";
+import { radii } from "./theme/spacing";
 
 const modelManager = new ModelManager();
 
 function formatGB(bytes: number): string {
-  return `${(bytes / 1024 / 1024 / 1024).toFixed(1)}GB`;
+  if (bytes <= 0) return "0.0 GB";
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }
 
-function MiniBar({ fraction, over }: { fraction: number; over: boolean }) {
+function MiniBar({
+  fraction,
+  over,
+  color,
+}: {
+  fraction: number;
+  over: boolean;
+  color: string;
+}) {
   return (
     <View style={styles.track}>
       <View
         style={[
           styles.fill,
-          { width: `${Math.min(fraction, 1) * 100}%` },
+          { width: `${Math.min(fraction, 1) * 100}%`, backgroundColor: color },
           over && styles.fillOver,
         ]}
       />
@@ -25,15 +37,12 @@ function MiniBar({ fraction, over }: { fraction: number; over: boolean }) {
   );
 }
 
-/**
- * Compact system summary pinned to the bottom of the drawer — a
- * lower-friction way to spot-check RAM/storage compliance than opening
- * Settings > Stats & System (which still has the full detail).
- */
 export function DrawerFooterStats() {
   const [storageBytes, setStorageBytes] = useState(0);
   const [rssBytes, setRssBytes] = useState(0);
-  const [tokPerSec, setTokPerSec] = useState<number | null>(getLastQueryStats()?.tokPerSec ?? null);
+  const [tokPerSec, setTokPerSec] = useState<number | null>(
+    getLastQueryStats()?.tokPerSec ?? null
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -43,7 +52,7 @@ export function DrawerFooterStats() {
       try {
         if (!cancelled) setRssBytes(getMemoryInfo().rssBytes);
       } catch {
-        // native module not linked; leave at 0
+        // Native module not linked
       }
     }
     poll();
@@ -63,16 +72,31 @@ export function DrawerFooterStats() {
     <View style={styles.container}>
       <View style={styles.row}>
         <Text style={styles.label}>RAM</Text>
-        <MiniBar fraction={ramFraction} over={ramFraction > 1} />
-        <Text style={styles.value}>{formatGB(rssBytes)}/{formatGB(RAM_BUDGET_BYTES)}</Text>
+        <MiniBar
+          fraction={ramFraction}
+          over={ramFraction > 1}
+          color={colors.emerald[400]}
+        />
+        <Text style={styles.value}>
+          {formatGB(rssBytes)}/{formatGB(RAM_BUDGET_BYTES)}
+        </Text>
       </View>
       <View style={styles.row}>
-        <Text style={styles.label}>Disk</Text>
-        <MiniBar fraction={storageFraction} over={storageFraction > 1} />
-        <Text style={styles.value}>{formatGB(storageBytes)}/{formatGB(STORAGE_BUDGET_BYTES)}</Text>
+        <Text style={styles.label}>DISK</Text>
+        <MiniBar
+          fraction={storageFraction}
+          over={storageFraction > 1}
+          color={colors.cyan[400]}
+        />
+        <Text style={styles.value}>
+          {formatGB(storageBytes)}/{formatGB(STORAGE_BUDGET_BYTES)}
+        </Text>
       </View>
       {tokPerSec != null && (
-        <Text style={styles.tokLine}>{tokPerSec.toFixed(1)} tok/s last query</Text>
+        <View style={styles.tokRow}>
+          <Text style={styles.tokDot}>●</Text>
+          <Text style={styles.tokLine}>{tokPerSec.toFixed(1)} tok/s last query</Text>
+        </View>
       )}
     </View>
   );
@@ -82,15 +106,49 @@ const styles = StyleSheet.create({
   container: {
     paddingTop: 10,
     paddingBottom: 16,
-    gap: 5,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "rgba(255,255,255,0.08)",
+    gap: 6,
+    borderTopWidth: 1,
+    borderTopColor: colors.border.subtle,
   },
   row: { flexDirection: "row", alignItems: "center", gap: 6 },
-  label: { color: "#777", fontSize: 10, width: 26 },
-  track: { flex: 1, height: 4, borderRadius: 2, backgroundColor: "#222", overflow: "hidden" },
-  fill: { height: "100%", backgroundColor: "#3a7a4a" },
-  fillOver: { backgroundColor: "#7a3a3a" },
-  value: { color: "#888", fontSize: 9, fontVariant: ["tabular-nums"] },
-  tokLine: { color: "#666", fontSize: 10, marginTop: 1 },
+  label: {
+    ...typography.mono.xs,
+    fontSize: 9,
+    color: colors.text.dim,
+    width: 28,
+    fontWeight: "700",
+  },
+  track: {
+    flex: 1,
+    height: 5,
+    borderRadius: radii.xs,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: colors.border.default,
+  },
+  fill: { height: "100%", borderRadius: radii.xs },
+  fillOver: { backgroundColor: colors.crimson[500] },
+  value: {
+    ...typography.mono.xs,
+    fontSize: 9,
+    color: colors.text.muted,
+    fontVariant: ["tabular-nums"],
+  },
+  tokRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 2,
+  },
+  tokDot: {
+    color: colors.cyan[400],
+    fontSize: 8,
+  },
+  tokLine: {
+    ...typography.mono.xs,
+    fontSize: 9,
+    color: colors.text.accentCyan,
+    fontWeight: "600",
+  },
 });

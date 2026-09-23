@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Keyboard,
   ActivityIndicator,
+  Animated,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
@@ -15,7 +16,7 @@ import { llamaEngine } from "../inference/LlamaEngine";
 import { embeddingEngine } from "../rag/embed";
 import { retrieve, assemblePrompt, RetrievedChunk, ConversationTurn } from "../rag/retrieve";
 import { seedKnowledgeBaseIfEmpty } from "../rag/seedCorpus";
-import { MODEL_CATALOG, REQUIRED_MODELS } from "../models/manifest";
+import { MODEL_CATALOG, REQUIRED_MODELS, CatalogModel } from "../models/manifest";
 import {
   getActiveModelId,
   getHidePromptIdeas,
@@ -28,6 +29,7 @@ import {
   MemorySettings as MemorySettingsType,
   DEFAULT_MEMORY_SETTINGS,
   getDeepResearchMode,
+  setDeepResearchMode,
 } from "../models/settings";
 import { runDeepResearch, ResearchProgress } from "../services/orchestrator";
 import { getPersonality, PersonalityId } from "../constants/personalities";
@@ -49,9 +51,14 @@ import { ProcessingIndicator, ProcessingStatus } from "./ProcessingIndicator";
 import { Drawer, DrawerItem } from "./Drawer";
 import { AboutScreen } from "./AboutScreen";
 import { ChatHeader } from "./ChatHeader";
-import { ModelLoadErrorCard } from "./ModelLoadErrorCard";
+import { ModelLoadErrorCard } from "./components/ModelLoadErrorCard";
+import { MarkdownMessage } from "./components/MarkdownMessage";
+import { SourceFootnotes } from "./components/SourceFootnotes";
 import { recordQueryStats, trackPeakRss, startAppMemoryTracking } from "../services/telemetry";
 import { getMemoryInfo } from "ram-monitor";
+import { colors } from "./theme/colors";
+import { typography } from "./theme/typography";
+import { spacing, radii, shadows } from "./theme/spacing";
 
 interface Message {
   id: string;
@@ -61,7 +68,6 @@ interface Message {
   stopped?: boolean;
 }
 
-/** Messages kept verbatim in the prompt regardless of summarization state (last 3 exchanges). */
 const VERBATIM_MESSAGE_COUNT = 6;
 
 function researchStageLabel(p: ResearchProgress): string {
@@ -69,10 +75,10 @@ function researchStageLabel(p: ResearchProgress): string {
   if (p.stage === "researching") {
     return `🔬 Researching sub-question ${(p.subQuestionIndex ?? 0) + 1}/${p.subQuestionCount ?? 1}…`;
   }
-  return "🔬 Synthesizing findings…";
+  return "🔬 Synthesizing offline findings…";
 }
 
-async function resolveActiveModel(kind: "llm" | "embedding") {
+async function resolveActiveModel(kind: "llm" | "embedding"): Promise<CatalogModel> {
   const activeId = await getActiveModelId(kind);
   const fallback = REQUIRED_MODELS.find((m) => m.kind === kind)!;
   if (!activeId) return fallback;
@@ -89,7 +95,7 @@ export function ChatScreen({
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [ready, setReady] = useState(false);
-  const [loadStatus, setLoadStatus] = useState("Loading models into memory…");
+  const [loadStatus, setLoadStatus] = useState("Initializing local offline core…");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [showPromptIdeas, setShowPromptIdeas] = useState(false);
@@ -98,10 +104,13 @@ export function ChatScreen({
   const [personalityId, setPersonalityIdState] = useState<PersonalityId>("succinct");
   const [processing, setProcessing] = useState<{ messageId: string; status: ProcessingStatus; label?: string } | null>(null);
   const [deepResearchActive, setDeepResearchActive] = useState(false);
+  const [deepResearchEnabled, setDeepResearchEnabled] = useState(false);
   const [liveTokPerSec, setLiveTokPerSec] = useState<number | null>(null);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [activeModel, setActiveModel] = useState<CatalogModel | null>(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+
   const listRef = useRef<FlatList<Message>>(null);
   const inputRef = useRef<TextInput>(null);
   const hapticsEnabledRef = useRef(true);
@@ -115,12 +124,6 @@ export function ChatScreen({
     messagesRef.current = messages;
   }, [messages]);
 
-  // KeyboardAvoidingView's Android "height" behavior relies on
-  // windowSoftInputMode="adjustResize" resizing the root view, which is
-  // unreliable under edge-to-edge display (enabled by default here) — the
-  // window no longer resizes the way it expects, so the input bar ends up
-  // under the keyboard. Tracking keyboard height directly via these events
-  // and applying it as padding works regardless of edge-to-edge quirks.
   useEffect(() => {
     const showSub = Keyboard.addListener("keyboardDidShow", (e) => {
       setKeyboardHeight(e.endCoordinates.height);
@@ -145,7 +148,9 @@ export function ChatScreen({
       setPersonalityIdState(await getPersonalityId());
       hapticsEnabledRef.current = await getHapticsEnabled();
       memorySettingsRef.current = await getMemorySettings();
-      deepResearchModeRef.current = await getDeepResearchMode();
+      const drMode = await getDeepResearchMode();
+      deepResearchModeRef.current = drMode;
+      setDeepResearchEnabled(drMode);
       await refreshSessions();
     })();
   }, [refreshSessions]);
@@ -154,46 +159,56 @@ export function ChatScreen({
     if (hapticsEnabledRef.current) fn().catch(() => {});
   }, []);
 
+  const toggleDeepResearch = useCallback(async () => {
+    const next = !deepResearchEnabled;
+    setDeepResearchEnabled(next);
+    deepResearchModeRef.current = next;
+    await setDeepResearchMode(next);
+    haptic(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium));
+  }, [deepResearchEnabled, haptic]);
+
   const cycleTone = useCallback(async () => {
     const next = personalityId === "succinct" ? "detailed" : "succinct";
     setPersonalityIdState(next);
     await setPersonalityId(next);
-  }, [personalityId]);
+    haptic(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light));
+  }, [personalityId, haptic]);
+
+  const initModels = useCallback(async () => {
+    try {
+      setLoadError(null);
+      setReady(false);
+      setLoadStatus("Mounting local GGUF weights…");
+      const llm = await resolveActiveModel("llm");
+      const emb = await resolveActiveModel("embedding");
+      setActiveModel(llm);
+
+      await Promise.all([
+        llamaEngine.load(llm.filename),
+        embeddingEngine.load(emb.filename),
+      ]);
+      startAppMemoryTracking();
+
+      setLoadStatus("Indexing offline knowledge base…");
+      await seedKnowledgeBaseIfEmpty();
+      setReady(true);
+    } catch (e: any) {
+      setLoadError(e?.message ?? String(e));
+    }
+  }, []);
 
   useEffect(() => {
-    (async () => {
-      try {
-        // App.tsx only mounts ChatScreen once ModelManager.requiredModelsPresent()
-        // is true, so the required models are already on disk here — no
-        // network needed at this point. The active model (default or a
-        // user-selected alternate from Settings) is resolved from disk too.
-        const llm = await resolveActiveModel("llm");
-        const emb = await resolveActiveModel("embedding");
-
-        await Promise.all([
-          llamaEngine.load(llm.filename),
-          embeddingEngine.load(emb.filename),
-        ]);
-        startAppMemoryTracking();
-
-        setLoadStatus("Preparing knowledge base…");
-        await seedKnowledgeBaseIfEmpty();
-        setReady(true);
-      } catch (e: any) {
-        setLoadError(e?.message ?? String(e));
-      }
-    })();
-  }, []);
+    initModels();
+  }, [initModels]);
 
   const stopRequestedRef = useRef(false);
 
   const stopGeneration = useCallback(async () => {
     stopRequestedRef.current = true;
-    haptic(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium));
+    haptic(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy));
     await llamaEngine.stop();
   }, [haptic]);
 
-  /** Cancels any in-flight background title/summary task and waits for it to settle. */
   const cancelBackgroundTask = useCallback(async () => {
     if (!backgroundTaskRef.current) return;
     await llamaEngine.stop();
@@ -206,7 +221,8 @@ export function ChatScreen({
     setMessages([]);
     setActiveSessionId(null);
     sessionSummaryRef.current = null;
-  }, [cancelBackgroundTask]);
+    haptic(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium));
+  }, [cancelBackgroundTask, haptic]);
 
   const selectSession = useCallback(async (id: string) => {
     await cancelBackgroundTask();
@@ -230,9 +246,6 @@ export function ChatScreen({
     const query = input.trim();
     if (!query || generating) return;
 
-    // A background title/summary task from the previous exchange may still
-    // be running on the shared llama.cpp context — stop it cleanly before
-    // starting a new generation (the two can't run concurrently).
     await cancelBackgroundTask();
 
     setInput("");
@@ -309,10 +322,6 @@ export function ChatScreen({
           history,
           maxTokens,
           (p: ResearchProgress) => {
-            // All stages map to "thinking" here — onToken (shared with the
-            // normal path) flips to "generating" itself once the
-            // synthesis step's first real token streams in, same as the
-            // single-pass path.
             setProcessing({ messageId: assistantId, status: "thinking", label: researchStageLabel(p) });
           },
           onToken
@@ -355,9 +364,6 @@ export function ChatScreen({
       const settings = memorySettingsRef.current;
       const allMessages = [...priorMessages, userMsg, { ...userMsg, id: assistantId, role: "assistant" as const, text: assistantText }];
 
-      // Background tasks below share the same llama.cpp context as the next
-      // generation — tracked via backgroundTaskRef so a subsequent send()
-      // can cancel them first (see cancelBackgroundTask above).
       if (isNewSession && settings.autoGenerateTitles && !wasStopped) {
         const sid = sessionId;
         backgroundTaskRef.current = generateSessionTitle(query)
@@ -421,35 +427,63 @@ export function ChatScreen({
     return <AboutScreen onClose={() => setShowAbout(false)} />;
   }
 
+  const isDeepActive = deepResearchEnabled || deepResearchActive;
+
   return (
-    <LinearGradient colors={["#0b0c10", "#1f2833"]} style={styles.container}>
-      <View style={styles.ambientGlowTop} pointerEvents="none" />
-      <View style={styles.ambientGlowBottom} pointerEvents="none" />
+    <LinearGradient
+      colors={isDeepActive ? ["#0D0B1A", "#060914"] : [colors.bg.terminal, "#0B1120"]}
+      style={styles.container}
+    >
+      {/* Ambient background glows */}
+      <View
+        style={[styles.ambientGlowTop, isDeepActive && styles.ambientGlowTopDeep]}
+        pointerEvents="none"
+      />
+      <View
+        style={[styles.ambientGlowBottom, isDeepActive && styles.ambientGlowBottomDeep]}
+        pointerEvents="none"
+      />
 
       <View style={[styles.flex, { paddingBottom: keyboardHeight }]}>
         <ChatHeader
           toneIcon={getPersonality(personalityId).icon}
-          deepResearchActive={deepResearchActive}
+          deepResearchActive={isDeepActive}
           liveTokPerSec={liveTokPerSec}
+          activeModelLabel={activeModel?.label}
           onOpenDrawer={() => {
             refreshSessions();
             setDrawerOpen(true);
           }}
           onCycleTone={cycleTone}
           onNewChat={resetToNewChat}
+          onToggleDeepResearch={toggleDeepResearch}
         />
+
+        {/* Deep Research Mode Banner */}
+        {isDeepActive && (
+          <View style={styles.deepResearchBanner}>
+            <View style={styles.deepBannerPill}>
+              <Text style={styles.deepBannerIcon}>🔬</Text>
+              <Text style={styles.deepBannerText}>
+                MIXTURE-OF-AGENTS: DECOMPOSE ➔ LOCAL EMBEDDINGS ➔ SYNTHESIS
+              </Text>
+            </View>
+          </View>
+        )}
 
         {loadError && (
           <ModelLoadErrorCard
             error={loadError}
             onOpenSettings={onOpenSettings}
             onRelaunchWizard={onRelaunchWizard}
+            onRetry={initModels}
           />
         )}
+
         {!ready && !loadError && (
-          <View style={styles.banner}>
-            <ActivityIndicator color="#8f8" />
-            <Text style={styles.bannerText}>{loadStatus}</Text>
+          <View style={styles.loadingBanner}>
+            <ActivityIndicator color={colors.emerald[400]} size="small" />
+            <Text style={styles.loadingBannerText}>{loadStatus}</Text>
           </View>
         )}
 
@@ -462,52 +496,93 @@ export function ChatScreen({
           renderItem={({ item }) => {
             const showProcessing =
               item.text === "" && processing?.messageId === item.id && processing.status !== "generating";
+            const isStreamingThis = generating && item.role === "assistant" && processing?.messageId === item.id;
+
             return (
-              <View style={[styles.bubble, item.role === "user" ? styles.userBubble : styles.assistantBubble]}>
+              <View
+                style={[
+                  styles.bubble,
+                  item.role === "user" ? styles.userBubble : styles.assistantBubble,
+                ]}
+              >
+                {/* Bubble role label */}
+                <View style={styles.bubbleHeader}>
+                  <Text
+                    style={[
+                      styles.bubbleRoleLabel,
+                      item.role === "user" ? styles.userRoleLabel : styles.assistantRoleLabel,
+                    ]}
+                  >
+                    {item.role === "user" ? "YOU" : "🐗 BOAR RESEARCHER"}
+                  </Text>
+                  {item.role === "assistant" && activeModel && (
+                    <Text style={styles.bubbleModelTag}>{activeModel.label}</Text>
+                  )}
+                </View>
+
                 {showProcessing ? (
                   <ProcessingIndicator
                     status={processing!.status as Exclude<ProcessingStatus, "idle">}
                     label={processing!.label}
                   />
                 ) : (
-                  <Text style={styles.bubbleText}>{item.text}</Text>
+                  <MarkdownMessage content={item.text} isStreaming={isStreamingThis} />
                 )}
+
                 {item.citations && item.citations.length > 0 && (
-                  <Text style={styles.citations}>
-                    Sources: {item.citations.map((c, i) => `[${i + 1}] ${c.title}`).join("  ")}
-                  </Text>
+                  <SourceFootnotes citations={item.citations} />
                 )}
-                {item.stopped && <Text style={styles.stoppedTag}>⏹ Stopped</Text>}
+
+                {item.stopped && (
+                  <View style={styles.stoppedBadge}>
+                    <Text style={styles.stoppedTag}>⏹ Stopped by user</Text>
+                  </View>
+                )}
               </View>
             );
           }}
         />
 
-        <View style={styles.inputRow}>
-          <VoiceInputButton
-            disabled={!ready || generating}
-            onTranscript={(text) => setInput((prev) => (prev ? `${prev} ${text}` : text))}
-          />
-          <TextInput
-            ref={inputRef}
-            style={styles.input}
-            value={input}
-            onChangeText={setInput}
-            placeholder="Ask a research question…"
-            placeholderTextColor="#666"
-            editable={ready && !generating}
-            onSubmitEditing={send}
-            returnKeyType="send"
-          />
-          {generating ? (
-            <Pressable style={styles.stopBtn} onPress={stopGeneration}>
-              <Text style={styles.stopBtnText}>⏹</Text>
-            </Pressable>
-          ) : (
-            <Pressable style={styles.sendBtn} onPress={send} disabled={!ready}>
-              <Text style={styles.sendBtnText}>➤</Text>
-            </Pressable>
-          )}
+        {/* Input Bar */}
+        <View style={styles.inputContainer}>
+          <View style={styles.inputRow}>
+            <VoiceInputButton
+              disabled={!ready || generating}
+              onTranscript={(text) => setInput((prev) => (prev ? `${prev} ${text}` : text))}
+            />
+            <TextInput
+              ref={inputRef}
+              style={styles.input}
+              value={input}
+              onChangeText={setInput}
+              placeholder="Ask an offline research question…"
+              placeholderTextColor={colors.text.dim}
+              editable={ready && !generating}
+              onSubmitEditing={send}
+              returnKeyType="send"
+              multiline={false}
+            />
+            {generating ? (
+              <Pressable
+                style={styles.stopBtn}
+                onPress={stopGeneration}
+                hitSlop={8}
+                accessibilityLabel="Stop generation"
+              >
+                <Text style={styles.stopBtnText}>⏹</Text>
+              </Pressable>
+            ) : (
+              <Pressable
+                style={[styles.sendBtn, (!ready || !input.trim()) && styles.sendBtnDisabled]}
+                onPress={send}
+                disabled={!ready || !input.trim()}
+                hitSlop={8}
+                accessibilityLabel="Send message"
+              >
+                <Text style={styles.sendBtnText}>➤</Text>
+              </Pressable>
+            )}
+          </View>
         </View>
 
         {showPromptIdeas && (
@@ -537,83 +612,193 @@ export function ChatScreen({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  flex: { flex: 1 },
+  container: {
+    flex: 1,
+  },
+  flex: {
+    flex: 1,
+  },
   ambientGlowTop: {
     position: "absolute",
-    top: -80,
-    left: -60,
-    width: 260,
-    height: 260,
-    borderRadius: 130,
-    backgroundColor: "#2e1a47",
-    opacity: 0.35,
+    top: -90,
+    left: -70,
+    width: 280,
+    height: 280,
+    borderRadius: 140,
+    backgroundColor: "rgba(6, 182, 212, 0.12)",
+    opacity: 0.6,
+  },
+  ambientGlowTopDeep: {
+    backgroundColor: "rgba(139, 92, 246, 0.25)",
+    opacity: 0.85,
   },
   ambientGlowBottom: {
     position: "absolute",
-    bottom: -100,
-    right: -80,
-    width: 300,
-    height: 300,
-    borderRadius: 150,
-    backgroundColor: "#112233",
-    opacity: 0.4,
+    bottom: -110,
+    right: -90,
+    width: 320,
+    height: 320,
+    borderRadius: 160,
+    backgroundColor: "rgba(16, 185, 129, 0.08)",
+    opacity: 0.5,
   },
-  banner: {
+  ambientGlowBottomDeep: {
+    backgroundColor: "rgba(6, 182, 212, 0.18)",
+    opacity: 0.7,
+  },
+  deepResearchBanner: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 5,
+    backgroundColor: colors.frontier.badgeBg,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.frontier.badgeBorder,
+  },
+  deepBannerPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  deepBannerIcon: {
+    fontSize: 10,
+  },
+  deepBannerText: {
+    ...typography.mono.xs,
+    fontSize: 9,
+    color: colors.frontier.text,
+    fontWeight: "700",
+    letterSpacing: 0.4,
+  },
+  loadingBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
+    backgroundColor: colors.emerald.bgSubtle,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.emerald.border,
+  },
+  loadingBannerText: {
+    ...typography.mono.xs,
+    color: colors.text.accentEmerald,
+    fontWeight: "600",
+  },
+  list: {
+    padding: spacing.md,
+    gap: spacing.md,
+  },
+  bubble: {
+    padding: spacing.md,
+    borderRadius: radii.lg,
+    maxWidth: "92%",
+    gap: 4,
+    ...shadows.card,
+  },
+  userBubble: {
+    backgroundColor: "#13213B",
+    borderWidth: 1,
+    borderColor: "rgba(6, 182, 212, 0.35)",
+    alignSelf: "flex-end",
+    borderBottomRightRadius: radii.xs,
+  },
+  assistantBubble: {
+    backgroundColor: colors.bg.surface,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    alignSelf: "flex-start",
+    borderBottomLeftRadius: radii.xs,
+    minWidth: 200,
+  },
+  bubbleHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 4,
+  },
+  bubbleRoleLabel: {
+    ...typography.mono.xs,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
+  userRoleLabel: {
+    color: colors.text.accentCyan,
+  },
+  assistantRoleLabel: {
+    color: colors.text.accentEmerald,
+  },
+  bubbleModelTag: {
+    ...typography.mono.xs,
+    fontSize: 9,
+    color: colors.text.dim,
+  },
+  stoppedBadge: {
+    marginTop: 4,
+    alignSelf: "flex-start",
+    backgroundColor: colors.amber.bgSubtle,
+    borderColor: colors.amber.border,
+    borderWidth: 1,
+    borderRadius: radii.xs,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  stoppedTag: {
+    ...typography.mono.xs,
+    color: colors.text.accentAmber,
+    fontWeight: "700",
+  },
+  inputContainer: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border.default,
+    backgroundColor: colors.bg.cardElevated,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
+  },
+  inputRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    padding: 8,
-    backgroundColor: "rgba(255,255,255,0.05)",
-  },
-  bannerText: { color: "#ccc", fontSize: 12 },
-  list: { padding: 12, gap: 8 },
-  bubble: { padding: 10, borderRadius: 14, maxWidth: "85%" },
-  userBubble: {
-    backgroundColor: "rgba(99,102,241,0.25)",
-    borderWidth: 1,
-    borderColor: "rgba(99,102,241,0.35)",
-    alignSelf: "flex-end",
-  },
-  assistantBubble: {
-    backgroundColor: "rgba(255,255,255,0.05)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-    alignSelf: "flex-start",
-  },
-  bubbleText: { color: "#eee", fontSize: 15 },
-  citations: { color: "#888", fontSize: 11, marginTop: 6 },
-  inputRow: {
-    flexDirection: "row",
-    padding: 8,
-    gap: 8,
-    backgroundColor: "rgba(255,255,255,0.04)",
   },
   input: {
     flex: 1,
-    backgroundColor: "rgba(255,255,255,0.06)",
-    color: "#fff",
-    borderRadius: 8,
+    backgroundColor: colors.bg.input,
+    color: colors.text.primary,
+    borderColor: colors.border.default,
+    borderWidth: 1,
+    borderRadius: radii.md,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 10,
+    ...typography.ui.body,
+    fontSize: 14,
   },
   sendBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#2a5f3a",
+    width: 42,
+    height: 42,
+    borderRadius: radii.md,
+    backgroundColor: colors.emerald[600],
     alignItems: "center",
     justifyContent: "center",
   },
-  sendBtnText: { color: "#fff", fontWeight: "700", fontSize: 17 },
+  sendBtnDisabled: {
+    opacity: 0.35,
+    backgroundColor: colors.border.elevated,
+  },
+  sendBtnText: {
+    color: "#FFFFFF",
+    fontWeight: "800",
+    fontSize: 16,
+    marginLeft: 2,
+  },
   stopBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#7a2a2a",
+    width: 42,
+    height: 42,
+    borderRadius: radii.md,
+    backgroundColor: colors.crimson[600],
     alignItems: "center",
     justifyContent: "center",
   },
-  stopBtnText: { color: "#fff", fontWeight: "700", fontSize: 16 },
-  stoppedTag: { color: "#e0a020", fontSize: 11, marginTop: 6, fontWeight: "600" },
+  stopBtnText: {
+    color: "#FFFFFF",
+    fontWeight: "800",
+    fontSize: 14,
+  },
 });

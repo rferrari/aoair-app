@@ -1,10 +1,25 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, FlatList, Pressable, ScrollView, Alert } from "react-native";
-import { MODEL_CATALOG, CatalogModel, AssetKind, TIERS, SetupTier, CORPUS_CATALOG } from "../models/manifest";
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  Pressable,
+  ScrollView,
+  Modal,
+  ActivityIndicator,
+} from "react-native";
+import * as Haptics from "expo-haptics";
+import { MODEL_CATALOG, CatalogModel, AssetKind, CORPUS_CATALOG } from "../models/manifest";
 import { ModelManager } from "../models/ModelManager";
 import { getActiveModelId, setActiveModelId } from "../models/settings";
 import { seedKnowledgeBaseIfEmpty } from "../rag/seedCorpus";
-import { startDownload, getDownloadState, isDownloading, subscribeDownloads } from "../services/downloadManager";
+import {
+  startDownload,
+  getDownloadState,
+  isDownloading,
+  subscribeDownloads,
+} from "../services/downloadManager";
 import { listDiscoveredModels, removeDiscoveredModel } from "../models/discoveredModels";
 import { resetAllAppData } from "../services/appReset";
 import { CatalogItemCard, CatalogRowState } from "./CatalogItemCard";
@@ -15,7 +30,11 @@ import { UsageStatsContent } from "./UsageStatsContent";
 import { VoiceSettings } from "./VoiceSettings";
 import { MemorySettings } from "./MemorySettings";
 import { AccordionSection } from "./AccordionSection";
+import { SetupWizardScreen } from "./SetupWizardScreen";
 import { Toast } from "./Toast";
+import { colors } from "./theme/colors";
+import { typography } from "./theme/typography";
+import { spacing, radii } from "./theme/spacing";
 
 const modelManager = new ModelManager();
 const LLM_EMBEDDING_KINDS: AssetKind[] = ["llm", "embedding"];
@@ -25,41 +44,30 @@ type Props =
   | { mode: "optional"; onClose: () => void; onRelaunchWizard?: () => void };
 
 /**
- * Model catalog / setup screen, in two modes:
- *
- * - "required" (first run, no models on disk yet): a short wizard that
- *   explains the one-time download before starting it, then blocks entry
- *   to the app until the default LLM + embedding model are present.
- * - "optional" (the app's Settings screen, reached via the chat drawer):
- *   collapsible sections — Tone & Model, Knowledge Base, Memory, Stats &
- *   System, Voice.
- *
- * Download progress/state lives in src/services/downloadManager.ts (a
- * module-level store), not component state — this screen (and the whole
- * app) can unmount/remount while a download is in flight and this screen
- * will correctly show it still running when reopened, instead of forgetting
- * about it and risking a second concurrent download to the same file (see
- * that module's doc comment for the bug this fixes).
+ * ModelSetupScreen handles two operational modes:
+ * - "required": First-run onboarding flow using SetupWizardScreen (Hardware Diagnostics ➔ Model Tier ➔ Local Indexing).
+ * - "optional": Field Settings dashboard (Tone, Model Catalog, Offline Knowledge Base, Telemetry, and Danger Zone).
  */
 export function ModelSetupScreen(props: Props) {
   const requiredMode = props.mode === "required";
-  const [wizardStep, setWizardStep] = useState<"welcome" | "intro" | "downloading">("welcome");
-  const [selectedTier, setSelectedTier] = useState<SetupTier>("standard");
   const [presence, setPresence] = useState<Record<string, boolean>>({});
   const [activeIds, setActiveIds] = useState<Partial<Record<AssetKind, string>>>({});
   const [toast, setToast] = useState<string | null>(null);
   const [discoveredModels, setDiscoveredModels] = useState<CatalogModel[]>([]);
+  const [dangerModalVisible, setDangerModalVisible] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [, forceRender] = useState(0);
 
   const refreshDiscovered = useCallback(async () => {
     const models = await listDiscoveredModels();
     setDiscoveredModels(models);
     const statuses = await Promise.all(models.map((m) => modelManager.statusOf(m)));
-    setPresence((prev) => ({ ...prev, ...Object.fromEntries(statuses.map((s) => [s.asset.id, s.present])) }));
+    setPresence((prev) => ({
+      ...prev,
+      ...Object.fromEntries(statuses.map((s) => [s.asset.id, s.present])),
+    }));
   }, []);
 
-  // Re-render whenever any download's progress changes, so rows reflect
-  // live state even if this screen wasn't the one that started it.
   useEffect(() => subscribeDownloads(() => forceRender((n) => n + 1)), []);
 
   const refreshStatus = useCallback(async () => {
@@ -77,6 +85,10 @@ export function ModelSetupScreen(props: Props) {
     return statuses;
   }, [refreshDiscovered]);
 
+  useEffect(() => {
+    refreshStatus();
+  }, [refreshStatus]);
+
   const getRow = useCallback(
     (item: CatalogModel): CatalogRowState => {
       const dl = getDownloadState(item.id);
@@ -85,6 +97,10 @@ export function ModelSetupScreen(props: Props) {
         downloading: isDownloading(item.id),
         progress: dl?.progress ?? 0,
         error: dl?.error ?? null,
+        bytesWritten: dl?.bytesWritten,
+        bytesExpected: dl?.bytesExpected,
+        speedBytesPerSec: dl?.speedBytesPerSec,
+        etaSeconds: dl?.etaSeconds,
       };
     },
     [presence]
@@ -92,16 +108,13 @@ export function ModelSetupScreen(props: Props) {
 
   const download = useCallback(
     async (model: CatalogModel) => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
       await startDownload(model);
       await refreshStatus();
 
-      // A corpus pack just landed on disk. In optional (Settings) mode the
-      // embedding model is already loaded (ChatScreen mounted before this
-      // screen is reachable), so we can merge its docs into the knowledge
-      // base right away instead of waiting for the next app launch.
       if (model.kind === "corpus" && !requiredMode && !getDownloadState(model.id)?.error) {
         await seedKnowledgeBaseIfEmpty();
-        setToast(`Added "${model.label}" to your offline knowledge base`);
+        setToast(`Indexed "${model.label}" in offline knowledge base`);
       }
     },
     [requiredMode, refreshStatus]
@@ -121,6 +134,7 @@ export function ModelSetupScreen(props: Props) {
 
   const useModel = useCallback(
     async (model: CatalogModel) => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
       await setActiveModelId(model.kind, model.id);
       await refreshStatus();
       setToast(`Active ${model.kind} model set to "${model.label}"`);
@@ -128,214 +142,58 @@ export function ModelSetupScreen(props: Props) {
     [refreshStatus]
   );
 
-  const [resetting, setResetting] = useState(false);
-  const onRelaunchWizard = !requiredMode ? (props as { onRelaunchWizard?: () => void }).onRelaunchWizard : undefined;
+  const onRelaunchWizard = !requiredMode
+    ? (props as { onRelaunchWizard?: () => void }).onRelaunchWizard
+    : undefined;
 
-  const confirmClearAllData = useCallback(() => {
-    Alert.alert(
-      "Clear all data?",
-      "This deletes every downloaded model, your custom knowledge bases, and all chat history from this device.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Continue",
-          style: "destructive",
-          onPress: () => {
-            Alert.alert(
-              "⚠️ Are you absolutely sure?",
-              "This will delete all downloaded models, custom knowledge bases, and chat history. The app will restart into the Setup Wizard. This can't be undone.",
-              [
-                { text: "Cancel", style: "cancel" },
-                {
-                  text: "Clear All Data & Reset App",
-                  style: "destructive",
-                  onPress: async () => {
-                    setResetting(true);
-                    try {
-                      await resetAllAppData();
-                      onRelaunchWizard?.();
-                    } catch (e: any) {
-                      setResetting(false);
-                      Alert.alert("Reset failed", e?.message ?? String(e));
-                    }
-                  },
-                },
-              ]
-            );
-          },
-        },
-      ]
-    );
-  }, [onRelaunchWizard]);
-
-  useEffect(() => {
-    refreshStatus();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const tierCorpusPackIds = TIERS.find((t) => t.id === selectedTier)?.corpusPackIds ?? [];
-  const tierAssets = [
-    ...MODEL_CATALOG.filter((m) => m.required),
-    ...CORPUS_CATALOG.filter((c) => tierCorpusPackIds.includes(c.id)),
-  ];
-
-  const startRequiredDownloads = useCallback(async () => {
-    setWizardStep("downloading");
-    const statuses = await refreshStatus();
-    const presentIds = new Set(statuses.filter((s) => s.present).map((s) => s.asset.id));
-    for (const asset of tierAssets) {
-      if (!presentIds.has(asset.id)) {
-        download(asset);
-      }
+  const handleExecuteReset = async () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+    setResetting(true);
+    try {
+      await resetAllAppData();
+      setDangerModalVisible(false);
+      onRelaunchWizard?.();
+    } catch (e: any) {
+      setResetting(false);
+      setToast(`Reset failed: ${e?.message ?? e}`);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [download, refreshStatus, tierAssets]);
+  };
 
-  const requiredReady = tierAssets.every((m) => presence[m.id]);
-
-  const chooseForMe = useCallback(() => {
-    setSelectedTier("standard");
-    startRequiredDownloads();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [startRequiredDownloads]);
-
-  if (requiredMode && wizardStep === "welcome") {
-    return (
-      <View style={styles.container}>
-        <ScrollView contentContainerStyle={styles.introScroll}>
-          <Text style={styles.introIcon}>⛺</Text>
-          <Text style={styles.introTitle}>Welcome to aoair</Text>
-          <Text style={styles.introBody}>
-            An offline AI research assistant — local inference, local retrieval,
-            no cloud, no accounts.
-          </Text>
-        </ScrollView>
-        <View style={styles.welcomeActions}>
-          <Pressable style={styles.primaryBtn} onPress={chooseForMe}>
-            <Text style={styles.primaryBtnText}>✨ Choose for Me (Recommended)</Text>
-          </Pressable>
-          <Text style={styles.welcomeSubtext}>
-            Optimal settings auto-configured for your device (under 12GB RAM &
-            50GB storage).
-          </Text>
-          <Pressable style={styles.secondaryBtn} onPress={() => setWizardStep("intro")}>
-            <Text style={styles.secondaryBtnText}>⚙️ Custom Setup (Advanced)</Text>
-          </Pressable>
-        </View>
-      </View>
-    );
-  }
-
-  if (requiredMode && wizardStep === "intro") {
-    return (
-      <View style={styles.container}>
-        <ScrollView contentContainerStyle={styles.introScroll}>
-          <Text style={styles.introIcon}>⛺</Text>
-          <Text style={styles.introTitle}>Welcome to aoair</Text>
-          <Text style={styles.introBody}>
-            An offline AI research assistant — local inference, local retrieval,
-            no cloud, no accounts.
-          </Text>
-          <View style={styles.introCard}>
-            <Text style={styles.introCardTitle}>One-time setup</Text>
-            <Text style={styles.introCardBody}>
-              aoair needs an internet connection right now, once, to download its
-              default AI model (~2.3GB) and embedding model (~35MB).
-            </Text>
-          </View>
-          <View style={styles.introCard}>
-            <Text style={styles.introCardTitle}>Then, fully offline</Text>
-            <Text style={styles.introCardBody}>
-              After this setup finishes, aoair never needs the internet again —
-              chat, search, and reasoning all run entirely on this device. You
-              can even turn on airplane mode right now.
-            </Text>
-          </View>
-
-          <Text style={styles.tierHeading}>How much knowledge base?</Text>
-          {TIERS.map((tier) => (
-            <Pressable
-              key={tier.id}
-              style={[styles.tierCard, selectedTier === tier.id && styles.tierCardSelected]}
-              onPress={() => setSelectedTier(tier.id)}
-            >
-              <View style={styles.tierRadio}>
-                {selectedTier === tier.id && <View style={styles.tierRadioDot} />}
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.tierLabel}>{tier.label}</Text>
-                <Text style={styles.tierDescription}>{tier.description}</Text>
-              </View>
-            </Pressable>
-          ))}
-          <Text style={styles.tierNote}>
-            You can add more knowledge base packs later from Settings, any time
-            you're back online.
-          </Text>
-        </ScrollView>
-        <Pressable style={styles.primaryBtn} onPress={startRequiredDownloads}>
-          <Text style={styles.primaryBtnText}>Start setup</Text>
-        </Pressable>
-      </View>
-    );
-  }
-
+  // If required on first run, display the 3-step Setup Wizard!
   if (requiredMode) {
-    // wizardStep === "downloading"
-    return (
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Downloading models</Text>
-        </View>
-        <Text style={styles.subtitle}>
-          This needs an internet connection now — the app works fully offline
-          from here on once it's done. Keep aoair open in the foreground until
-          this finishes — backgrounding the app can interrupt a download.
-        </Text>
-        <FlatList
-          data={tierAssets}
-          keyExtractor={(m) => m.id}
-          contentContainerStyle={styles.list}
-          renderItem={({ item }) => (
-            <CatalogItemCard
-              item={item}
-              row={getRow(item)}
-              isActive={item.required || tierCorpusPackIds.includes(item.id)}
-              onDownload={download}
-              onUse={() => {}}
-              onRemove={() => {}}
-            />
-          )}
-        />
-        <Pressable
-          style={[styles.primaryBtn, !requiredReady && styles.primaryBtnDisabled]}
-          disabled={!requiredReady}
-          onPress={() => (props as { onReady: () => void }).onReady()}
-        >
-          <Text style={styles.primaryBtnText}>
-            {requiredReady ? "Continue" : "Waiting for downloads…"}
-          </Text>
-        </Pressable>
-      </View>
-    );
+    return <SetupWizardScreen onReady={(props as { onReady: () => void }).onReady} />;
   }
 
-  // Optional mode: collapsible Settings screen.
+  // Optional mode: Settings Screen
   return (
     <View style={styles.container}>
+      {/* Settings Top Header */}
       <View style={styles.header}>
-        <Text style={styles.title}>Settings</Text>
-        <Pressable onPress={(props as { onClose: () => void }).onClose} hitSlop={8}>
-          <Text style={styles.closeBtn}>Close</Text>
+        <View style={styles.headerLeft}>
+          <Text style={styles.mascotIcon}>🐗</Text>
+          <View>
+            <Text style={styles.title}>SETTINGS & CONFIGURATION</Text>
+            <Text style={styles.subtitle}>BOAR Offline Research Assistant</Text>
+          </View>
+        </View>
+        <Pressable
+          style={styles.closeBtn}
+          onPress={(props as { onClose: () => void }).onClose}
+          hitSlop={8}
+        >
+          <Text style={styles.closeBtnText}>DONE</Text>
         </Pressable>
       </View>
 
       <ScrollView contentContainerStyle={styles.accordionScroll}>
-        <AccordionSection icon="🤖" title="Tone & Model" defaultOpen>
+        <AccordionSection icon="🤖" title="Tone & Reasoning Models" defaultOpen>
           <PersonalitySettings />
-          <Text style={styles.sectionHeading}>Generation model</Text>
+          <Text style={styles.sectionHeading}>INSTALLED MODELS</Text>
           <FlatList
-            data={[...MODEL_CATALOG.filter((m) => m.kind === "llm" || m.kind === "embedding"), ...discoveredModels]}
+            data={[
+              ...MODEL_CATALOG.filter((m) => m.kind === "llm" || m.kind === "embedding"),
+              ...discoveredModels,
+            ]}
             keyExtractor={(m) => m.id}
             scrollEnabled={false}
             contentContainerStyle={styles.list}
@@ -350,13 +208,14 @@ export function ModelSetupScreen(props: Props) {
               />
             )}
           />
-          <Text style={styles.sectionHeading}>Find more models</Text>
-          <View style={styles.list}>
+
+          <Text style={styles.sectionHeading}>DISCOVER HUGGING FACE GGUF MODELS</Text>
+          <View style={styles.browserWrapper}>
             <ModelBrowser onAdded={refreshDiscovered} />
           </View>
         </AccordionSection>
 
-        <AccordionSection icon="📦" title="Knowledge Base">
+        <AccordionSection icon="📦" title="Offline Knowledge Base (RAG)">
           <CorpusSettingsTab
             corpusItems={CORPUS_CATALOG}
             getRow={getRow}
@@ -365,158 +224,380 @@ export function ModelSetupScreen(props: Props) {
           />
         </AccordionSection>
 
-        <AccordionSection icon="💾" title="Memory">
+        <AccordionSection icon="💾" title="Memory & Context Settings">
           <MemorySettings />
         </AccordionSection>
 
-        <AccordionSection icon="⚡" title="Stats & System">
+        <AccordionSection icon="⚡" title="Hardware Telemetry & Compliance">
           <UsageStatsContent />
         </AccordionSection>
 
-        <AccordionSection icon="🎙️" title="Voice">
+        <AccordionSection icon="🎙️" title="Voice Input Configuration">
           <VoiceSettings />
         </AccordionSection>
 
-        <AccordionSection icon="🧰" title="App">
-          <Pressable
-            style={styles.wizardBtn}
-            onPress={() => onRelaunchWizard?.()}
-            disabled={!onRelaunchWizard}
-          >
-            <Text style={styles.wizardBtnText}>🪄 Re-run Setup Wizard</Text>
-          </Pressable>
-          <Text style={styles.hint}>
-            Switch model tiers or re-download the default models/knowledge base
-            from scratch.
-          </Text>
+        {/* RECOVERY & DANGER ZONE SECTION */}
+        <AccordionSection icon="⚠️" title="System Recovery & Danger Zone">
+          <View style={styles.recoveryContainer}>
+            {/* Setup Wizard Shortcut */}
+            <View style={styles.recoveryCard}>
+              <View style={styles.recoveryHeader}>
+                <Text style={styles.recoveryIcon}>🪄</Text>
+                <Text style={styles.recoveryTitle}>SETUP WIZARD</Text>
+              </View>
+              <Text style={styles.recoveryDesc}>
+                Re-run the initial 3-step onboarding flow to re-scan device hardware or switch
+                your base model tier.
+              </Text>
+              <Pressable
+                style={styles.wizardBtn}
+                onPress={() => onRelaunchWizard?.()}
+                disabled={!onRelaunchWizard}
+              >
+                <Text style={styles.wizardBtnText}>Relaunch Setup Wizard ➔</Text>
+              </Pressable>
+            </View>
 
-          <Text style={styles.dangerHeading}>Danger Zone</Text>
-          <Pressable
-            style={[styles.dangerBtn, resetting && styles.dangerBtnDisabled]}
-            onPress={confirmClearAllData}
-            disabled={resetting}
-          >
-            <Text style={styles.dangerBtnText}>
-              {resetting ? "Clearing…" : "🚨 Clear All Data & Reset App"}
-            </Text>
-          </Pressable>
-          <Text style={styles.hint}>
-            Deletes all downloaded models, custom knowledge bases, and chat history,
-            then restarts into the Setup Wizard.
-          </Text>
+            {/* Danger Zone Card */}
+            <View style={styles.dangerZoneCard}>
+              <View style={styles.dangerHeader}>
+                <View style={styles.dangerBadge}>
+                  <Text style={styles.dangerBadgeText}>CRITICAL DANGER ZONE</Text>
+                </View>
+              </View>
+              <Text style={styles.dangerDesc}>
+                Permanently wipes all downloaded GGUF weights, offline SQLite database indices,
+                and conversation logs from this device.
+              </Text>
+              <Pressable
+                style={styles.dangerActionBtn}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {});
+                  setDangerModalVisible(true);
+                }}
+              >
+                <Text style={styles.dangerActionBtnText}>🚨 Purge All Data & Reset App</Text>
+              </Pressable>
+            </View>
+          </View>
         </AccordionSection>
       </ScrollView>
 
-      <Toast message={toast} onHide={() => setToast(null)} />
+      {/* High-Impact Danger Confirmation Modal */}
+      <Modal
+        visible={dangerModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDangerModalVisible(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalIconCircle}>
+              <Text style={styles.modalIconText}>⚠️</Text>
+            </View>
+            <Text style={styles.modalTitle}>CONFIRM DESTRUCTIVE RESET</Text>
+            <Text style={styles.modalSubtitle}>
+              This action is immediate, permanent, and cannot be undone.
+            </Text>
+
+            {/* Itemized consequences list */}
+            <View style={styles.consequencesBox}>
+              <Text style={styles.consequencesHeader}>THE FOLLOWING WILL BE REMOVED:</Text>
+              <View style={styles.consequenceItem}>
+                <Text style={styles.consequenceBullet}>•</Text>
+                <Text style={styles.consequenceText}>All downloaded GGUF model files (~2.3 GB+)</Text>
+              </View>
+              <View style={styles.consequenceItem}>
+                <Text style={styles.consequenceBullet}>•</Text>
+                <Text style={styles.consequenceText}>All offline SQLite document collections & embeddings</Text>
+              </View>
+              <View style={styles.consequenceItem}>
+                <Text style={styles.consequenceBullet}>•</Text>
+                <Text style={styles.consequenceText}>All chat session history and generated summaries</Text>
+              </View>
+            </View>
+
+            <View style={styles.modalActions}>
+              <Pressable
+                style={styles.modalCancelBtn}
+                onPress={() => setDangerModalVisible(false)}
+                disabled={resetting}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.modalConfirmBtn, resetting && styles.modalConfirmBtnDisabled]}
+                onPress={handleExecuteReset}
+                disabled={resetting}
+              >
+                {resetting ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <Text style={styles.modalConfirmText}>Purge All Data</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {toast && <Toast message={toast} onHide={() => setToast(null)} />}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#000" },
-  introScroll: { padding: 24, alignItems: "center", gap: 16 },
-  introIcon: { fontSize: 48, marginTop: 24 },
-  introTitle: { color: "#fff", fontSize: 24, fontWeight: "700" },
-  introBody: { color: "#aaa", fontSize: 14, textAlign: "center", lineHeight: 20 },
-  introCard: {
-    backgroundColor: "#111",
-    borderRadius: 12,
-    padding: 16,
-    width: "100%",
-    gap: 6,
+  container: {
+    flex: 1,
+    backgroundColor: colors.bg.surface,
   },
-  introCardTitle: { color: "#8bf", fontSize: 13, fontWeight: "700" },
-  introCardBody: { color: "#ccc", fontSize: 13, lineHeight: 19 },
-  tierHeading: { color: "#fff", fontSize: 15, fontWeight: "700", alignSelf: "flex-start", marginTop: 8 },
-  tierCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    backgroundColor: "#111",
-    borderRadius: 12,
-    padding: 14,
-    width: "100%",
-    borderWidth: 1,
-    borderColor: "#111",
-  },
-  tierCardSelected: { borderColor: "#3a7a4a", backgroundColor: "#132018" },
-  tierRadio: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    borderWidth: 2,
-    borderColor: "#555",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  tierRadioDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: "#3a7a4a" },
-  tierLabel: { color: "#eee", fontSize: 14, fontWeight: "700" },
-  tierDescription: { color: "#999", fontSize: 12, marginTop: 2 },
-  tierNote: { color: "#666", fontSize: 11, textAlign: "center", marginTop: 4 },
   header: {
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "space-between",
-    alignItems: "center",
-    padding: 12,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border.default,
+    backgroundColor: colors.bg.cardElevated,
   },
-  title: { color: "#fff", fontSize: 18, fontWeight: "600" },
-  accordionScroll: { paddingBottom: 24 },
-  closeBtn: { color: "#8bf", fontSize: 14 },
-  subtitle: { color: "#999", fontSize: 12, paddingHorizontal: 12, paddingBottom: 8 },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  mascotIcon: {
+    fontSize: 22,
+  },
+  title: {
+    ...typography.ui.titleSm,
+    color: colors.text.heading,
+    letterSpacing: 0.5,
+  },
+  subtitle: {
+    ...typography.mono.xs,
+    fontSize: 9,
+    color: colors.text.dim,
+  },
+  closeBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: radii.sm,
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+  },
+  closeBtnText: {
+    ...typography.mono.xs,
+    color: colors.text.accentCyan,
+    fontWeight: "800",
+  },
+  accordionScroll: {
+    paddingBottom: spacing.xxxl,
+  },
   sectionHeading: {
-    color: "#fff",
-    fontSize: 13,
+    ...typography.mono.xs,
+    color: colors.text.dim,
     fontWeight: "700",
-    marginHorizontal: 12,
-    marginTop: 4,
+    letterSpacing: 0.5,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
+    marginBottom: spacing.xs,
   },
-  list: { padding: 12, gap: 10 },
-  primaryBtn: {
-    backgroundColor: "#2a5f3a",
-    borderRadius: 8,
-    margin: 12,
-    paddingVertical: 14,
-    alignItems: "center",
+  list: {
+    paddingHorizontal: spacing.md,
+    gap: spacing.sm,
   },
-  primaryBtnDisabled: { backgroundColor: "#333" },
-  primaryBtnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
-  welcomeActions: { padding: 16, gap: 10, alignItems: "center" },
-  welcomeSubtext: { color: "#888", fontSize: 11, textAlign: "center", paddingHorizontal: 12 },
-  secondaryBtn: {
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    alignItems: "center",
-    width: "100%",
+  browserWrapper: {
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.sm,
   },
-  secondaryBtnText: { color: "#8bf", fontWeight: "600", fontSize: 14 },
-  wizardBtn: {
-    marginHorizontal: 12,
-    marginTop: 8,
-    backgroundColor: "rgba(139,92,246,0.15)",
-    borderRadius: 8,
-    paddingVertical: 12,
-    alignItems: "center",
+  recoveryContainer: {
+    padding: spacing.md,
+    gap: spacing.md,
   },
-  wizardBtnText: { color: "#c9a8ff", fontWeight: "700", fontSize: 14 },
-  hint: { color: "#888", fontSize: 11, marginHorizontal: 12, marginTop: 6, lineHeight: 16 },
-  dangerHeading: {
-    color: "#e05a5a",
-    fontSize: 13,
-    fontWeight: "700",
-    marginHorizontal: 12,
-    marginTop: 20,
-  },
-  dangerBtn: {
-    marginHorizontal: 12,
-    marginTop: 8,
-    backgroundColor: "rgba(224,90,90,0.15)",
-    borderRadius: 8,
-    paddingVertical: 12,
-    alignItems: "center",
+  recoveryCard: {
+    backgroundColor: colors.bg.cardElevated,
+    borderRadius: radii.lg,
     borderWidth: 1,
-    borderColor: "rgba(224,90,90,0.4)",
+    borderColor: colors.border.default,
+    padding: spacing.md,
+    gap: spacing.sm,
   },
-  dangerBtnDisabled: { opacity: 0.5 },
-  dangerBtnText: { color: "#f2a5a5", fontWeight: "700", fontSize: 14 },
+  recoveryHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  recoveryIcon: {
+    fontSize: 14,
+  },
+  recoveryTitle: {
+    ...typography.mono.xs,
+    color: colors.text.heading,
+    fontWeight: "800",
+  },
+  recoveryDesc: {
+    ...typography.ui.caption,
+    color: colors.text.secondary,
+    lineHeight: 18,
+  },
+  wizardBtn: {
+    backgroundColor: colors.cyan.bgSubtle,
+    borderColor: colors.cyan.border,
+    borderWidth: 1,
+    borderRadius: radii.md,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  wizardBtnText: {
+    ...typography.ui.titleSm,
+    fontSize: 12,
+    color: colors.text.accentCyan,
+  },
+  dangerZoneCard: {
+    backgroundColor: "rgba(239, 68, 68, 0.06)",
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.crimson.border,
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  dangerHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  dangerBadge: {
+    backgroundColor: colors.crimson.bgSubtle,
+    borderColor: colors.crimson[500],
+    borderWidth: 1,
+    borderRadius: radii.xs,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  dangerBadgeText: {
+    ...typography.mono.xs,
+    fontSize: 8,
+    color: colors.crimson[400],
+    fontWeight: "800",
+  },
+  dangerDesc: {
+    ...typography.ui.caption,
+    color: colors.text.secondary,
+    lineHeight: 18,
+  },
+  dangerActionBtn: {
+    backgroundColor: colors.crimson[600],
+    borderRadius: radii.md,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  dangerActionBtnText: {
+    ...typography.ui.titleSm,
+    fontSize: 13,
+    color: "#FFFFFF",
+    fontWeight: "800",
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.82)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: spacing.lg,
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: 380,
+    backgroundColor: colors.bg.cardElevated,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    borderColor: colors.crimson.border,
+    padding: spacing.lg,
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  modalIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.crimson.bgSubtle,
+    borderWidth: 1,
+    borderColor: colors.crimson[500],
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  modalIconText: {
+    fontSize: 22,
+  },
+  modalTitle: {
+    ...typography.ui.title,
+    color: colors.crimson[400],
+    letterSpacing: 0.5,
+  },
+  modalSubtitle: {
+    ...typography.ui.caption,
+    color: colors.text.muted,
+    textAlign: "center",
+  },
+  consequencesBox: {
+    width: "100%",
+    backgroundColor: colors.bg.terminal,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    padding: spacing.sm,
+    gap: 6,
+    marginVertical: 4,
+  },
+  consequencesHeader: {
+    ...typography.mono.xs,
+    fontSize: 9,
+    color: colors.text.dim,
+    fontWeight: "700",
+  },
+  consequenceItem: {
+    flexDirection: "row",
+    gap: 6,
+  },
+  consequenceBullet: {
+    color: colors.crimson[400],
+    fontWeight: "700",
+  },
+  consequenceText: {
+    ...typography.ui.caption,
+    color: colors.text.secondary,
+    flex: 1,
+    lineHeight: 16,
+  },
+  modalActions: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    width: "100%",
+    marginTop: spacing.xs,
+  },
+  modalCancelBtn: {
+    flex: 1,
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    borderRadius: radii.md,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  modalCancelText: {
+    ...typography.ui.titleSm,
+    color: colors.text.heading,
+  },
+  modalConfirmBtn: {
+    flex: 1,
+    backgroundColor: colors.crimson[600],
+    borderRadius: radii.md,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  modalConfirmBtnDisabled: {
+    opacity: 0.5,
+  },
+  modalConfirmText: {
+    ...typography.ui.titleSm,
+    color: "#FFFFFF",
+    fontWeight: "800",
+  },
 });

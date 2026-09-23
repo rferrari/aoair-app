@@ -3,30 +3,51 @@ import { View, Text, StyleSheet } from "react-native";
 import { ModelManager } from "../models/ModelManager";
 import { RAM_BUDGET_BYTES, STORAGE_BUDGET_BYTES } from "../models/manifest";
 import { getMemoryInfo, MemoryInfo } from "ram-monitor";
+import { colors } from "./theme/colors";
+import { typography } from "./theme/typography";
+import { spacing, radii } from "./theme/spacing";
 
 const modelManager = new ModelManager();
 
 function formatGB(bytes: number): string {
-  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)}GB`;
+  if (bytes <= 0) return "0.00 GB";
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
-function Bar({ label, usedBytes, budgetBytes }: { label: string; usedBytes: number; budgetBytes: number }) {
+function Bar({
+  label,
+  usedBytes,
+  budgetBytes,
+  accentColor,
+}: {
+  label: string;
+  usedBytes: number;
+  budgetBytes: number;
+  accentColor: string;
+}) {
   const fraction = Math.min(usedBytes / budgetBytes, 1);
   const over = usedBytes > budgetBytes;
+
   return (
     <View style={styles.row}>
       <View style={styles.rowHeader}>
         <Text style={styles.rowLabel}>{label}</Text>
-        <Text style={[styles.rowValue, over && styles.rowValueOver]}>
+        <Text
+          style={[
+            styles.rowValue,
+            over && styles.rowValueOver,
+            !over && { color: accentColor },
+          ]}
+        >
           {formatGB(usedBytes)} / {formatGB(budgetBytes)}
-          {over ? " ⚠️" : ""}
+          {over ? " ⚠️ EXCEEDED" : ""}
         </Text>
       </View>
       <View style={styles.track}>
         <View
           style={[
             styles.fill,
-            { width: `${fraction * 100}%` },
+            { width: `${Math.max(fraction * 100, 2)}%`, backgroundColor: accentColor },
             over && styles.fillOver,
           ]}
         />
@@ -35,16 +56,6 @@ function Bar({ label, usedBytes, budgetBytes }: { label: string; usedBytes: numb
   );
 }
 
-/**
- * Live RAM + storage readout so the app's compliance with the bounty's
- * 12GB RAM / 50GB storage caps is auditable on-device, not just claimed.
- * RAM uses the local `ram-monitor` native module (real process RSS from
- * /proc/self/status), which — unlike JS heap size — includes the resident
- * pages of the mmap'd GGUF model. Falls back to "n/a" if the native module
- * isn't linked yet (e.g. running in Expo Go instead of the dev client).
- * Lives in the Settings screen rather than the chat header, out of the way
- * of the status bar and everyday use.
- */
 export function SystemMonitor() {
   const [storageBytes, setStorageBytes] = useState<number>(0);
   const [memInfo, setMemInfo] = useState<MemoryInfo | null>(null);
@@ -60,12 +71,12 @@ export function SystemMonitor() {
         const info = getMemoryInfo();
         if (!cancelled) setMemInfo(info);
       } catch {
-        // Native module not linked (e.g. Expo Go) — leave memInfo as null.
+        // Native module not linked
       }
     }
 
     poll();
-    const id = setInterval(poll, 5000);
+    const id = setInterval(poll, 4000);
     return () => {
       cancelled = true;
       clearInterval(id);
@@ -74,11 +85,28 @@ export function SystemMonitor() {
 
   return (
     <View style={styles.card}>
-      <Text style={styles.title}>Storage & memory</Text>
-      <Bar label="Storage" usedBytes={storageBytes} budgetBytes={STORAGE_BUDGET_BYTES} />
-      <Bar label="RAM" usedBytes={memInfo?.rssBytes ?? 0} budgetBytes={RAM_BUDGET_BYTES} />
+      <View style={styles.titleRow}>
+        <Text style={styles.icon}>📊</Text>
+        <Text style={styles.title}>LIVE BOUNTY COMPLIANCE GAUGES</Text>
+      </View>
+
+      <Bar
+        label="Disk Storage (Cap: 50GB)"
+        usedBytes={storageBytes}
+        budgetBytes={STORAGE_BUDGET_BYTES}
+        accentColor={colors.cyan[400]}
+      />
+      <Bar
+        label="Process RSS Memory (Cap: 12GB)"
+        usedBytes={memInfo?.rssBytes ?? 0}
+        budgetBytes={RAM_BUDGET_BYTES}
+        accentColor={colors.emerald[400]}
+      />
+
       {memInfo == null && (
-        <Text style={styles.note}>RAM readout unavailable in this build.</Text>
+        <Text style={styles.note}>
+          Process RSS readout requires Android native dev-client build.
+        </Text>
       )}
     </View>
   );
@@ -86,20 +114,71 @@ export function SystemMonitor() {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: "#111",
-    borderRadius: 10,
-    padding: 14,
-    margin: 12,
-    gap: 10,
+    backgroundColor: colors.bg.cardElevated,
+    borderRadius: radii.lg,
+    padding: spacing.md,
+    marginHorizontal: spacing.md,
+    marginVertical: spacing.xs,
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border.default,
   },
-  title: { color: "#fff", fontSize: 14, fontWeight: "600" },
-  row: { gap: 4 },
-  rowHeader: { flexDirection: "row", justifyContent: "space-between" },
-  rowLabel: { color: "#aaa", fontSize: 12 },
-  rowValue: { color: "#8f8", fontSize: 12, fontVariant: ["tabular-nums"] },
-  rowValueOver: { color: "#f88" },
-  track: { height: 6, borderRadius: 3, backgroundColor: "#222", overflow: "hidden" },
-  fill: { height: "100%", backgroundColor: "#3a7a4a" },
-  fillOver: { backgroundColor: "#7a3a3a" },
-  note: { color: "#666", fontSize: 11 },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border.subtle,
+    paddingBottom: spacing.xs,
+  },
+  icon: {
+    fontSize: 13,
+  },
+  title: {
+    ...typography.mono.xs,
+    color: colors.text.heading,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
+  row: {
+    gap: 4,
+  },
+  rowHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  rowLabel: {
+    ...typography.ui.caption,
+    color: colors.text.secondary,
+  },
+  rowValue: {
+    ...typography.mono.xs,
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
+  },
+  rowValueOver: {
+    color: colors.crimson[400],
+  },
+  track: {
+    height: 8,
+    borderRadius: radii.xs,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: colors.border.default,
+  },
+  fill: {
+    height: "100%",
+    borderRadius: radii.xs,
+  },
+  fillOver: {
+    backgroundColor: colors.crimson[500],
+  },
+  note: {
+    ...typography.mono.xs,
+    fontSize: 9,
+    color: colors.text.dim,
+    fontStyle: "italic",
+  },
 });

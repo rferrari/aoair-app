@@ -1,23 +1,37 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ActivityIndicator, Alert } from "react-native";
+import * as Haptics from "expo-haptics";
 import { CatalogModel } from "../models/manifest";
 import { getDeviceTotalRamBytes } from "ram-monitor";
+import { colors } from "./theme/colors";
+import { typography } from "./theme/typography";
+import { spacing, radii } from "./theme/spacing";
 
 function formatMB(bytes: number): string {
+  if (bytes <= 0) return "0 MB";
   return bytes >= 1024 * 1024 * 1024
-    ? `${(bytes / 1024 / 1024 / 1024).toFixed(1)}GB`
-    : `${(bytes / 1024 / 1024).toFixed(0)}MB`;
+    ? `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`
+    : `${(bytes / (1024 * 1024)).toFixed(0)} MB`;
+}
+
+function formatSpeed(bytesPerSec?: number): string {
+  if (!bytesPerSec || bytesPerSec <= 0) return "Calculating…";
+  if (bytesPerSec >= 1024 * 1024) {
+    return `${(bytesPerSec / (1024 * 1024)).toFixed(1)} MB/s`;
+  }
+  return `${(bytesPerSec / 1024).toFixed(0)} KB/s`;
+}
+
+function formatEta(seconds?: number): string {
+  if (seconds == null || seconds <= 0 || !isFinite(seconds)) return "Calculating…";
+  if (seconds < 60) return `${Math.ceil(seconds)}s`;
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.ceil(seconds % 60);
+  return `${mins}m ${secs}s`;
 }
 
 type Compatibility = "green" | "yellow" | "red" | "unknown";
 
-/**
- * Rough compatibility estimate: a GGUF model's resident working set while
- * loaded (weights actually touched via mmap + KV cache) tracks close to its
- * file size for a fully-resident quantized model, plus some overhead for
- * context/KV cache — 1.15x is a conservative approximation, not a
- * measurement. This is a heads-up before downloading, not a guarantee.
- */
 function computeCompatibility(sizeBytes: number, deviceRamBytes: number): Compatibility {
   if (deviceRamBytes <= 0) return "unknown";
   const estimatedRamBytes = sizeBytes * 1.15;
@@ -26,18 +40,15 @@ function computeCompatibility(sizeBytes: number, deviceRamBytes: number): Compat
   return "red";
 }
 
-const COMPATIBILITY_LABEL: Record<Compatibility, string> = {
-  green: "🟢 Runs great",
-  yellow: "🟡 High RAM use",
-  red: "🔴 Likely too large",
-  unknown: "",
-};
-
 export interface CatalogRowState {
   present: boolean;
   downloading: boolean;
   progress: number;
   error: string | null;
+  bytesWritten?: number;
+  bytesExpected?: number;
+  speedBytesPerSec?: number;
+  etaSeconds?: number;
 }
 
 interface Props {
@@ -49,21 +60,6 @@ interface Props {
   onRemove: (item: CatalogModel) => void;
 }
 
-/**
- * A single model/corpus catalog row, following a strict lifecycle so the
- * state is never ambiguous:
- *
- * - LLM/embedding items are genuinely swappable (only one "active" per
- *   kind at a time, via src/models/settings.ts) — full 3-state: Not
- *   downloaded -> Downloaded (inactive, "Select & Use") -> Active.
- * - Corpus packs are NOT a single-selection choice — seedCorpus.ts merges
- *   in every downloaded pack additively — so "downloaded" already means
- *   "included in your knowledge base." Modeling them with a fake "Use
- *   this" step (as an earlier version did) was the root of a real bug:
- *   activeIds was never computed for kind "corpus", so they could never
- *   show as active no matter what. Corpus packs get a simpler 2-state:
- *   Not downloaded -> Active (green) as soon as they're present.
- */
 export function CatalogItemCard({ item, row, isActive, onDownload, onUse, onRemove }: Props) {
   const isCorpus = item.kind === "corpus";
   const present = row?.present ?? false;
@@ -74,87 +70,194 @@ export function CatalogItemCard({ item, row, isActive, onDownload, onUse, onRemo
     try {
       setDeviceRam(getDeviceTotalRamBytes());
     } catch {
-      // native module not linked; leave at 0 (unknown)
+      // native module fallback
     }
   }, []);
+
   const compatibility = item.kind === "llm" ? computeCompatibility(item.sizeBytes, deviceRam) : "unknown";
 
   const confirmRemove = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     Alert.alert(
-      isCorpus ? "Remove this knowledge base pack?" : "Remove this model?",
+      isCorpus ? "Remove Knowledge Base Pack?" : "Remove Model Weights?",
       isCorpus
-        ? `This deletes the local file and frees ${formatMB(item.sizeBytes)}. Its topics won't be in your offline search until you download it again.`
-        : `This deletes the local file and frees ${formatMB(item.sizeBytes)}.`,
+        ? `This deletes the local dataset and frees ${formatMB(item.sizeBytes)}. Its topics will not be searchable offline until re-downloaded.`
+        : `This deletes the local weights file and frees ${formatMB(item.sizeBytes)}.`,
       [
         { text: "Cancel", style: "cancel" },
-        { text: "Remove", style: "destructive", onPress: () => onRemove(item) },
+        {
+          text: "Remove Asset",
+          style: "destructive",
+          onPress: () => onRemove(item),
+        },
       ]
     );
   };
 
+  const handleAction = (cb: () => void) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    cb();
+  };
+
   return (
     <View style={[styles.card, effectivelyActive && styles.cardActive]}>
+      {/* Top Header Row */}
       <View style={styles.headerRow}>
-        <Text style={styles.label}>{item.label}</Text>
-        <Badge present={present} active={effectivelyActive} downloading={row?.downloading ?? false} />
+        <View style={styles.titleColumn}>
+          <Text style={styles.label}>{item.label}</Text>
+          <View style={styles.metaChipsRow}>
+            <View style={styles.kindChip}>
+              <Text style={styles.kindChipText}>{item.kind.toUpperCase()}</Text>
+            </View>
+            <Text style={styles.metaText}>{formatMB(item.sizeBytes)}</Text>
+            <Text style={styles.metaBullet}>•</Text>
+            <Text style={styles.metaText}>{item.license}</Text>
+            {item.required && (
+              <>
+                <Text style={styles.metaBullet}>•</Text>
+                <Text style={styles.defaultChipText}>DEFAULT</Text>
+              </>
+            )}
+          </View>
+        </View>
+
+        <StatusBadge
+          present={present}
+          active={effectivelyActive}
+          downloading={row?.downloading ?? false}
+        />
       </View>
 
-      <Text style={styles.meta}>
-        {item.kind} · {formatMB(item.sizeBytes)} · {item.license}
-        {item.required ? " · default" : ""}
-      </Text>
+      {/* Compatibility Badge */}
       {compatibility !== "unknown" && (
-        <Text
-          style={[
-            styles.compatText,
-            compatibility === "yellow" && styles.compatTextYellow,
-            compatibility === "red" && styles.compatTextRed,
-          ]}
-        >
-          {COMPATIBILITY_LABEL[compatibility]} for this device's RAM
-        </Text>
-      )}
-      <Text style={styles.description}>{item.description}</Text>
-
-      {row?.error && <Text style={styles.error}>{row.error}</Text>}
-
-      {row?.downloading && (
-        <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: `${row.progress * 100}%` }]} />
+        <View style={styles.compatRow}>
+          {compatibility === "green" && (
+            <View style={[styles.compatPill, styles.compatGreen]}>
+              <Text style={styles.compatIcon}>🟢</Text>
+              <Text style={styles.compatGreenText}>Runs Great on this device</Text>
+            </View>
+          )}
+          {compatibility === "yellow" && (
+            <View style={[styles.compatPill, styles.compatAmber]}>
+              <Text style={styles.compatIcon}>🟡</Text>
+              <Text style={styles.compatAmberText}>High RAM / 12GB Required</Text>
+            </View>
+          )}
+          {compatibility === "red" && (
+            <View style={[styles.compatPill, styles.compatRed]}>
+              <Text style={styles.compatIcon}>🔴</Text>
+              <Text style={styles.compatRedText}>Incompatible (Exceeds Device RAM)</Text>
+            </View>
+          )}
         </View>
       )}
 
+      {/* Description */}
+      <Text style={styles.description}>{item.description}</Text>
+
+      {/* Error Callout */}
+      {row?.error && (
+        <View style={styles.errorBox}>
+          <Text style={styles.errorIcon}>⚠️</Text>
+          <Text style={styles.errorText}>{row.error}</Text>
+        </View>
+      )}
+
+      {/* Smooth Background Download Progress Card */}
+      {row?.downloading && (
+        <View style={styles.downloadProgressCard}>
+          <View style={styles.downloadProgressHeader}>
+            <View style={styles.downloadProgressLeft}>
+              <ActivityIndicator size="small" color={colors.emerald[400]} />
+              <Text style={styles.downloadStatusTitle}>DOWNLOADING ASSET</Text>
+            </View>
+            <Text style={styles.downloadProgressPct}>
+              {(row.progress * 100).toFixed(0)}%
+            </Text>
+          </View>
+
+          {/* Progress Bar Track */}
+          <View style={styles.progressTrack}>
+            <View
+              style={[
+                styles.progressFill,
+                { width: `${Math.max(row.progress * 100, 2)}%` },
+              ]}
+            />
+          </View>
+
+          {/* Download Telemetry Row (Bytes, Speed, ETA) */}
+          <View style={styles.downloadMetricsRow}>
+            <Text style={styles.metricText}>
+              {row.bytesWritten ? formatMB(row.bytesWritten) : "0 MB"} / {formatMB(item.sizeBytes)}
+            </Text>
+            <View style={styles.metricsRight}>
+              <Text style={styles.metricSpeedText}>
+                {formatSpeed(row.speedBytesPerSec)}
+              </Text>
+              <Text style={styles.metricBullet}>•</Text>
+              <Text style={styles.metricEtaText}>
+                ETA: {formatEta(row.etaSeconds)}
+              </Text>
+            </View>
+          </View>
+        </View>
+      )}
+
+      {/* Action Controls */}
       {!row?.downloading && (
         <View style={styles.actionsRow}>
           {!present && (
-            <Pressable style={styles.downloadBtn} onPress={() => onDownload(item)}>
-              <Text style={styles.downloadBtnText}>{row?.error ? "Retry" : "📥 Download"}</Text>
+            <Pressable
+              style={styles.downloadBtn}
+              onPress={() => handleAction(() => onDownload(item))}
+            >
+              <Text style={styles.downloadBtnText}>
+                {row?.error ? "🔄 Retry Download" : "📥 Download Asset"}
+              </Text>
             </Pressable>
           )}
+
           {present && !isCorpus && !isActive && (
-            <Pressable style={styles.useBtn} onPress={() => onUse(item)}>
-              <Text style={styles.useBtnText}>🔘 Select & use</Text>
+            <Pressable
+              style={styles.useBtn}
+              onPress={() => handleAction(() => onUse(item))}
+            >
+              <Text style={styles.useBtnText}>🔘 Select & Use</Text>
             </Pressable>
           )}
+
           {present && isCorpus && (
-            <Text style={styles.activeNote}>✓ Currently powering offline search</Text>
+            <View style={styles.activeCheckRow}>
+              <Text style={styles.activeCheckIcon}>✓</Text>
+              <Text style={styles.activeNote}>Indexed in offline knowledge base</Text>
+            </View>
           )}
+
           {present && !isCorpus && isActive && (
-            <Text style={styles.activeNote}>✓ Currently active</Text>
+            <View style={styles.activeCheckRow}>
+              <Text style={styles.activeCheckIcon}>✓</Text>
+              <Text style={styles.activeNote}>Active inference model</Text>
+            </View>
           )}
+
           {present && !item.required && (
-            <Pressable onPress={confirmRemove} hitSlop={8} style={styles.trashBtn}>
+            <Pressable
+              onPress={confirmRemove}
+              hitSlop={8}
+              style={styles.trashBtn}
+              accessibilityLabel="Delete model asset"
+            >
               <Text style={styles.trashIcon}>🗑️</Text>
             </Pressable>
           )}
         </View>
       )}
-      {row?.downloading && <ActivityIndicator color="#8f8" style={{ marginTop: 6 }} />}
     </View>
   );
 }
 
-function Badge({
+function StatusBadge({
   present,
   active,
   downloading,
@@ -163,58 +266,339 @@ function Badge({
   active: boolean;
   downloading: boolean;
 }) {
-  if (downloading) return <BadgePill text="Downloading…" style={styles.badgeNeutral} />;
-  if (!present) return <BadgePill text="Not downloaded" style={styles.badgeGrey} />;
-  if (active) return <BadgePill text="🟢 ACTIVE" style={styles.badgeActive} />;
-  return <BadgePill text="Downloaded" style={styles.badgeBlue} />;
-}
-
-function BadgePill({ text, style }: { text: string; style: object }) {
+  if (downloading) {
+    return (
+      <View style={[styles.badge, styles.badgeDownloading]}>
+        <Text style={styles.badgeTextCyan}>DOWNLOADING</Text>
+      </View>
+    );
+  }
+  if (!present) {
+    return (
+      <View style={[styles.badge, styles.badgeGrey]}>
+        <Text style={styles.badgeTextMuted}>NOT ON DISK</Text>
+      </View>
+    );
+  }
+  if (active) {
+    return (
+      <View style={[styles.badge, styles.badgeActive]}>
+        <View style={styles.activeDot} />
+        <Text style={styles.badgeTextEmerald}>ACTIVE</Text>
+      </View>
+    );
+  }
   return (
-    <View style={[styles.badge, style]}>
-      <Text style={styles.badgeText}>{text}</Text>
+    <View style={[styles.badge, styles.badgeCached]}>
+      <Text style={styles.badgeTextCached}>CACHED</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: "#111",
-    borderRadius: 10,
-    padding: 12,
-    gap: 6,
+    backgroundColor: colors.bg.cardElevated,
+    borderRadius: radii.lg,
+    padding: spacing.md,
+    gap: spacing.sm,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
+    borderColor: colors.border.default,
   },
-  cardActive: { borderColor: "rgba(58,122,74,0.6)", backgroundColor: "#0e1a12" },
-  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 },
-  label: { color: "#eee", fontSize: 14, fontWeight: "600", flex: 1 },
-  meta: { color: "#8f8", fontSize: 11, marginTop: 2 },
-  compatText: { color: "#8f8", fontSize: 10, marginTop: 2, fontWeight: "600" },
-  compatTextYellow: { color: "#e0c040" },
-  compatTextRed: { color: "#e05a5a" },
-  description: { color: "#999", fontSize: 12, marginTop: 2 },
-  error: { color: "#f88", fontSize: 11, marginTop: 4 },
+  cardActive: {
+    borderColor: colors.emerald.border,
+    backgroundColor: "rgba(16, 185, 129, 0.06)",
+  },
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 8,
+  },
+  titleColumn: {
+    flex: 1,
+    gap: 4,
+  },
+  label: {
+    ...typography.ui.titleSm,
+    color: colors.text.heading,
+  },
+  metaChipsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
+  kindChip: {
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: radii.xs,
+  },
+  kindChipText: {
+    ...typography.mono.xs,
+    fontSize: 9,
+    color: colors.text.secondary,
+    fontWeight: "700",
+  },
+  metaText: {
+    ...typography.mono.xs,
+    color: colors.text.dim,
+  },
+  metaBullet: {
+    ...typography.mono.xs,
+    color: colors.text.dim,
+  },
+  defaultChipText: {
+    ...typography.mono.xs,
+    fontSize: 9,
+    color: colors.text.accentCyan,
+    fontWeight: "700",
+  },
+  compatRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  compatPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    gap: 5,
+  },
+  compatIcon: {
+    fontSize: 10,
+  },
+  compatGreen: {
+    backgroundColor: colors.emerald.bgSubtle,
+    borderColor: colors.emerald.border,
+  },
+  compatGreenText: {
+    ...typography.mono.xs,
+    color: colors.text.accentEmerald,
+    fontWeight: "700",
+  },
+  compatAmber: {
+    backgroundColor: colors.amber.bgSubtle,
+    borderColor: colors.amber.border,
+  },
+  compatAmberText: {
+    ...typography.mono.xs,
+    color: colors.text.accentAmber,
+    fontWeight: "700",
+  },
+  compatRed: {
+    backgroundColor: colors.crimson.bgSubtle,
+    borderColor: colors.crimson.border,
+  },
+  compatRedText: {
+    ...typography.mono.xs,
+    color: colors.crimson[400],
+    fontWeight: "700",
+  },
+  description: {
+    ...typography.ui.caption,
+    color: colors.text.secondary,
+    lineHeight: 18,
+  },
+  errorBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.crimson.bgSubtle,
+    borderColor: colors.crimson.border,
+    borderWidth: 1,
+    borderRadius: radii.sm,
+    padding: spacing.sm,
+    gap: 6,
+  },
+  errorIcon: {
+    fontSize: 12,
+  },
+  errorText: {
+    ...typography.mono.xs,
+    color: colors.crimson[400],
+    flex: 1,
+  },
+  downloadProgressCard: {
+    backgroundColor: colors.bg.terminal,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    padding: spacing.sm,
+    gap: 6,
+  },
+  downloadProgressHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  downloadProgressLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  downloadStatusTitle: {
+    ...typography.mono.xs,
+    color: colors.text.accentCyan,
+    fontWeight: "700",
+  },
+  downloadProgressPct: {
+    ...typography.mono.xs,
+    color: colors.text.heading,
+    fontWeight: "800",
+    fontVariant: ["tabular-nums"],
+  },
   progressTrack: {
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: "#222",
+    height: 8,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    borderRadius: radii.xs,
     overflow: "hidden",
-    marginTop: 6,
   },
-  progressFill: { height: "100%", backgroundColor: "#3a7a4a" },
-  actionsRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 4 },
-  downloadBtn: { backgroundColor: "#2a5f3a", borderRadius: 6, paddingHorizontal: 12, paddingVertical: 6 },
-  downloadBtnText: { color: "#fff", fontSize: 12, fontWeight: "600" },
-  useBtn: { backgroundColor: "rgba(139,92,246,0.2)", borderRadius: 6, paddingHorizontal: 12, paddingVertical: 6 },
-  useBtnText: { color: "#c9a8ff", fontSize: 12, fontWeight: "600" },
-  activeNote: { color: "#8f8", fontSize: 11, fontWeight: "600", flex: 1 },
-  trashBtn: { marginLeft: "auto", padding: 4 },
-  trashIcon: { fontSize: 15 },
-  badge: { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 },
-  badgeText: { fontSize: 10, fontWeight: "700", color: "#fff" },
-  badgeGrey: { backgroundColor: "rgba(255,255,255,0.08)" },
-  badgeBlue: { backgroundColor: "rgba(59,130,246,0.3)" },
-  badgeActive: { backgroundColor: "rgba(58,122,74,0.5)" },
-  badgeNeutral: { backgroundColor: "rgba(255,255,255,0.05)" },
+  progressFill: {
+    height: "100%",
+    backgroundColor: colors.emerald[500],
+    borderRadius: radii.xs,
+  },
+  downloadMetricsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  metricText: {
+    ...typography.mono.xs,
+    color: colors.text.dim,
+    fontVariant: ["tabular-nums"],
+  },
+  metricsRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  metricSpeedText: {
+    ...typography.mono.xs,
+    color: colors.text.accentCyan,
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
+  },
+  metricBullet: {
+    ...typography.mono.xs,
+    color: colors.text.dim,
+  },
+  metricEtaText: {
+    ...typography.mono.xs,
+    color: colors.text.accentAmber,
+    fontWeight: "600",
+    fontVariant: ["tabular-nums"],
+  },
+  actionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 4,
+  },
+  downloadBtn: {
+    backgroundColor: colors.emerald.bgSubtle,
+    borderColor: colors.emerald.border,
+    borderWidth: 1,
+    borderRadius: radii.sm,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  downloadBtnText: {
+    ...typography.ui.titleSm,
+    fontSize: 12,
+    color: colors.text.accentEmerald,
+  },
+  useBtn: {
+    backgroundColor: colors.cyan.bgSubtle,
+    borderColor: colors.cyan.border,
+    borderWidth: 1,
+    borderRadius: radii.sm,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  useBtnText: {
+    ...typography.ui.titleSm,
+    fontSize: 12,
+    color: colors.text.accentCyan,
+  },
+  activeCheckRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    flex: 1,
+  },
+  activeCheckIcon: {
+    color: colors.text.accentEmerald,
+    fontWeight: "800",
+  },
+  activeNote: {
+    ...typography.mono.xs,
+    color: colors.text.accentEmerald,
+    fontWeight: "600",
+  },
+  trashBtn: {
+    marginLeft: "auto",
+    padding: 6,
+    borderRadius: radii.xs,
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+  },
+  trashIcon: {
+    fontSize: 14,
+  },
+  badge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radii.xs,
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  badgeGrey: {
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    borderColor: colors.border.subtle,
+  },
+  badgeTextMuted: {
+    ...typography.mono.xs,
+    fontSize: 9,
+    color: colors.text.dim,
+    fontWeight: "700",
+  },
+  badgeActive: {
+    backgroundColor: colors.emerald.bgSubtle,
+    borderColor: colors.emerald.border,
+  },
+  activeDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: colors.emerald[400],
+  },
+  badgeTextEmerald: {
+    ...typography.mono.xs,
+    fontSize: 9,
+    color: colors.text.accentEmerald,
+    fontWeight: "800",
+  },
+  badgeCached: {
+    backgroundColor: colors.cyan.bgSubtle,
+    borderColor: colors.cyan.border,
+  },
+  badgeTextCached: {
+    ...typography.mono.xs,
+    fontSize: 9,
+    color: colors.text.accentCyan,
+    fontWeight: "700",
+  },
+  badgeDownloading: {
+    backgroundColor: "rgba(6, 182, 212, 0.15)",
+    borderColor: colors.cyan.border,
+  },
+  badgeTextCyan: {
+    ...typography.mono.xs,
+    fontSize: 9,
+    color: colors.text.accentCyan,
+    fontWeight: "800",
+  },
 });

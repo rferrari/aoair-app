@@ -5,6 +5,7 @@ import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { ChatScreen } from "./src/ui/ChatScreen";
 import { ModelSetupScreen } from "./src/ui/ModelSetupScreen";
 import { ModelManager } from "./src/models/ModelManager";
+import { colors } from "./src/ui/theme/colors";
 
 const modelManager = new ModelManager();
 
@@ -26,7 +27,7 @@ export default function App() {
         <StatusBar style="light" />
         {screen === "checking" && (
           <View style={styles.centered}>
-            <ActivityIndicator color="#8f8" />
+            <ActivityIndicator color={colors.emerald[400]} size="large" />
           </View>
         )}
         {screen === "required-setup" && (
@@ -53,7 +54,7 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0b0c10",
+    backgroundColor: colors.bg.terminal,
   },
   centered: {
     flex: 1,

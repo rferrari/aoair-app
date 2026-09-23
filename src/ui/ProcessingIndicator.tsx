@@ -1,12 +1,15 @@
 import React, { useEffect, useRef } from "react";
 import { View, Text, StyleSheet, Animated } from "react-native";
+import { colors } from "./theme/colors";
+import { typography } from "./theme/typography";
+import { radii } from "./theme/spacing";
 
 export type ProcessingStatus = "idle" | "retrieving" | "thinking" | "generating";
 
 const STATUS_LABEL: Record<Exclude<ProcessingStatus, "idle">, string> = {
   retrieving: "🔍 Searching offline corpus…",
-  thinking: "🧠 Analyzing context & reasoning…",
-  generating: "✍️ Generating answer…",
+  thinking: "🧠 Reasoning over local context…",
+  generating: "⚡ Streaming tokens…",
 };
 
 function BouncingDot({ delay }: { delay: number }) {
@@ -28,37 +31,45 @@ function BouncingDot({ delay }: { delay: number }) {
   return <Animated.View style={[styles.dot, { transform: [{ translateY: y }] }]} />;
 }
 
-/**
- * Shown in place of an assistant bubble's text while a query is being
- * processed (RAG retrieval, then prompt prefill) — before the first token
- * has streamed back. ChatScreen swaps this out for the actual streamed text
- * the moment the first token arrives.
- */
 export function ProcessingIndicator({
   status,
   label,
 }: {
   status: Exclude<ProcessingStatus, "idle">;
-  /** Overrides the default label for this status (e.g. Deep Research's per-stage text). */
   label?: string;
 }) {
-  const glow = useRef(new Animated.Value(0.4)).current;
+  const pulse = useRef(new Animated.Value(0.4)).current;
 
   useEffect(() => {
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(glow, { toValue: 1, duration: 700, useNativeDriver: true }),
-        Animated.timing(glow, { toValue: 0.4, duration: 700, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1, duration: 600, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0.4, duration: 600, useNativeDriver: true }),
       ])
     );
     loop.start();
     return () => loop.stop();
-  }, [glow]);
+  }, [pulse]);
+
+  const isDeep = label?.includes("🔬") || status === "thinking";
 
   return (
     <View style={styles.row}>
-      <Animated.View style={[styles.avatar, { opacity: glow }]} />
-      <Text style={styles.label}>{label ?? STATUS_LABEL[status]}</Text>
+      <Animated.View
+        style={[
+          styles.statusDot,
+          isDeep ? styles.statusDotFrontier : styles.statusDotEmerald,
+          { opacity: pulse },
+        ]}
+      />
+      <Text
+        style={[
+          styles.label,
+          isDeep ? styles.labelFrontier : styles.labelDefault,
+        ]}
+      >
+        {label ?? STATUS_LABEL[status]}
+      </Text>
       <View style={styles.dots}>
         <BouncingDot delay={0} />
         <BouncingDot delay={130} />
@@ -69,14 +80,43 @@ export function ProcessingIndicator({
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: "row", alignItems: "center", gap: 8 },
-  avatar: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: "#3a7a4a",
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 4,
   },
-  label: { color: "#aaa", fontSize: 13 },
-  dots: { flexDirection: "row", gap: 3, marginLeft: 2 },
-  dot: { width: 4, height: 4, borderRadius: 2, backgroundColor: "#666" },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  statusDotEmerald: {
+    backgroundColor: colors.emerald[400],
+  },
+  statusDotFrontier: {
+    backgroundColor: colors.frontier.glow,
+  },
+  label: {
+    ...typography.ui.body,
+    fontSize: 13,
+  },
+  labelDefault: {
+    color: colors.text.secondary,
+  },
+  labelFrontier: {
+    color: colors.frontier.text,
+    fontWeight: "600",
+  },
+  dots: {
+    flexDirection: "row",
+    gap: 4,
+    marginLeft: 2,
+  },
+  dot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.cyan[400],
+  },
 });
