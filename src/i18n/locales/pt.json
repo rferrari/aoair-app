@@ -310,7 +310,8 @@
     "roleYou": "VOCÊ",
     "roleAssistant": "🐗 PESQUISADOR BOAR",
     "stoppedByUser": "Interrompido pelo usuário",
-    "deepResearchBanner": "MISTURA DE AGENTES: DECOMPOR ➔ EMBEDDINGS LOCAIS ➔ SINTETIZAR"
+    "deepResearchBanner": "MISTURA DE AGENTES: DECOMPOR ➔ EMBEDDINGS LOCAIS ➔ SINTETIZAR",
+    "copyResponse": "Copiar resposta"
   },
   "aboutScreen": {
     "title": "SOBRE O BOAR",

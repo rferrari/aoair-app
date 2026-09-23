@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
+import * as Clipboard from "expo-clipboard";
 import { useTranslation } from "react-i18next";
 import { llamaEngine } from "../inference/LlamaEngine";
 import { embeddingEngine } from "../rag/embed";
@@ -117,6 +118,7 @@ export function ChatScreen({
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeModel, setActiveModel] = useState<CatalogModel | null>(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
 
   const listRef = useRef<FlatList<Message>>(null);
   const inputRef = useRef<TextInput>(null);
@@ -166,6 +168,16 @@ export function ChatScreen({
   const haptic = useCallback((fn: () => Promise<void>) => {
     if (hapticsEnabledRef.current) fn().catch(() => {});
   }, []);
+
+  const copyMessage = useCallback(
+    async (id: string, text: string) => {
+      await Clipboard.setStringAsync(text);
+      haptic(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light));
+      setCopiedMessageId(id);
+      setTimeout(() => setCopiedMessageId((cur) => (cur === id ? null : cur)), 1500);
+    },
+    [haptic]
+  );
 
   const toggleDeepResearch = useCallback(async () => {
     const next = !deepResearchEnabled;
@@ -566,6 +578,17 @@ export function ChatScreen({
                   >
                     {item.role === "user" ? t("chatScreen.roleYou") : t("chatScreen.roleAssistant")}
                   </Text>
+                  {item.role === "assistant" && item.text.length > 0 && (
+                    <Pressable
+                      onPress={() => copyMessage(item.id, item.text)}
+                      hitSlop={8}
+                      accessibilityLabel={t("chatScreen.copyResponse")}
+                    >
+                      <Text style={[styles.copyIcon, { color: colors.text.dim }]}>
+                        {copiedMessageId === item.id ? "✓" : "⧉"}
+                      </Text>
+                    </Pressable>
+                  )}
                 </View>
 
                 {showProcessing ? (
@@ -773,6 +796,10 @@ const styles = StyleSheet.create({
   },
   assistantRoleLabel: {
     color: colors.text.accentEmerald,
+  },
+  copyIcon: {
+    fontSize: 14,
+    paddingHorizontal: 4,
   },
   stoppedBadge: {
     marginTop: 4,
