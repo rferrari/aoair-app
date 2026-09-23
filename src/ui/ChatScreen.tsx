@@ -814,44 +814,120 @@ export function ChatScreen({
                 )}
 
                 {item.role === "assistant" && item.text.length > 0 && (
-                  <View style={styles.bubbleFooter}>
+                  <View style={[styles.bubbleFooter, { borderTopColor: colors.border.subtle }]}>
                     <Pressable
                       onPress={() => rateMessage(item.id, "up")}
-                      hitSlop={8}
+                      hitSlop={6}
                       accessibilityLabel={t("chatScreen.rateUp")}
+                      style={[
+                        styles.footerBtn,
+                        {
+                          backgroundColor:
+                            item.feedback === "up" ? colors.emerald.bgSubtle : colors.bg.subtle,
+                          borderColor:
+                            item.feedback === "up" ? colors.emerald.border : colors.border.subtle,
+                        },
+                      ]}
                     >
                       <Text
                         style={[
-                          styles.footerIcon,
-                          { color: item.feedback === "up" ? colors.text.accentEmerald : colors.text.dim },
+                          styles.footerGlyph,
+                          {
+                            color:
+                              item.feedback === "up" ? colors.text.accentEmerald : colors.text.dim,
+                          },
                         ]}
                       >
-                        👍
+                        ▲
                       </Text>
+                      {item.feedback === "up" && (
+                        <Text
+                          style={[
+                            styles.footerBtnLabel,
+                            { color: colors.text.accentEmerald },
+                          ]}
+                        >
+                          {t("chatScreen.rateHelpful", "Helpful")}
+                        </Text>
+                      )}
                     </Pressable>
+
                     <Pressable
                       onPress={() => rateMessage(item.id, "down")}
-                      hitSlop={8}
+                      hitSlop={6}
                       accessibilityLabel={t("chatScreen.rateDown")}
+                      style={[
+                        styles.footerBtn,
+                        {
+                          backgroundColor:
+                            item.feedback === "down" ? colors.crimson.bgSubtle : colors.bg.subtle,
+                          borderColor:
+                            item.feedback === "down" ? colors.crimson.border : colors.border.subtle,
+                        },
+                      ]}
                     >
                       <Text
                         style={[
-                          styles.footerIcon,
-                          { color: item.feedback === "down" ? colors.crimson[400] : colors.text.dim },
+                          styles.footerGlyph,
+                          {
+                            color:
+                              item.feedback === "down" ? colors.crimson[400] : colors.text.dim,
+                          },
                         ]}
                       >
-                        👎
+                        ▼
                       </Text>
+                      {item.feedback === "down" && (
+                        <Text
+                          style={[
+                            styles.footerBtnLabel,
+                            { color: colors.crimson[400] },
+                          ]}
+                        >
+                          {t("chatScreen.rateUnhelpful", "Unhelpful")}
+                        </Text>
+                      )}
                     </Pressable>
+
                     <View style={styles.footerSpacer} />
+
                     <Pressable
                       onPress={() => copyMessage(item.id, item.text)}
-                      hitSlop={8}
+                      hitSlop={6}
                       accessibilityLabel={t("chatScreen.copyResponse")}
+                      style={[
+                        styles.footerBtn,
+                        {
+                          backgroundColor:
+                            copiedMessageId === item.id ? colors.emerald.bgSubtle : colors.bg.subtle,
+                          borderColor:
+                            copiedMessageId === item.id ? colors.emerald.border : colors.border.subtle,
+                        },
+                      ]}
                     >
-                      <Text style={[styles.footerIcon, { color: colors.text.dim }]}>
+                      <Text
+                        style={[
+                          styles.footerGlyph,
+                          {
+                            color:
+                              copiedMessageId === item.id
+                                ? colors.text.accentEmerald
+                                : colors.text.dim,
+                          },
+                        ]}
+                      >
                         {copiedMessageId === item.id ? "✓" : "⧉"}
                       </Text>
+                      {copiedMessageId === item.id && (
+                        <Text
+                          style={[
+                            styles.footerBtnLabel,
+                            { color: colors.text.accentEmerald },
+                          ]}
+                        >
+                          {t("chatScreen.copied", "Copied")}
+                        </Text>
+                      )}
                     </Pressable>
                   </View>
                 )}
@@ -1052,13 +1128,30 @@ const styles = StyleSheet.create({
   bubbleFooter: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    marginTop: 6,
+    gap: 6,
+    marginTop: 8,
+    paddingTop: 6,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
-  footerIcon: {
-    fontSize: 14,
-    paddingHorizontal: 4,
-    paddingVertical: 2,
+  footerBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: radii.xs,
+    borderWidth: 1,
+  },
+  footerGlyph: {
+    fontSize: 10,
+    lineHeight: 12,
+    fontWeight: "700",
+  },
+  footerBtnLabel: {
+    ...typography.ui.micro,
+    fontSize: 10,
+    fontWeight: "600",
+    letterSpacing: 0.2,
   },
   footerSpacer: {
     flex: 1,
