@@ -1,7 +1,7 @@
 .PHONY: help setup install check-android start run-android build-eas test typecheck clean
 
 help:
-	@echo "BOAR - Best Offline AI Researcher"
+	@echo "BOAR - Adaptive Local Intelligence"
 	@echo "-----------------------------------"
 	@echo "make setup        - Install npm dependencies (checks for the Android SDK too)"
 	@echo "make start        - Start Expo dev server"

@@ -1,7 +1,9 @@
-# BOAR — Best Offline AI Researcher (Android)
+# BOAR — Adaptive Local Intelligence (Android)
 
-Offline research assistant for Android. Built for the "Best Offline AI Research App" bounty
-(inspired by @VitalikButerin's post). Hard constraints this design targets:
+An offline-first mobile AI system for Android exploring adaptive model routing, local
+retrieval, selective verification, and resource-aware inference. Originally built for
+the "Best Offline AI Research App" bounty (inspired by @VitalikButerin's post). Hard
+constraints this design targets:
 
 - ≤ 12GB peak RAM during inference
 - ≤ 50GB total on-disk (app + weights + indexes)

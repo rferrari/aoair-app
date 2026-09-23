@@ -159,7 +159,7 @@ export function ThemeSelector({ compact = false }: Props) {
             ]}
           >
             <Text style={[typography.ui.caption, { color: colors.text.accentEmerald }]}>
-              🐗 BOAR RESEARCHER
+              🐗 BOAR
             </Text>
             <Text style={[typography.ui.body, { color: colors.text.primary, marginTop: 4 }]}>
               Local inference operational. Process RSS remains strictly under 12GB limit.

@@ -15,7 +15,7 @@
     "daysAgo": "{{count}}d ago"
   },
   "drawer": {
-    "subtitle": "Best Offline AI Researcher",
+    "subtitle": "Adaptive Local Intelligence",
     "newChat": "New Research Session",
     "recentSessions": "RECENT SESSIONS"
   },
@@ -125,7 +125,7 @@
   "modelSetupScreen": {
     "header": {
       "title": "SETTINGS & CONFIGURATION",
-      "subtitle": "BOAR Offline Research Assistant"
+      "subtitle": "BOAR — Adaptive Local Intelligence"
     },
     "sections": {
       "toneModels": "Tone & Reasoning Models",
@@ -308,7 +308,7 @@
       "synthesizing": "🔬 Synthesizing offline findings…"
     },
     "roleYou": "YOU",
-    "roleAssistant": "🐗 BOAR RESEARCHER",
+    "roleAssistant": "🐗 BOAR",
     "stoppedByUser": "Stopped by user",
     "deepResearchBanner": "MIXTURE-OF-AGENTS: DECOMPOSE ➔ LOCAL EMBEDDINGS ➔ SYNTHESIS",
     "copyResponse": "Copy response",
@@ -317,10 +317,10 @@
   },
   "aboutScreen": {
     "title": "ABOUT BOAR",
-    "heroSubtitle": "BEST OFFLINE AI RESEARCHER",
+    "heroSubtitle": "ADAPTIVE LOCAL INTELLIGENCE",
     "versionBadge": "v0.1.0 • PRODUCTION BUILD",
     "airGappedTitle": "AIR-GAPPED SOVEREIGN AI",
-    "airGappedBody": "BOAR is a fully offline, air-gapped AI research assistant engineered for Android mobile hardware. It performs local LLM inference via llama.rn / llama.cpp and local hybrid retrieval (SQLite FTS5 + on-device embeddings) with zero cloud dependencies.",
+    "airGappedBody": "BOAR is an offline-first mobile AI system exploring adaptive model routing, local retrieval, selective verification, and resource-aware inference. It performs local LLM inference via llama.rn / llama.cpp and local hybrid retrieval (SQLite FTS5 + on-device embeddings) with zero cloud dependencies.",
     "hardwareTitle": "HARDWARE ARCHITECTURE & BUDGET",
     "hardwareBody": "Complies with strict mobile field constraints: resident memory remains capped under 12GB RAM using memory-mapped weights (mmap), and total storage is audited against a 50GB storage envelope.",
     "repoTitle": "OPEN SOURCE REPOSITORY",

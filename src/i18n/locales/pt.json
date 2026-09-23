@@ -15,7 +15,7 @@
     "daysAgo": "há {{count}}d"
   },
   "drawer": {
-    "subtitle": "Melhor Pesquisador de IA Offline",
+    "subtitle": "Inteligência Local Adaptativa",
     "newChat": "Nova Sessão de Pesquisa",
     "recentSessions": "SESSÕES RECENTES"
   },
@@ -125,7 +125,7 @@
   "modelSetupScreen": {
     "header": {
       "title": "CONFIGURAÇÕES",
-      "subtitle": "BOAR Assistente de Pesquisa Offline"
+      "subtitle": "BOAR — Inteligência Local Adaptativa"
     },
     "sections": {
       "toneModels": "Tom & Modelos de Raciocínio",
@@ -308,7 +308,7 @@
       "synthesizing": "🔬 Sintetizando descobertas offline…"
     },
     "roleYou": "VOCÊ",
-    "roleAssistant": "🐗 BOAR PESQUISADOR",
+    "roleAssistant": "🐗 BOAR",
     "stoppedByUser": "Interrompido pelo usuário",
     "deepResearchBanner": "MISTURA DE AGENTES: DECOMPOR ➔ EMBEDDINGS LOCAIS ➔ SINTETIZAR",
     "copyResponse": "Copiar resposta",
@@ -317,10 +317,10 @@
   },
   "aboutScreen": {
     "title": "SOBRE O BOAR",
-    "heroSubtitle": "MELHOR PESQUISADOR DE IA OFFLINE",
+    "heroSubtitle": "INTELIGÊNCIA LOCAL ADAPTATIVA",
     "versionBadge": "v0.1.0 • BUILD DE PRODUÇÃO",
     "airGappedTitle": "IA SOBERANA E ISOLADA DA REDE",
-    "airGappedBody": "O BOAR é um assistente de pesquisa por IA totalmente offline e isolado da rede, desenvolvido para hardware móvel Android. Ele realiza inferência local de LLM via llama.rn / llama.cpp e busca híbrida local (SQLite FTS5 + embeddings no dispositivo) sem nenhuma dependência de nuvem.",
+    "airGappedBody": "O BOAR é um sistema de IA móvel offline-first que explora roteamento adaptativo de modelos, recuperação local, verificação seletiva e inferência sensível a recursos. Ele realiza inferência local de LLM via llama.rn / llama.cpp e busca híbrida local (SQLite FTS5 + embeddings no dispositivo) sem nenhuma dependência de nuvem.",
     "hardwareTitle": "ARQUITETURA DE HARDWARE E ORÇAMENTO",
     "hardwareBody": "Atende a restrições rígidas de uso em campo: a memória residente permanece limitada a 12GB de RAM usando pesos mapeados em memória (mmap), e o armazenamento total é auditado contra um limite de 50GB.",
     "repoTitle": "REPOSITÓRIO DE CÓDIGO ABERTO",
