@@ -1,4 +1,4 @@
-# aoair — Always-Offline AI Research (Android)
+# BOAR — Best Offline AI Researcher (Android)
 
 Offline research assistant for Android. Built for the "Best Offline AI Research App" bounty
 (inspired by @VitalikButerin's post). Hard constraints this design targets:
@@ -58,7 +58,7 @@ cost of a much larger APK and slower builds/uploads. Re-add
 ## Directory layout
 
 ```
-aoair_app/
+boar-app/
   App.tsx                  # checks required models -> setup screen or chat
   src/
     inference/              # llama.rn wrapper, streaming token bridge
@@ -119,10 +119,13 @@ aoair_app/
       `voice-input` (offline `SpeechRecognizer` wrapper) — all confirmed
       discovered by Expo's Android autolinking, all built successfully in a
       real `expo run:android` compile
-- [x] EAS Build configured (`eas.json`) and project linked (`ao-air`) for
-      cloud builds without a local Android SDK
+- [x] EAS Build configured (`eas.json`) and project linked (`boar-app`, previously
+      `ao-air` before the rebrand — may need re-linking on expo.dev if cloud builds
+      complain about a slug mismatch) for cloud builds without a local Android SDK
 - [x] Public GitHub repo: https://github.com/rferrari/boar-app
-- [x] Unit tests (vitest, 14 tests) for pure retrieval/manifest/tier logic + CI
+- [x] Unit tests (vitest, 22 tests) for pure retrieval/manifest/tier logic + CI
+- [x] `Makefile` with `setup`/`start`/`run-android`/`build-eas`/`test`/`clean`
+      shortcuts for the commands above
 - [ ] Benchmark chosen models on real hardware (tokens/sec, RSS) — not yet measured
 - [ ] whisper.cpp binding for voice input on devices with no system speech
       service (GrapheneOS) — documented as future work, not attempted
