@@ -1,6 +1,7 @@
 import * as FileSystem from "expo-file-system/legacy";
 import { AssetKind } from "./manifest";
 import { PersonalityId, DEFAULT_PERSONALITY_ID } from "../constants/personalities";
+import { ModelRole, RoutingPreset } from "../routing/types";
 
 export type ThemeId = "midnight" | "amber" | "frontier";
 export type FontScale = "compact" | "standard" | "large";
@@ -21,6 +22,8 @@ interface Settings {
   themeId?: ThemeId;
   fontScale?: FontScale;
   languageId?: LanguageId;
+  routingPreset?: RoutingPreset;
+  modelRoleAssignments?: Partial<Record<ModelRole, string>>;
 }
 
 export interface MemorySettings {
@@ -191,5 +194,39 @@ export async function getLanguageId(): Promise<LanguageId> {
 export async function setLanguageId(language: LanguageId): Promise<void> {
   const s = await readSettings();
   s.languageId = language;
+  await writeSettings(s);
+}
+
+/**
+ * "simple" is the default deliberately — see routing/profiles.ts's
+ * PRESET_DEFINITIONS doc comment: Simple uses one model and no extra
+ * routing overhead, so a user who never touches this setting sees no
+ * behavior change from before adaptive routing existed.
+ */
+export async function getRoutingPreset(): Promise<RoutingPreset> {
+  const s = await readSettings();
+  return s.routingPreset ?? "simple";
+}
+
+export async function setRoutingPreset(preset: RoutingPreset): Promise<void> {
+  const s = await readSettings();
+  s.routingPreset = preset;
+  await writeSettings(s);
+}
+
+export async function getModelRoleAssignments(): Promise<Partial<Record<ModelRole, string>>> {
+  const s = await readSettings();
+  return s.modelRoleAssignments ?? {};
+}
+
+export async function setModelRoleAssignment(role: ModelRole, modelId: string | undefined): Promise<void> {
+  const s = await readSettings();
+  const assignments = { ...(s.modelRoleAssignments ?? {}) };
+  if (modelId) {
+    assignments[role] = modelId;
+  } else {
+    delete assignments[role];
+  }
+  s.modelRoleAssignments = assignments;
   await writeSettings(s);
 }

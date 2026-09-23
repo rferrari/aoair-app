@@ -9,6 +9,7 @@ import {
   Keyboard,
   ActivityIndicator,
   Animated,
+  AppState,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
@@ -68,6 +69,8 @@ interface Message {
   text: string;
   citations?: RetrievedChunk[];
   stopped?: boolean;
+  timedOut?: boolean;
+  interruptedByBackground?: boolean;
 }
 
 const VERBATIM_MESSAGE_COUNT = 6;
@@ -129,10 +132,15 @@ export function ChatScreen({
   const messagesRef = useRef<Message[]>([]);
   const backgroundTaskRef = useRef<Promise<void> | null>(null);
   const sendTaskRef = useRef<Promise<void> | null>(null);
+  const processingRef = useRef<{ messageId: string; status: ProcessingStatus; label?: string } | null>(null);
 
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
+
+  useEffect(() => {
+    processingRef.current = processing;
+  }, [processing]);
 
   useEffect(() => {
     const showSub = Keyboard.addListener("keyboardDidShow", (e) => {
@@ -257,6 +265,33 @@ export function ChatScreen({
     await sendTaskRef.current.catch(() => {});
   }, []);
 
+  /**
+   * Per docs/ADAPTIVE_ROUTING.md §14: no AppState handling existed anywhere
+   * in the app before this — an in-flight generation (or, once the
+   * execution engine exists, a multi-step routing pipeline) would just keep
+   * burning CPU/battery invisibly if the user backgrounded the app, with no
+   * cancellation and no way to know it happened. Default policy: background
+   * -> stop immediately (reusing the exact same stop path as the Stop
+   * button — no second cancellation mechanism), mark the in-progress
+   * message as interrupted so it's visibly explained rather than silently
+   * truncated, and let the user retry by just asking again.
+   */
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (nextState) => {
+      if (nextState !== "background") return;
+      if (!sendTaskRef.current) return;
+      const interruptedId = processingRef.current?.messageId;
+      stopAndAwaitGeneration().then(() => {
+        if (interruptedId) {
+          setMessages((prev) =>
+            prev.map((m) => (m.id === interruptedId ? { ...m, interruptedByBackground: true } : m))
+          );
+        }
+      });
+    });
+    return () => sub.remove();
+  }, [stopAndAwaitGeneration]);
+
   const resetToNewChat = useCallback(async () => {
     await stopAndAwaitGeneration();
     await cancelBackgroundTask();
@@ -371,6 +406,11 @@ export function ChatScreen({
           () => stopRequestedRef.current
         );
         chunks = result.citations;
+        if (result.timedOut) {
+          setMessages((prev) =>
+            prev.map((m) => (m.id === assistantId ? { ...m, timedOut: true } : m))
+          );
+        }
       } else {
         setProcessing({ messageId: assistantId, status: "retrieving" });
         chunks = await retrieve(query);
@@ -607,6 +647,18 @@ export function ChatScreen({
                 {item.stopped && (
                   <View style={[styles.stoppedBadge, { backgroundColor: colors.amber.bgSubtle, borderColor: colors.amber.border }]}>
                     <Text style={[styles.stoppedTag, { color: colors.text.accentAmber }]}>⏹ {t("chatScreen.stoppedByUser")}</Text>
+                  </View>
+                )}
+
+                {item.timedOut && (
+                  <View style={[styles.stoppedBadge, { backgroundColor: colors.amber.bgSubtle, borderColor: colors.amber.border }]}>
+                    <Text style={[styles.stoppedTag, { color: colors.text.accentAmber }]}>⏱ {t("chatScreen.stageTimedOut")}</Text>
+                  </View>
+                )}
+
+                {item.interruptedByBackground && (
+                  <View style={[styles.stoppedBadge, { backgroundColor: colors.amber.bgSubtle, borderColor: colors.amber.border }]}>
+                    <Text style={[styles.stoppedTag, { color: colors.text.accentAmber }]}>⏸ {t("chatScreen.interruptedByBackground")}</Text>
                   </View>
                 )}
               </View>

@@ -311,7 +311,9 @@
     "roleAssistant": "🐗 BOAR PESQUISADOR",
     "stoppedByUser": "Interrompido pelo usuário",
     "deepResearchBanner": "MISTURA DE AGENTES: DECOMPOR ➔ EMBEDDINGS LOCAIS ➔ SINTETIZAR",
-    "copyResponse": "Copiar resposta"
+    "copyResponse": "Copiar resposta",
+    "stageTimedOut": "Uma etapa da pesquisa demorou demais e foi interrompida",
+    "interruptedByBackground": "Pausado — o app foi para segundo plano. Pergunte novamente para continuar."
   },
   "aboutScreen": {
     "title": "SOBRE O BOAR",

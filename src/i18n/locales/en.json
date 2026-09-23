@@ -311,7 +311,9 @@
     "roleAssistant": "🐗 BOAR RESEARCHER",
     "stoppedByUser": "Stopped by user",
     "deepResearchBanner": "MIXTURE-OF-AGENTS: DECOMPOSE ➔ LOCAL EMBEDDINGS ➔ SYNTHESIS",
-    "copyResponse": "Copy response"
+    "copyResponse": "Copy response",
+    "stageTimedOut": "A research step took too long and was cut short",
+    "interruptedByBackground": "Paused — app was backgrounded. Ask again to continue."
   },
   "aboutScreen": {
     "title": "ABOUT BOAR",

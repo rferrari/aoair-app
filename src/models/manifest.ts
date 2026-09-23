@@ -19,6 +19,8 @@
  * an alternate LLM, or a corpus pack (see TIERS below).
  */
 
+import type { ModelCapabilities } from "../routing/types";
+
 export type AssetKind = "llm" | "embedding" | "corpus";
 export type SetupTier = "minimum" | "standard" | "full";
 
@@ -40,6 +42,17 @@ export interface CatalogModel {
    * Not used by default — see module doc comment — but kept available.
    */
   bundled?: boolean;
+  /**
+   * Which adaptive-routing roles this model is hand-curated as suitable
+   * for (see src/routing/types.ts's ModelCapabilities doc comment — a
+   * maintainer's judgment call based on parameter count/class, not a
+   * benchmark result). Absent/undefined for entries added before this field
+   * existed and for anything from discoveredModels.ts (Hugging Face search
+   * results aren't vetted the same way as this curated catalog) — routing
+   * resolution must treat "no capabilities" as "not yet assessed", never
+   * assume a role.
+   */
+  capabilities?: ModelCapabilities;
 }
 
 export const STORAGE_BUDGET_BYTES = 50 * 1024 * 1024 * 1024; // 50GB
@@ -65,6 +78,7 @@ export const MODEL_CATALOG: CatalogModel[] = [
     license: "MIT",
     description: "3.8B dense, primary generation model. ~2.2GB. Default.",
     required: true,
+    capabilities: { roles: ["general", "reasoning"] },
   },
   {
     id: "bge-small-en-v1.5-q8",
@@ -78,6 +92,7 @@ export const MODEL_CATALOG: CatalogModel[] = [
     license: "MIT",
     description: "33M, sentence embeddings for the local vector index. Default.",
     required: true,
+    capabilities: { roles: ["embedding"] },
   },
   {
     id: "qwen2.5-1.5b-instruct-q4km",
@@ -91,6 +106,7 @@ export const MODEL_CATALOG: CatalogModel[] = [
     license: "Apache-2.0",
     description: "1.5B dense, faster/lighter alternative to the default. ~1.0GB.",
     required: false,
+    capabilities: { roles: ["fast"] },
   },
   {
     id: "qwen2.5-7b-instruct-q4km",
@@ -104,6 +120,7 @@ export const MODEL_CATALOG: CatalogModel[] = [
     license: "Apache-2.0",
     description: "7B dense, stronger reasoning, more RAM/storage/time. ~4.7GB.",
     required: false,
+    capabilities: { roles: ["reasoning", "verifier"] },
   },
   {
     id: "corpus-standard",

@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Pressable, ActivityIndicator, Alert } from "rea
 import * as Haptics from "expo-haptics";
 import { useTranslation } from "react-i18next";
 import { CatalogModel } from "../models/manifest";
+import { computeCompatibility } from "../models/compatibility";
 import { getDeviceTotalRamBytes } from "ram-monitor";
 import { colors } from "./theme/colors";
 import { typography } from "./theme/typography";
@@ -29,16 +30,6 @@ function formatEta(seconds: number | undefined, calculating: string): string {
   const mins = Math.floor(seconds / 60);
   const secs = Math.ceil(seconds % 60);
   return `${mins}m ${secs}s`;
-}
-
-type Compatibility = "green" | "yellow" | "red" | "unknown";
-
-function computeCompatibility(sizeBytes: number, deviceRamBytes: number): Compatibility {
-  if (deviceRamBytes <= 0) return "unknown";
-  const estimatedRamBytes = sizeBytes * 1.15;
-  if (estimatedRamBytes <= deviceRamBytes * 0.65) return "green";
-  if (estimatedRamBytes <= deviceRamBytes * 0.9) return "yellow";
-  return "red";
 }
 
 export interface CatalogRowState {

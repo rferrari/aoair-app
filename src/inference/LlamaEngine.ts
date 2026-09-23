@@ -8,6 +8,17 @@ export interface GenerateOptions {
   temperature?: number;
   onToken?: (piece: string) => void;
   stop?: string[];
+  /**
+   * Safety-net budget, not a performance target — no per-generation timeout
+   * existed anywhere in the app before this (see docs/ADAPTIVE_ROUTING.md
+   * §14). Left unset for regular single-pass chat (already indirectly
+   * bounded by nPredict); set for orchestrator.ts's multi-stage Deep
+   * Research calls, where a stuck stage would otherwise compound silently
+   * across several sequential model calls with no ceiling at all.
+   */
+  timeoutMs?: number;
+  /** Called once, right before the timeout triggers stop() — lets the caller distinguish a timeout from a natural finish or a user-initiated stop. */
+  onTimeout?: () => void;
 }
 
 /**
@@ -154,23 +165,42 @@ export class LlamaEngine {
     return this.context !== null;
   }
 
-  async generate({ prompt, nPredict = 512, temperature = 0.7, onToken, stop }: GenerateOptions): Promise<string> {
+  async generate({
+    prompt,
+    nPredict = 512,
+    temperature = 0.7,
+    onToken,
+    stop,
+    timeoutMs,
+    onTimeout,
+  }: GenerateOptions): Promise<string> {
     if (!this.context) throw new Error("LlamaEngine: model not loaded");
 
-    let full = "";
-    const { text } = await this.context.completion(
-      {
-        prompt,
-        n_predict: nPredict,
-        temperature,
-        stop: stop ?? DEFAULT_STOP_SEQUENCES,
-      },
-      (data) => {
-        full += data.token;
-        onToken?.(data.token);
-      }
-    );
-    return text ?? full;
+    const timer = timeoutMs
+      ? setTimeout(() => {
+          onTimeout?.();
+          this.context?.stopCompletion();
+        }, timeoutMs)
+      : null;
+
+    try {
+      let full = "";
+      const { text } = await this.context.completion(
+        {
+          prompt,
+          n_predict: nPredict,
+          temperature,
+          stop: stop ?? DEFAULT_STOP_SEQUENCES,
+        },
+        (data) => {
+          full += data.token;
+          onToken?.(data.token);
+        }
+      );
+      return text ?? full;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   }
 
   /**

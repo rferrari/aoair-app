@@ -244,3 +244,69 @@ per-step latency numbers.
   matches existing storage-choice conventions in this codebase exactly.
 - No timeout mechanism and no backgrounding handling exist yet — both are new
   work, not gaps in this audit.
+
+## Status
+
+**Phase 0 (this document) and Phase 1 (`src/routing/types.ts`): done.**
+
+**Phase 2 — model profiles and presets: done**, config layer only, no UI yet
+(per the plan's own phasing — Phase 9 adds the UI):
+
+- `src/models/compatibility.ts` — the RAM-fit heuristic extracted out of
+  `CatalogItemCard.tsx` so the catalog UI and routing resolution share one
+  formula instead of drifting.
+- `CatalogModel.capabilities?: ModelCapabilities` (`src/models/manifest.ts`)
+  — hand-curated per §1: Phi-3.5-mini → `general`+`reasoning`, Qwen2.5-1.5B →
+  `fast`, Qwen2.5-7B → `reasoning`+`verifier`, bge-small → `embedding`.
+  Absent for discovered/Hugging-Face-search models — not vetted the same way.
+- `src/routing/profiles.ts` — `ModelProfile`, `PRESET_DEFINITIONS` (Simple/
+  Balanced/Research/Custom, as data, not execution logic),
+  `resolveModelForRole()`/`buildModelProfiles()`. Resolution order: user
+  override (if present on disk) → curated catalog match (if present) →
+  fallback to the active default model → explicit disabled profile, never a
+  silent route to an unavailable model. `simple` needs only the `general`
+  role — deliberately near-identical to today's existing single-model chat,
+  so a user who never touches routing settings sees no behavior change.
+- `src/models/settings.ts` — `routingPreset` (default `"simple"`) and
+  `modelRoleAssignments`, same JSON-file pattern as theme/personality/language.
+- Tests: `src/routing/profiles.test.ts`, 10 cases. Caught a real bug during
+  writing: `resolveModelForRole` was searching the global `MODEL_CATALOG`
+  import instead of the injected `available` list — fixed before it shipped.
+
+**Runtime-safety prerequisite (requested before Phase 3): done.**
+
+- **Timeout**: `LlamaEngine.generate()` gained `timeoutMs`/`onTimeout`
+  (`src/inference/LlamaEngine.ts`) — reuses the exact existing clean-stop
+  path (`context.stopCompletion()`), no second cancellation mechanism. Not
+  applied to regular single-pass chat (already indirectly bounded by
+  `nPredict`, and an arbitrary timeout there risks cutting off a legitimate
+  slow-but-working generation on a weaker phone). Applied to
+  `orchestrator.ts`'s three Deep-Research stages as a 2-minute
+  safety-net-not-a-performance-target (`STAGE_TIMEOUT_MS`) — that pipeline
+  previously had zero time ceiling across its several sequential calls.
+  `ResearchResult.timedOut` surfaces whether any stage hit it; `ChatScreen.tsx`
+  shows a badge on the affected message ("⏱ stage timed out") rather than
+  leaving a silently-truncated answer unexplained.
+- **Backgrounding**: `ChatScreen.tsx` now subscribes to `AppState` — going to
+  `"background"` while a generation/pipeline is in flight calls the same
+  `stopAndAwaitGeneration()` the Stop button already uses (no new
+  cancellation path), then marks the interrupted message with a distinct
+  badge ("⏸ paused, app was backgrounded") so it reads as explained-and-
+  retriable, not broken. This is the first AppState handling anywhere in the
+  app.
+
+**Unresolved / deferred, on purpose:**
+
+- No timeout is applied to regular (non-Deep-Research) chat generation —
+  revisit once Phase 3's `InferenceBudget` gives a principled per-task value
+  instead of an arbitrary constant.
+- Backgrounding policy is "always cancel," per the teammate's explicit
+  recommendation. Not configurable yet — no setting to change this behavior.
+- `estimatedTokensPerSecond`/`estimatedMemoryMb` in `ModelCapabilities`
+  remain unset for all curated models — no benchmarked data exists yet (see
+  §11); still correctly deferred rather than invented.
+
+Typecheck and the full test suite (32 tests) pass. Not yet tested on a real
+device — background-cancellation behavior in particular should be verified
+hands-on (background the app mid-generation, confirm the badge appears and
+the model context is actually released, not just that the promise resolves).
