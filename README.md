@@ -45,7 +45,7 @@ npm install
 npx eas-cli build --platform android --profile preview
 
 # OR build locally if you have the Android SDK set up:
-npx expo prebuild -p android
+npx expo prebuild -p android --clean
 npx expo run:android
 ```
 
@@ -140,9 +140,13 @@ Settings > App also has:
 
 ```bash
 npm install
-npx expo prebuild -p android   # generates ./android (gitignored, regenerable)
-npx expo run:android           # build + launch on a connected device
+npx expo prebuild -p android --clean   # regenerates ./android (gitignored) from app.json
+npx expo run:android                   # build + launch on a connected device
 ```
+
+`--clean` matters any time `app.json`/assets change (app name, icon, plugins): without it,
+prebuild can leave a stale `android/` project around with the old values baked in — that's
+what a plain `npm install` alone will never fix, since it never touches `android/` at all.
 
 ## Open items
 

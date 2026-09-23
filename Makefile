@@ -20,7 +20,7 @@ start:
 	npx expo start
 
 run-android:
-	npx expo prebuild -p android
+	npx expo prebuild -p android --clean
 	npx expo run:android
 
 build-eas:
