@@ -10,9 +10,10 @@ needs your device/accounts and can't be done from within an agent session.
       Models are NOT bundled into the APK by default (that's `scripts/setup-models.sh` +
       the `withBundledModels` plugin — an alternate path that isn't active in `app.json`'s
       plugin list right now); the app instead shows a first-run setup wizard that
-      downloads the default LLM + embedding model (~2.3GB) once you launch it.
-- [ ] Confirm the first-run wizard downloads and loads both default models, and the app
-      answers a query end-to-end
+      downloads the two default LLMs (primary + fast/secondary) + embedding model
+      (~3.2GB) once you launch it.
+- [ ] Confirm the first-run wizard downloads and loads all three default models, and
+      the app answers a query end-to-end
 - [ ] Try the queries in `docs/EVAL_QUERIES.md` and capture the responses
 - [ ] Spot-check RAM via the in-app monitor (Settings > Stats & System) stays under 12GB,
       and storage stays under 50GB

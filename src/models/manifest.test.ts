@@ -21,8 +21,11 @@ describe("totalManifestBytes", () => {
 });
 
 describe("REQUIRED_MODELS", () => {
-  it("includes exactly one llm and one embedding model", () => {
-    expect(REQUIRED_MODELS.filter((m) => m.kind === "llm")).toHaveLength(1);
+  it("includes exactly two llms (primary + fast/secondary) and one embedding model", () => {
+    // Two required LLMs deliberately, not one: the adaptive-routing layer
+    // (src/routing/) needs a real 'fast' role model available from first
+    // launch, not only after an optional later download.
+    expect(REQUIRED_MODELS.filter((m) => m.kind === "llm")).toHaveLength(2);
     expect(REQUIRED_MODELS.filter((m) => m.kind === "embedding")).toHaveLength(1);
   });
 

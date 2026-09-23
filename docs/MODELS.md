@@ -75,18 +75,34 @@ to match. Worth revisiting (e.g. a multilingual embedding model matched to the
 device's locale, paired with a multilingual LLM candidate and corpus) as future
 work, not in this version.
 
+## Secondary generation model — chosen (required, downloaded at first-run setup)
+
+**[Qwen2.5-1.5B-Instruct](https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct)**
+(Alibaba, **Apache-2.0 license**), quantized GGUF from
+**[bartowski/Qwen2.5-1.5B-Instruct-GGUF](https://huggingface.co/bartowski/Qwen2.5-1.5B-Instruct-GGUF)**,
+file `Qwen2.5-1.5B-Instruct-Q4_K_M.gguf` (~0.92GB, sha256 in `src/models/manifest.ts`).
+
+Downloaded alongside Phi-3.5-mini and the embedding model during mandatory
+first-run setup — `required: true`, same as the other two — rather than left
+as an optional Settings-screen download. This is deliberate: the adaptive
+routing work (`src/routing/`, see `docs/ADAPTIVE_ROUTING.md`) needs at least
+two real, actually-different-sized models to route between (a `fast` role and
+a `general`/`reasoning` role) from the moment the app is usable, not only
+after a user manually fetches a second model later. Curated as `fast` in
+`ModelCapabilities` (`src/models/manifest.ts`) — smallest/quickest of the
+three catalog LLMs.
+
 ## Optional LLM catalog (choose your model)
 
-Beyond the required default, the in-app Settings screen offers additional
-Apache-2.0-licensed LLM candidates a user can download and switch to:
+Beyond the two required generation models, the in-app Settings screen offers
+one further Apache-2.0-licensed LLM candidate a user can download and switch to:
 
 | Candidate | Params | Quant | Approx. size | Notes |
 |---|---|---|---|---|
-| Qwen2.5-1.5B-Instruct | 1.5B | Q4_K_M | ~0.92GB | Faster/lighter alternative |
 | Qwen2.5-7B-Instruct | 7B | Q4_K_M | ~4.36GB | Stronger reasoning, more RAM/storage, slower tokens/sec |
 
-Both from `bartowski`'s GGUF quantizations, sha256-verified the same way as the
-default models (see `src/models/manifest.ts`). Switching models re-loads the
+From `bartowski`'s GGUF quantizations, sha256-verified the same way as the
+required models (see `src/models/manifest.ts`). Switching models re-loads the
 inference engine (`LlamaEngine`/`EmbeddingEngine` now release their previous
 context before loading a new one, avoiding a native memory leak on switch).
 
@@ -193,11 +209,20 @@ not attempted in this version. Typing always works everywhere regardless.
 
 ## Delivery: one-time first-run download
 
-Both default models are declared with `required: true` in `src/models/manifest.ts`.
-The app itself ships small (no multi-GB assets baked in, for fast builds/installs);
+All three required assets (Phi-3.5-mini, Qwen2.5-1.5B, the embedding model) are
+declared with `required: true` in `src/models/manifest.ts` (~3.2GB total). The
+app itself ships small (no multi-GB assets baked in, for fast builds/installs);
 on first launch it shows a mandatory setup screen that downloads them — see
 `ARCHITECTURE.md` "First-run model setup". Once done, the app works completely
 offline from then on, matching "work completely offline once installed."
+
+Each download has a 60-second *inactivity* timeout (`ModelManager.
+downloadCatalogModel`, not a flat deadline — a slow-but-progressing download
+isn't penalized, only zero progress for 60s is treated as stalled) and, in the
+setup wizard, a visible error + Retry button per failed asset. Before this, a
+stalled download (e.g. a host rate-limiting the connection) just sat at 0%
+forever with no error and no way to retry — the mandatory first-run screen had
+no escape hatch at all.
 
 The same screen, reached later via the chat UI's "Models" button, additionally
 lets a user fetch **optional, non-default** models over the network — only when

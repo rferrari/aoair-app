@@ -104,8 +104,8 @@ export const MODEL_CATALOG: CatalogModel[] = [
     sourceUrl:
       "https://huggingface.co/bartowski/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf",
     license: "Apache-2.0",
-    description: "1.5B dense, faster/lighter alternative to the default. ~1.0GB.",
-    required: false,
+    description: "1.5B dense, fast/lightweight secondary model. ~1.0GB. Downloaded at first-run setup alongside the primary model, giving adaptive routing two real models to switch between from the start.",
+    required: true,
     capabilities: { roles: ["fast"] },
   },
   {
