@@ -333,5 +333,28 @@
     "usePrompt": "Usar Este Prompt de Pesquisa",
     "next": "Próximo",
     "dontShowAgain": "Não mostrar novamente"
+  },
+  "processingIndicator": {
+    "retrieving": "🔍 Buscando no acervo offline…",
+    "thinking": "🧠 Raciocinando sobre o contexto local…",
+    "generating": "⚡ Transmitindo tokens…"
+  },
+  "personalities": {
+    "succinct": {
+      "label": "Sucinto e Direto",
+      "description": "Mais rápido — 2–3 parágrafos curtos ou tópicos, sem introdução. Padrão para celular."
+    },
+    "detailed": {
+      "label": "Completo e Detalhado",
+      "description": "Explicações estruturadas e completas, com comparações e raciocínio."
+    },
+    "summary": {
+      "label": "Resumo Executivo",
+      "description": "Uma conclusão principal, seguida de 3 tópicos-chave."
+    },
+    "custom": {
+      "label": "Personalizado",
+      "description": "Escreva seu próprio prompt de sistema."
+    }
   }
 }

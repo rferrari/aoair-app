@@ -71,9 +71,9 @@ export function PersonalitySettings() {
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.optionLabel}>
-              {p.icon} {p.label}
+              {p.icon} {t(`personalities.${p.id}.label`)}
             </Text>
-            <Text style={styles.optionDescription}>{p.description}</Text>
+            <Text style={styles.optionDescription}>{t(`personalities.${p.id}.description`)}</Text>
           </View>
         </Pressable>
       ))}

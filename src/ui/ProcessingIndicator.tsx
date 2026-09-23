@@ -1,16 +1,11 @@
 import React, { useEffect, useRef } from "react";
 import { View, Text, StyleSheet, Animated } from "react-native";
+import { useTranslation } from "react-i18next";
 import { colors } from "./theme/colors";
 import { typography } from "./theme/typography";
 import { radii } from "./theme/spacing";
 
 export type ProcessingStatus = "idle" | "retrieving" | "thinking" | "generating";
-
-const STATUS_LABEL: Record<Exclude<ProcessingStatus, "idle">, string> = {
-  retrieving: "🔍 Searching offline corpus…",
-  thinking: "🧠 Reasoning over local context…",
-  generating: "⚡ Streaming tokens…",
-};
 
 function BouncingDot({ delay }: { delay: number }) {
   const y = useRef(new Animated.Value(0)).current;
@@ -38,6 +33,12 @@ export function ProcessingIndicator({
   status: Exclude<ProcessingStatus, "idle">;
   label?: string;
 }) {
+  const { t } = useTranslation();
+  const STATUS_LABEL: Record<Exclude<ProcessingStatus, "idle">, string> = {
+    retrieving: t("processingIndicator.retrieving"),
+    thinking: t("processingIndicator.thinking"),
+    generating: t("processingIndicator.generating"),
+  };
   const pulse = useRef(new Animated.Value(0.4)).current;
 
   useEffect(() => {

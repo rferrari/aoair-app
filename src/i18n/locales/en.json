@@ -333,5 +333,28 @@
     "usePrompt": "Use This Research Prompt",
     "next": "Next",
     "dontShowAgain": "Don't show again"
+  },
+  "processingIndicator": {
+    "retrieving": "🔍 Searching offline corpus…",
+    "thinking": "🧠 Reasoning over local context…",
+    "generating": "⚡ Streaming tokens…"
+  },
+  "personalities": {
+    "succinct": {
+      "label": "Succinct & Direct",
+      "description": "Fastest — 2–3 brief paragraphs or bullets, no preamble. Default for mobile."
+    },
+    "detailed": {
+      "label": "Thorough & Detailed",
+      "description": "Structured, thorough explanations with comparisons and reasoning."
+    },
+    "summary": {
+      "label": "Executive Summary",
+      "description": "One top-line takeaway, then 3 key bullet points."
+    },
+    "custom": {
+      "label": "Custom",
+      "description": "Write your own system prompt."
+    }
   }
 }
