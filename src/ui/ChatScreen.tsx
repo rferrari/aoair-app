@@ -60,12 +60,14 @@ import { ProcessingIndicator, ProcessingStatus } from "./ProcessingIndicator";
 import { Drawer, DrawerItem } from "./Drawer";
 import { AboutScreen } from "./AboutScreen";
 import { KnowledgeBaseScreen } from "./KnowledgeBaseScreen";
+import { ExecutionTelemetryScreen } from "./ExecutionTelemetryScreen";
 import { ChatHeader } from "./ChatHeader";
 import { Toast } from "./Toast";
 import { ModelLoadErrorCard } from "./components/ModelLoadErrorCard";
 import { MarkdownMessage } from "./components/MarkdownMessage";
 import { SourceFootnotes } from "./components/SourceFootnotes";
 import { recordQueryStats, trackPeakRss, startAppMemoryTracking, QueryStats } from "../services/telemetry";
+import { recordExecution } from "../services/executionTelemetry";
 import { getMemoryInfo } from "ram-monitor";
 import { useTheme, colors, typography } from "./theme";
 import { spacing, radii, shadows } from "./theme/spacing";
@@ -120,6 +122,7 @@ export function ChatScreen({
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const [showKnowledgeBase, setShowKnowledgeBase] = useState(false);
+  const [showExecutionTelemetry, setShowExecutionTelemetry] = useState(false);
   const [personalityId, setPersonalityIdState] = useState<PersonalityId>("succinct");
   const [processing, setProcessing] = useState<{ messageId: string; status: ProcessingStatus; label?: string } | null>(null);
   const [deepResearchActive, setDeepResearchActive] = useState(false);
@@ -554,10 +557,30 @@ export function ChatScreen({
                 reasonCodes: result.plan.reasonCodes,
                 modelSwitches: result.modelSwitches,
                 crossMessageModelSwitch: result.crossMessageModelSwitch,
+                modelResidency: result.modelResidency,
+                modelLoadMs: result.modelLoadMs,
                 retrievalUsed: chunks.length > 0,
                 generationLatencyMs: result.generationLatencyMs,
                 outcome: stopRequestedRef.current ? "cancelled" : "success",
               };
+              // Override the generic ttftMs/tokPerSec the base
+              // recordQueryStats() call below already computes (measured
+              // from message-send start, which for this path includes
+              // model load time) with executor.ts's precisely-scoped
+              // value — model load time is measured separately
+              // (modelLoadMs) and deliberately excluded from ttftMs here,
+              // the whole point of this fix. Only assigned when actually
+              // available (no generate step ran at all, e.g. no model
+              // resolvable, leaves it unset) — QueryStats.ttftMs is a
+              // required field, so setting it to undefined here would
+              // overwrite the base object's generic fallback instead of
+              // preserving it.
+              if (result.ttftMs !== undefined) {
+                adaptiveTelemetry.ttftMs = result.ttftMs;
+                if (result.generationLatencyMs && result.generationLatencyMs > 0) {
+                  adaptiveTelemetry.tokPerSec = tokensGenerated / (result.generationLatencyMs / 1000);
+                }
+              }
             }
           } catch (e: any) {
             // A routing failure must never leave the user without a
@@ -585,7 +608,7 @@ export function ChatScreen({
       );
 
       const durationMs = performance.now() - startTime;
-      recordQueryStats({
+      const finalStats: QueryStats = {
         tokensGenerated,
         durationMs,
         ttftMs,
@@ -594,7 +617,31 @@ export function ChatScreen({
         timestamp: Date.now(),
         totalLatencyMs: durationMs,
         ...(adaptiveTelemetry ?? {}),
-      });
+      };
+      recordQueryStats(finalStats);
+      // Persisted (SQLite), survives reload/restart — telemetry.ts's
+      // recordQueryStats above stays the separate, unmodified in-memory
+      // compatibility layer for the existing live Usage Stats display; this
+      // is the new Phase 7 source of truth. Fire-and-forget: telemetry
+      // must never block or fail the chat response the user already has.
+      recordExecution({
+        modelId: finalStats.modelId,
+        taskType: finalStats.taskType,
+        adaptiveRoutingUsed: finalStats.adaptiveRoutingUsed ?? false,
+        reasonCodes: finalStats.reasonCodes,
+        retrievalUsed: finalStats.retrievalUsed,
+        modelSwitches: finalStats.modelSwitches,
+        crossMessageModelSwitch: finalStats.crossMessageModelSwitch,
+        modelResidency: finalStats.modelResidency,
+        modelLoadMs: finalStats.modelLoadMs,
+        ttftMs: finalStats.ttftMs,
+        generationLatencyMs: finalStats.generationLatencyMs,
+        totalLatencyMs: finalStats.totalLatencyMs,
+        tokensGenerated: finalStats.tokensGenerated,
+        tokPerSec: finalStats.tokPerSec,
+        peakRssBytes: finalStats.peakRssBytes,
+        outcome: finalStats.outcome ?? (wasStopped ? "cancelled" : "success"),
+      }).catch(() => {});
 
       if (assistantText.trim().length > 0) {
         await persistMessage(sessionId, "assistant", assistantText, assistantId);
@@ -646,6 +693,17 @@ export function ChatScreen({
           m.id === assistantId ? { ...m, text: `Error: ${e?.message ?? e}` } : m
         )
       );
+      // Minimal failure record — adaptiveTelemetry is scoped inside the
+      // inner try block above, not accessible here, so this can't say
+      // whether adaptive routing was involved; still worth capturing that
+      // a request failed at all, with what timing we do have.
+      recordExecution({
+        adaptiveRoutingUsed: false,
+        totalLatencyMs: performance.now() - startTime,
+        tokensGenerated,
+        outcome: "failure",
+        errorMessage: e?.message ?? String(e),
+      }).catch(() => {});
     } finally {
       setGenerating(false);
       setProcessing(null);
@@ -670,8 +728,13 @@ export function ChatScreen({
     ...(onOpenSettings
       ? [{ key: "settings", icon: "⚙️", label: t("chatScreen.drawerItems.settings"), onPress: onOpenSettings }]
       : []),
+    { key: "telemetry", icon: "📊", label: t("chatScreen.drawerItems.telemetry"), onPress: () => setShowExecutionTelemetry(true) },
     { key: "about", icon: "ℹ️", label: t("chatScreen.drawerItems.about"), onPress: () => setShowAbout(true) },
   ];
+
+  if (showExecutionTelemetry) {
+    return <ExecutionTelemetryScreen onClose={() => setShowExecutionTelemetry(false)} />;
+  }
 
   if (showKnowledgeBase) {
     return <KnowledgeBaseScreen onClose={() => setShowKnowledgeBase(false)} />;

@@ -89,6 +89,38 @@ async function openAndMigrate(): Promise<SQLite.SQLiteDatabase> {
       created_at INTEGER NOT NULL
     );
 
+    -- Phase 7 (docs/ADAPTIVE_ROUTING.md) — persistent, model-tagged
+    -- execution telemetry, local/offline only, never transmitted. NEVER
+    -- stores the user's prompt or the generated response text — this is
+    -- engineering/debugging data (timing, model, task classification), not
+    -- a copy of conversation history. reason_codes is a JSON-encoded
+    -- string array (router.ts's RoutingPlan.reasonCodes), not a joined
+    -- table, since it's small and read as a whole, never queried by
+    -- individual code.
+    CREATE TABLE IF NOT EXISTS execution_telemetry (
+      id TEXT PRIMARY KEY,
+      created_at INTEGER NOT NULL,
+      model_id TEXT,
+      task_type TEXT,
+      adaptive_routing_used INTEGER NOT NULL DEFAULT 0,
+      reason_codes TEXT,
+      retrieval_used INTEGER,
+      model_switches INTEGER,
+      cross_message_model_switch INTEGER,
+      model_residency TEXT,
+      model_load_ms REAL,
+      ttft_ms REAL,
+      generation_latency_ms REAL,
+      total_latency_ms REAL,
+      tokens_generated INTEGER,
+      tok_per_sec REAL,
+      peak_rss_bytes INTEGER,
+      outcome TEXT,
+      error_message TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_execution_telemetry_created
+      ON execution_telemetry(created_at DESC);
+
     -- User-imported document collections (Settings > Knowledge Base >
     -- Import). Chunks from the bundled/downloaded corpus have no collection
     -- (collection_id IS NULL on the chunks table below) and are always

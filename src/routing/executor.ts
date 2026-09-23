@@ -25,6 +25,16 @@ import type { RetrievedChunk } from "../rag/retrieve.types";
 import { RoutingPlan, RoutingStep } from "./router";
 import { VerificationStatus } from "./types";
 
+/**
+ * "cold" — nothing was resident in LlamaEngine at all before this request.
+ * "switched" — something else was resident, now a different model.
+ * "resident" — the target model was already the resident one; no load()
+ * call was even made. Classified once, for the primary generate step only
+ * (the model whose output the user actually reads) — see
+ * PipelineResult.modelResidency's own doc comment.
+ */
+export type ModelResidency = "cold" | "switched" | "resident";
+
 /** The bits of a CatalogModel the executor actually needs — kept minimal and injected (resolveModel) rather than importing MODEL_CATALOG directly, so this stays testable without a real catalog and doesn't silently ignore discovered/custom models the router might reference. */
 export interface ExecutableModel {
   id: string;
@@ -76,6 +86,25 @@ export interface PipelineResult {
    * this plan or carried over from a previous, separate request.
    */
   crossMessageModelSwitch: boolean;
+  /**
+   * Timing/residency for the primary generate step specifically — verify
+   * step timing isn't captured here (it's a much smaller, secondary cost;
+   * see docs/ADAPTIVE_ROUTING.md if that's ever needed). All undefined if
+   * no generate step ran at all (e.g. no model available — see `warnings`).
+   *
+   * Deliberately NOT the previous, ill-defined "generationLatencyMs =
+   * whole executeRoutingPlan() duration" — see adaptiveChat.ts, which used
+   * to compute that separately; it's superseded by these, scoped
+   * precisely, per an explicit request not to just rename the old field
+   * while keeping its timing boundaries.
+   */
+  modelResidency?: ModelResidency;
+  /** Time spent inside llamaEngine.load() for the generate step's model — 0 when modelResidency is "resident" (no load() call was made at all). */
+  modelLoadMs?: number;
+  /** From the moment llamaEngine.generate() was called (model already loaded/ready — load time is NOT included) to the first streamed token. */
+  ttftMs?: number;
+  /** From the first streamed token to the generate() call resolving — i.e. the whole generate() call's duration MINUS ttftMs, matching the existing tokPerSec convention (tokensGenerated / time-after-first-token) already used elsewhere in this app. */
+  generationLatencyMs?: number;
   timedOut: boolean;
   stopped: boolean;
 }
@@ -102,6 +131,16 @@ export async function executeRoutingPlan(
   // resident state at the moment this request started, not an assumption.
   const residentFilenameBefore = llamaEngine.getModelInfo()?.filename ?? null;
 
+  // Captured once, on the FIRST successful ensureModelLoaded call — per
+  // plan step ordering (retrieve, generate, verify) that's always the
+  // generate step's, so verify's own (separate, smaller) load cost never
+  // overwrites it.
+  let modelResidency: ModelResidency | undefined;
+  let modelLoadMs: number | undefined;
+  let ttftMs: number | undefined;
+  let generationLatencyMs: number | undefined;
+  let genLoadCaptured = false;
+
   const markTimedOut = () => {
     timedOut = true;
   };
@@ -123,17 +162,37 @@ export async function executeRoutingPlan(
       warnings.push(`model-unavailable:${modelId}`);
       return false;
     }
-    if (loadedModelId !== modelId) {
+    // Compares against the REAL engine state (residentFilenameBefore), not
+    // just this execution's own loadedModelId tracker — loadedModelId
+    // starts null every call, so without this a model that's genuinely
+    // already resident (warm from a previous, separate request) would
+    // still trigger a redundant load() call. LlamaEngine.load() itself
+    // already no-ops when nothing changed, so this doesn't change
+    // observable engine behavior — it only avoids mismeasuring a warm
+    // execution as having a nonzero load cost.
+    const alreadyResident = loadedModelId === modelId || (loadedModelId === null && residentFilenameBefore === model.filename);
+    if (!alreadyResident) {
+      const loadStart = performance.now();
       await llamaEngine.load(model.filename);
+      const loadMs = performance.now() - loadStart;
       if (loadedModelId !== null) modelSwitches++;
-      loadedModelId = modelId;
+      if (!genLoadCaptured) {
+        modelResidency = residentFilenameBefore === null ? "cold" : "switched";
+        modelLoadMs = loadMs;
+        genLoadCaptured = true;
+      }
+    } else if (!genLoadCaptured) {
+      modelResidency = "resident";
+      modelLoadMs = 0;
+      genLoadCaptured = true;
     }
+    loadedModelId = modelId;
     return true;
   };
 
   for (const step of plan.steps) {
     if (callbacks.shouldStop?.()) {
-      return { answer, plan, citations, verification, warnings, stepsExecuted, modelSwitches, timedOut, crossMessageModelSwitch: crossMessageModelSwitch(), stopped: true };
+      return { answer, plan, citations, verification, warnings, stepsExecuted, modelSwitches, timedOut, crossMessageModelSwitch: crossMessageModelSwitch(), modelResidency, modelLoadMs, ttftMs, generationLatencyMs, stopped: true };
     }
     callbacks.onStepStart?.(step);
 
@@ -149,7 +208,7 @@ export async function executeRoutingPlan(
         if (!ok) {
           if (step.required) {
             warnings.push("generate-step-failed-no-model");
-            return { answer, plan, citations, verification, warnings, stepsExecuted, modelSwitches, timedOut, crossMessageModelSwitch: crossMessageModelSwitch(), stopped: false };
+            return { answer, plan, citations, verification, warnings, stepsExecuted, modelSwitches, timedOut, crossMessageModelSwitch: crossMessageModelSwitch(), modelResidency, modelLoadMs, ttftMs, generationLatencyMs, stopped: false };
           }
           break;
         }
@@ -158,21 +217,43 @@ export async function executeRoutingPlan(
         // and keeps ExecutableModel's capability data out of
         // ensureModelLoaded's own narrower "is something loaded" concern.
         const generateModel = resolveModel(step.modelId!);
+
+        // Measured from the moment generate() is actually called — the
+        // model is already loaded/ready by this point (ensureModelLoaded
+        // above already resolved), so modelLoadMs is deliberately NOT
+        // included here. firstTokenAt is captured via a wrapping callback
+        // rather than trusting the caller's own onToken (which may not
+        // even be provided) to tell us anything about timing.
+        let firstTokenAt: number | null = null;
+        const genStart = performance.now();
+        const timedOnToken = (piece: string) => {
+          if (firstTokenAt === null) firstTokenAt = performance.now();
+          callbacks.onToken?.(piece);
+        };
+
         answer = generateModel?.usesChatTemplate
           ? await llamaEngine.generate({
               messages: assembleChatMessages(input.query, citations, input.systemPrompt, input.history),
               nPredict: step.maxTokens ?? 512,
-              onToken: callbacks.onToken,
+              onToken: timedOnToken,
               timeoutMs: step.timeoutMs ?? STEP_TIMEOUT_MS,
               onTimeout: markTimedOut,
             })
           : await llamaEngine.generate({
               prompt: assemblePrompt(input.query, citations, input.systemPrompt, input.history),
               nPredict: step.maxTokens ?? 512,
-              onToken: callbacks.onToken,
+              onToken: timedOnToken,
               timeoutMs: step.timeoutMs ?? STEP_TIMEOUT_MS,
               onTimeout: markTimedOut,
             });
+
+        const genEnd = performance.now();
+        // firstTokenAt can stay null for a genuinely empty response (e.g.
+        // stopped/timed out before any token streamed) — treat the whole
+        // call as "waiting," not as a divide-by-something-undefined case.
+        ttftMs = (firstTokenAt ?? genEnd) - genStart;
+        generationLatencyMs = genEnd - genStart - ttftMs;
+
         stepsExecuted++;
         break;
       }
@@ -214,7 +295,7 @@ export async function executeRoutingPlan(
     }
   }
 
-  return { answer, plan, citations, verification, warnings, stepsExecuted, modelSwitches, timedOut, crossMessageModelSwitch: crossMessageModelSwitch(), stopped: false };
+  return { answer, plan, citations, verification, warnings, stepsExecuted, modelSwitches, timedOut, crossMessageModelSwitch: crossMessageModelSwitch(), modelResidency, modelLoadMs, ttftMs, generationLatencyMs, stopped: false };
 }
 
 /**

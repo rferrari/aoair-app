@@ -307,6 +307,7 @@
       "prompts": "Ideias de Prompts",
       "myDocuments": "Meus Documentos",
       "settings": "Configurações",
+      "telemetry": "Telemetria de Execução",
       "about": "Sobre & Informações"
     },
     "inputPlaceholder": "Faça uma pergunta de pesquisa offline…",
@@ -374,5 +375,24 @@
       "label": "Personalizado",
       "description": "Escreva seu próprio prompt de sistema."
     }
+  },
+  "executionTelemetry": {
+    "title": "TELEMETRIA DE EXECUÇÃO",
+    "subtitle": "{{count}} execuções recentes",
+    "exportJson": "⬇ JSON",
+    "exportCsv": "⬇ CSV",
+    "clear": "🗑 Limpar",
+    "clearTitle": "Limpar telemetria de execução?",
+    "clearMessage": "Exclui todos os registros de execução salvos neste aparelho. Isso não pode ser desfeito.",
+    "clearConfirm": "Limpar",
+    "exportFailedTitle": "Falha na exportação",
+    "empty": "Nenhuma execução registrada ainda. Envie uma mensagem para registrar sua primeira execução.",
+    "noModel": "sem modelo",
+    "tokPerSec": "Velocidade",
+    "loadTime": "Carregamento",
+    "ttft": "TTFT",
+    "totalTime": "Total",
+    "memory": "Mem. Pico",
+    "tokens": "Tokens"
   }
 }

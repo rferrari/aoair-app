@@ -307,6 +307,7 @@
       "prompts": "Prompt Ideas",
       "myDocuments": "My Documents",
       "settings": "Settings",
+      "telemetry": "Execution Telemetry",
       "about": "About & Info"
     },
     "inputPlaceholder": "Ask an offline research question…",
@@ -374,5 +375,24 @@
       "label": "Custom",
       "description": "Write your own system prompt."
     }
+  },
+  "executionTelemetry": {
+    "title": "EXECUTION TELEMETRY",
+    "subtitle": "{{count}} recent runs",
+    "exportJson": "⬇ JSON",
+    "exportCsv": "⬇ CSV",
+    "clear": "🗑 Clear",
+    "clearTitle": "Clear execution telemetry?",
+    "clearMessage": "Deletes all persisted execution records on this device. This cannot be undone.",
+    "clearConfirm": "Clear",
+    "exportFailedTitle": "Export failed",
+    "empty": "No executions recorded yet. Send a message to record your first run.",
+    "noModel": "no model",
+    "tokPerSec": "Speed",
+    "loadTime": "Load",
+    "ttft": "TTFT",
+    "totalTime": "Total",
+    "memory": "Peak Mem",
+    "tokens": "Tokens"
   }
 }

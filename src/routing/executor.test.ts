@@ -258,3 +258,89 @@ describe("crossMessageModelSwitch", () => {
     expect(result.crossMessageModelSwitch).toBe(false);
   });
 });
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+describe("Phase 7 timing/residency (modelResidency, modelLoadMs, ttftMs, generationLatencyMs)", () => {
+  const genPlan = (modelId: string) =>
+    plan({ steps: [{ id: "generate-0", type: "generate", modelId, required: true }] });
+
+  it("cold model load: nothing resident before this request", async () => {
+    const result = await executeRoutingPlan(genPlan("phi"), { query: "hi" }, resolveModel);
+    expect(result.modelResidency).toBe("cold");
+    expect(loadMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("warm/resident model: already the resident model, no load() call at all", async () => {
+    await executeRoutingPlan(genPlan("phi"), { query: "hi" }, resolveModel);
+    loadMock.mockClear();
+    const result = await executeRoutingPlan(genPlan("phi"), { query: "hi" }, resolveModel);
+    expect(result.modelResidency).toBe("resident");
+    expect(result.modelLoadMs).toBe(0);
+    expect(loadMock).not.toHaveBeenCalled();
+  });
+
+  it("Qwen -> Phi: switched, with a real load() call", async () => {
+    await executeRoutingPlan(genPlan("qwen-1.5b"), { query: "hi" }, resolveModel);
+    const result = await executeRoutingPlan(genPlan("phi"), { query: "hi" }, resolveModel);
+    expect(result.modelResidency).toBe("switched");
+    expect(result.modelLoadMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it("Phi -> Qwen: switched, with a real load() call", async () => {
+    await executeRoutingPlan(genPlan("phi"), { query: "hi" }, resolveModel);
+    const result = await executeRoutingPlan(genPlan("qwen-1.5b"), { query: "hi" }, resolveModel);
+    expect(result.modelResidency).toBe("switched");
+    expect(result.modelLoadMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it("ttftMs no longer includes model-load time — a slow load() doesn't inflate it", async () => {
+    // A deliberately slow load (simulating a real multi-GB mmap cold
+    // start) followed by a fast, immediate first token. If ttftMs were
+    // still measured from before load() (the old, conflated behavior),
+    // it would be >= the load delay; measured correctly, it's tiny.
+    loadMock.mockImplementationOnce(async (filename: string) => {
+      await delay(60);
+      mockResidentFilename = filename;
+    });
+    generateMock.mockImplementationOnce(async (opts: any) => {
+      opts.onToken?.("hi");
+      return "mock answer";
+    });
+
+    const result = await executeRoutingPlan(genPlan("phi"), { query: "hi" }, resolveModel);
+
+    expect(result.modelLoadMs).toBeGreaterThanOrEqual(50);
+    expect(result.ttftMs).toBeLessThan(30);
+  });
+
+  it("generationLatencyMs is the post-first-token portion of the generate() call, not the whole thing", async () => {
+    generateMock.mockImplementationOnce(async (opts: any) => {
+      opts.onToken?.("h");
+      await delay(30);
+      opts.onToken?.("i");
+      return "mock answer";
+    });
+
+    const result = await executeRoutingPlan(genPlan("phi"), { query: "hi" }, resolveModel);
+
+    expect(result.generationLatencyMs).toBeGreaterThanOrEqual(20);
+  });
+
+  it("no generate step ran at all: timing fields stay undefined, not zero (an honest 'not measured', not a fabricated fast time)", async () => {
+    const result = await executeRoutingPlan(genPlan("does-not-exist"), { query: "hi" }, resolveModel);
+    expect(result.modelResidency).toBeUndefined();
+    expect(result.modelLoadMs).toBeUndefined();
+    expect(result.ttftMs).toBeUndefined();
+    expect(result.generationLatencyMs).toBeUndefined();
+  });
+
+  it("cancellation (shouldStop already true): no timing fields fabricated", async () => {
+    const result = await executeRoutingPlan(genPlan("phi"), { query: "hi" }, resolveModel, { shouldStop: () => true });
+    expect(result.stopped).toBe(true);
+    expect(result.modelLoadMs).toBeUndefined();
+    expect(result.ttftMs).toBeUndefined();
+  });
+});

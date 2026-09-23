@@ -773,3 +773,75 @@ switches models internally) — the two fields' independence is itself
 tested, not just each field alone. 116 tests total, up from 111.
 Routing rules/classification/model-selection/retrieval thresholds/
 generation prompts/Deep Research: untouched.
+
+**Phase 7 — persistent, model-tagged execution telemetry: done.** Real
+numbers from a real device (Qwen: 13 tok/s, TTFT reported as 18.71s) made
+the case for this directly — with the old undifferentiated `ttftMs`
+(message-send start to first token), that 18.71s could have been mostly
+model-load time, mostly prompt processing, or genuinely slow generation;
+there was no way to tell, and no way to compare runs after a reload since
+`telemetry.ts` was always in-memory-only.
+
+- **Timing semantics, made explicit and precisely scoped** (`executor.ts`,
+  `PipelineResult`): `modelLoadMs` (time in `llamaEngine.load()` for the
+  generate step's model — 0 when nothing needed loading), `ttftMs` (from
+  the moment `generate()` was actually called, model already ready, to
+  the first streamed token — model load time is NOT included), `generationLatencyMs`
+  (first token to `generate()` resolving — i.e. the whole call's duration
+  MINUS `ttftMs`, matching this app's existing `tokPerSec` convention).
+  `totalLatencyMs` (unchanged, `ChatScreen.tsx`-level, the full request
+  span). **Not a rename of the old `ttftMs`/`generationLatencyMs`** — the
+  old `generationLatencyMs` (`adaptiveChat.ts`) measured the WHOLE
+  `executeRoutingPlan()` call (retrieve+generate+verify combined) and was
+  removed outright, superseded by the new, correctly-scoped field.
+- **Model residency**, captured once per execution for the primary
+  generate step: `"cold"` (nothing resident in `LlamaEngine` before this
+  request), `"switched"` (something else was resident), `"resident"`
+  (already the right model — no `load()` call even made). Also fixed a
+  real inefficiency this surfaced: `ensureModelLoaded` previously called
+  `llamaEngine.load()` on the first step of every plan unconditionally
+  (its own per-execution `loadedModelId` tracker starts `null` every
+  time), even when the target model was already genuinely resident from a
+  separate, earlier request — now checked against `llamaEngine.
+  getModelInfo()`'s real state first. `LlamaEngine.load()` already
+  no-opped internally in that case, so this doesn't change observable
+  engine behavior, only what gets measured/called.
+- **New `src/services/executionTelemetry.ts` + `.pure.ts`** (the split
+  matches `rag/pure.ts`'s established pattern — `.pure.ts` has zero
+  native-module imports, so it's unit-testable under plain vitest; `.ts`
+  is the thin SQLite/file-system/sharing glue around it). New
+  `execution_telemetry` SQLite table (`rag/db.ts`, same migration pattern
+  as `answer_feedback`) — local/offline only, **never stores the user's
+  prompt or the generated response text**, only timing/model/task
+  metadata. `src/services/telemetry.ts`'s in-memory `QueryStats` stays as
+  an unmodified compatibility layer for the existing live Usage Stats
+  display (its `ttftMs`/`generationLatencyMs` semantics were corrected
+  the same way for the adaptive path specifically, via `ChatScreen.tsx`
+  overriding the generic message-send-to-first-token measurement with
+  the precise executor-measured one — care taken not to overwrite the
+  required `ttftMs` field with `undefined` when no generate step ran).
+  `ChatScreen.tsx` calls both `recordQueryStats` (unchanged) and the new
+  `recordExecution` (fire-and-forget, including a minimal failure record
+  in the outer catch block) after every message — adaptive, fixed-model,
+  and Deep Research alike.
+- **New dedicated screen** (`ExecutionTelemetryScreen.tsx`, opened via a
+  new drawer item — **not** Settings): browses recent runs (model, task,
+  tok/s, load time, TTFT, total time, peak memory, outcome, residency
+  icon), a "Clear" action, and JSON/CSV export via `expo-sharing` (already
+  a dependency, same pattern as `documentImporter.ts`'s existing
+  `exportCollection` — no new native dependency added).
+- **Not done, deliberately**: no routing/optimization decisions made from
+  any of this data yet, per explicit instruction; Phase 8 not started.
+- Tests: 8 new in `executor.test.ts` (cold/warm/switched residency, Qwen→
+  Phi and Phi→Qwen switch timing, ttftMs verified NOT inflated by a
+  deliberately slow mocked `load()`, generationLatencyMs verified as the
+  post-first-token portion specifically, undefined-not-fabricated timing
+  when no generate step ran or the plan was cancelled before one did) and
+  7 new in `executionTelemetry.test.ts` (JSON round-trips every field and
+  confirms no prompt/response-shaped keys leak in; CSV header/row shape,
+  `reasonCodes` pipe-joined so it can't split across columns, proper
+  comma/quote escaping, empty-not-"undefined" cells, empty-list handling).
+  131 tests total, up from 116. **Not testable in this sandbox** (native
+  SQLite/file-system/sharing): actual insert/read round-trips,
+  persistence across a real reload/restart, and the real share-sheet
+  export flow — these need real-device verification.

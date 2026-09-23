@@ -34,8 +34,6 @@ const modelManager = new ModelManager();
 export interface AdaptiveChatResult extends PipelineResult {
   /** The model that actually generated the answer (the plan's "generate" step's model), for telemetry/UI — undefined only if planRoute produced no generate step at all. */
   modelUsed?: CatalogModel;
-  /** Time spent specifically inside executeRoutingPlan() (retrieve+generate+verify), separate from whatever the caller measures as total request latency. */
-  generationLatencyMs: number;
   /** classifyTask(input.query)'s result — exposed here since RoutingPlan itself doesn't carry the task type, only the decisions made from it. */
   taskType: TaskType;
 }
@@ -98,12 +96,16 @@ export async function runAdaptiveChat(
   );
   const resolveModel = (modelId: string) => modelById.get(modelId);
 
-  const startedAt = performance.now();
+  // Timing (modelLoadMs/ttftMs/generationLatencyMs) and residency are
+  // measured precisely inside executeRoutingPlan() itself, scoped to the
+  // generate step specifically — see PipelineResult's own doc comments.
+  // No separate timing wraps this call; a coarser "whole plan" duration
+  // would just re-conflate load+retrieve+generate the way the old,
+  // superseded measurement here used to.
   const result = await executeRoutingPlan(plan, input, resolveModel, callbacks);
-  const generationLatencyMs = performance.now() - startedAt;
 
   const generateModelId = plan.steps.find((s) => s.type === "generate")?.modelId;
   const modelUsed = generateModelId ? MODEL_CATALOG.find((m) => m.id === generateModelId) : undefined;
 
-  return { ...result, modelUsed, generationLatencyMs, taskType };
+  return { ...result, modelUsed, taskType };
 }
