@@ -15,12 +15,15 @@ Research App" community bounty.
 - Works completely offline after a one-time first-run model setup
 - Runs on GrapheneOS / no GMS dependency
 - Real Android device, not just emulator
-- Import your own documents (.txt/.md/.csv/.json) into the local knowledge
+- Import your own documents (.txt/.md/.csv/.json/.pdf) into the local knowledge
   base, toggle or delete them per-collection, and export/share a collection
   as a portable JSON pack — see [Custom knowledge base](#custom-knowledge-base) below
 - Search Hugging Face for additional GGUF models beyond the curated default
   list, and download them the same way — see
   [Finding more models](#finding-more-models) below
+- UI localized in English and Portuguese, switchable in Settings or the
+  first-run setup wizard (`src/i18n/`) — manual selection only, no device-locale
+  auto-detection, same as every other preference in this app
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for the design (including exactly how
 first-run model setup works and why network permission is present but unused
