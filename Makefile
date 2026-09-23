@@ -43,7 +43,7 @@ check-android:
 	fi
 
 start:
-	npx expo start
+	npx expo start --localhost
 
 run-android:
 	npx expo prebuild -p android
