@@ -104,18 +104,16 @@ export function ExecutionTelemetryScreen({ onClose }: Props) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        {onClose ? (
-          <Pressable style={styles.backBtn} onPress={handleClose} hitSlop={8}>
-            <Text style={styles.backBtnText}>{t("usageStatsScreen.back")}</Text>
-          </Pressable>
-        ) : (
-          <View style={{ width: 40 }} />
-        )}
-        <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>{t("executionTelemetry.title")}</Text>
-          <Text style={styles.headerSubtitle}>{t("executionTelemetry.subtitle", { count: records.length })}</Text>
+        <View style={styles.headerLeft}>
+          <Text style={styles.headerIcon}>📊</Text>
+          <View>
+            <Text style={styles.headerTitle}>{t("executionTelemetry.title")}</Text>
+            <Text style={styles.headerSubtitle}>{t("executionTelemetry.subtitle", { count: records.length })}</Text>
+          </View>
         </View>
-        <View style={{ width: 40 }} />
+        <Pressable onPress={handleClose} hitSlop={8} style={styles.closeBtn}>
+          <Text style={styles.closeBtnText}>{t("common.done")}</Text>
+        </Pressable>
       </View>
 
       <View style={styles.actionsRow}>
@@ -201,14 +199,15 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border.default,
     backgroundColor: colors.bg.cardElevated,
   },
-  backBtn: {
-    paddingHorizontal: 8,
+  headerLeft: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  headerIcon: { fontSize: 20 },
+  closeBtn: {
+    paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: radii.xs,
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
   },
-  backBtnText: { ...typography.mono.xs, color: colors.text.accentCyan, fontWeight: "700" },
-  headerCenter: { alignItems: "center" },
+  closeBtnText: { ...typography.mono.xs, color: colors.text.accentCyan, fontWeight: "800" },
   headerTitle: { ...typography.ui.titleSm, color: colors.text.heading, letterSpacing: 0.5 },
   headerSubtitle: { ...typography.mono.xs, fontSize: 9, color: colors.text.dim },
   actionsRow: {
