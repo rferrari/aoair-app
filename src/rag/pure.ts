@@ -18,6 +18,76 @@ export function cosineSimilarity(a: Float32Array, b: Float32Array): number {
   return dot / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
+// bge-small-en-v1.5 cosine similarity heuristic: below this, a chunk isn't
+// actually about the query, it's just whatever happened to be "closest" out
+// of everything in the knowledge base — brute-force top-K with no floor
+// means even a query with nothing relevant on-device always gets K chunks
+// back, which then get force-fed into the prompt as "Context" the model is
+// told to answer from. Not a precise cutoff (no real device/embedding
+// runtime available to measure this corpus's actual score distribution —
+// see retrieve.relevance.test.ts), just cheap, evidence-informed-as-far-as-
+// possible insurance against near-random matches being presented as
+// relevant. Left unchanged rather than invented/re-guessed — moving it
+// without real score-distribution data to justify a new number would be
+// exactly the mistake it's meant to prevent.
+export const MIN_SEMANTIC_SIMILARITY = 0.45;
+
+/**
+ * Excludes chunks whose raw score is below a minimum confidence floor.
+ * Applied to a SINGLE source's raw scores, before fuseRetrievalResults's
+ * max-relative normalization — normalizing first would make a floor
+ * meaningless, since that normalization rescales each result set so its
+ * own best match always looks "confident" (~1.0) relative to itself,
+ * regardless of how weak that best match actually is in absolute terms.
+ */
+export function filterByMinScore<T extends { score: number }>(chunks: T[], minScore: number): T[] {
+  return chunks.filter((c) => c.score >= minScore);
+}
+
+/**
+ * Weighted-sum fusion of two already-scored, already-relevance-filtered
+ * result sets into one ranked list. Each source is normalized to its own
+ * max score before weighting so lexical (BM25, unbounded) and semantic
+ * (cosine, bounded [-1,1]) scores combine meaningfully despite being on
+ * completely different scales.
+ *
+ * This is a RELATIVE re-ranking step, not a second relevance gate — it has
+ * no way to tell a genuinely strong match from "the best of a bad lot",
+ * since normalizing to each set's own max erases that distinction by
+ * construction. Absolute relevance must be decided by filterByMinScore
+ * (or an equivalent gate, like lexicalSearch's exact-phrase MATCH
+ * requirement) on the INPUTS, before this runs — see retrieve.ts.
+ */
+export function fuseRetrievalResults(
+  lexical: RetrievedChunk[],
+  semantic: RetrievedChunk[],
+  topK: number,
+  weights: { lexical: number; semantic: number } = { lexical: 0.5, semantic: 0.5 }
+): RetrievedChunk[] {
+  const byId = new Map<string, RetrievedChunk>();
+  const normalize = (chunks: RetrievedChunk[], weight: number) => {
+    if (chunks.length === 0) return;
+    const max = Math.max(...chunks.map((c) => c.score), 1e-9);
+    for (const c of chunks) {
+      const norm = (c.score / max) * weight;
+      const existing = byId.get(c.chunkId);
+      if (existing) {
+        existing.score += norm;
+        existing.matchType = "hybrid";
+      } else {
+        byId.set(c.chunkId, { ...c, score: norm });
+      }
+    }
+  };
+
+  normalize(lexical, weights.lexical);
+  normalize(semantic, weights.semantic);
+
+  return Array.from(byId.values())
+    .sort((a, b) => b.score - a.score)
+    .slice(0, topK);
+}
+
 export interface ConversationTurn {
   role: "user" | "assistant";
   text: string;

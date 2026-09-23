@@ -1,11 +1,23 @@
 import { getDb } from "./db";
 import { embeddingEngine } from "./embed";
-import { cosineSimilarity } from "./pure";
+import { cosineSimilarity, filterByMinScore, fuseRetrievalResults, MIN_SEMANTIC_SIMILARITY } from "./pure";
 import type { RetrievedChunk } from "./retrieve.types";
 
 export type { RetrievedChunk } from "./retrieve.types";
 
-/** BM25-ranked FTS5 lexical search over the local knowledge base. */
+/**
+ * BM25-ranked FTS5 lexical search over the local knowledge base. The query
+ * is wrapped in double quotes, which FTS5 treats as a PHRASE match (the
+ * query's words must appear consecutively, in order, in the indexed text)
+ * — this is already this search's relevance gate, not just a ranking
+ * detail: gibberish or a query with no matching phrasing anywhere in the
+ * corpus returns zero rows, not a weak match. No additional numeric score
+ * floor is applied on top of it — every row bm25() ranks here already
+ * passed that gate, and layering an unvalidated magnitude threshold on top
+ * (bm25's raw scale is corpus/query-dependent, and there's no real FTS5
+ * runtime available in this sandbox to measure it) risks discarding
+ * genuine exact-phrase matches for no evidenced benefit.
+ */
 async function lexicalSearch(query: string, limit: number): Promise<RetrievedChunk[]> {
   const db = await getDb();
   const escaped = query.replace(/"/g, '""');
@@ -33,15 +45,6 @@ async function lexicalSearch(query: string, limit: number): Promise<RetrievedChu
     matchType: "lexical" as const,
   }));
 }
-
-// bge-small-en-v1.5 cosine similarity heuristic: below this, a chunk isn't
-// actually about the query, it's just whatever happened to be "closest" out
-// of everything in the knowledge base — brute-force top-K with no floor
-// means even a query with nothing relevant on-device (e.g. "say hi") always
-// gets K chunks back, which then get force-fed into the prompt as "Context"
-// the model is told to answer from. Not a precise cutoff, just cheap
-// insurance against near-random matches being presented as relevant.
-const MIN_SEMANTIC_SIMILARITY = 0.45;
 
 /** Brute-force cosine search over stored embeddings; fine at knowledge-base scale on-device. */
 async function semanticSearch(query: string, limit: number): Promise<RetrievedChunk[]> {
@@ -79,12 +82,17 @@ async function semanticSearch(query: string, limit: number): Promise<RetrievedCh
   });
 
   scored.sort((a, b) => b.score - a.score);
-  return scored.filter((c) => c.score >= MIN_SEMANTIC_SIMILARITY).slice(0, limit);
+  return filterByMinScore(scored, MIN_SEMANTIC_SIMILARITY).slice(0, limit);
 }
 
 /**
- * Hybrid retrieval: union lexical (BM25) + semantic (cosine) results,
- * re-ranked by a simple weighted-sum fusion. No network calls.
+ * Hybrid retrieval: union lexical (BM25, exact-phrase-gated) + semantic
+ * (cosine, MIN_SEMANTIC_SIMILARITY-gated) results, re-ranked by a simple
+ * weighted-sum fusion (fuseRetrievalResults, src/rag/pure.ts — extracted
+ * there so the fusion/threshold mechanics are unit-testable without a real
+ * device; see retrieve.relevance.test.ts). No network calls. If neither
+ * source has anything relevant, this returns [] — never a forced top-K of
+ * whatever happened to be least-irrelevant.
  */
 export async function retrieve(query: string, topK = 6): Promise<RetrievedChunk[]> {
   const [lexical, semantic] = await Promise.all([
@@ -92,28 +100,7 @@ export async function retrieve(query: string, topK = 6): Promise<RetrievedChunk[
     semanticSearch(query, topK * 2),
   ]);
 
-  const byId = new Map<string, RetrievedChunk>();
-  const normalize = (chunks: RetrievedChunk[], weight: number) => {
-    if (chunks.length === 0) return;
-    const max = Math.max(...chunks.map((c) => c.score), 1e-9);
-    for (const c of chunks) {
-      const norm = (c.score / max) * weight;
-      const existing = byId.get(c.chunkId);
-      if (existing) {
-        existing.score += norm;
-        existing.matchType = "hybrid";
-      } else {
-        byId.set(c.chunkId, { ...c, score: norm });
-      }
-    }
-  };
-
-  normalize(lexical, 0.5);
-  normalize(semantic, 0.5);
-
-  return Array.from(byId.values())
-    .sort((a, b) => b.score - a.score)
-    .slice(0, topK);
+  return fuseRetrievalResults(lexical, semantic, topK);
 }
 
 export { assemblePrompt } from "./pure";

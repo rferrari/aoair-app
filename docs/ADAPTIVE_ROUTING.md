@@ -550,3 +550,61 @@ no `"Context:"` section, no citation instruction, and no leaked chunk
 content, while conversation history passed alongside it still appears).
 82 tests total, up from 78. Deep Research Mode (`orchestrator.ts`) was not
 touched.
+
+**Follow-up: validated the retrieval relevance layer itself, ahead of full
+adaptive-router integration: done.**
+
+Inspected `src/rag/retrieve.ts`'s actual scoring (not assumed) before
+changing anything. Findings:
+
+- **Semantic search already had a raw-score floor**: `MIN_SEMANTIC_SIMILARITY
+  = 0.45`, applied to cosine similarity before any chunk is returned from
+  `semanticSearch`. Left unchanged — there is no real bge-small-en-v1.5
+  embedding runtime available in this sandbox to measure this corpus's
+  actual score distribution, and moving an existing, previously-justified
+  threshold without real evidence would be the exact mistake this task
+  warned against.
+- **Lexical search already had its own gate, just not a numeric one**: the
+  query is passed to FTS5's `MATCH` wrapped in double quotes, which is a
+  PHRASE query — the words must appear consecutively, in that order, in
+  the indexed text. Gibberish or an unmatched phrasing returns zero rows,
+  not a weak match; every row that *does* come back already cleared that
+  bar. No additional bm25-magnitude threshold was added on top — bm25's
+  raw scale is corpus/query-dependent and unmeasured here, and layering an
+  invented cutoff on it risks discarding genuine exact-phrase matches
+  (violates "don't aggressively discard potentially useful results") for
+  no evidenced benefit.
+- **The actual gap**: none of this was tested, and the *fused* (hybrid)
+  score `retrieve()` returned was a relative, max-normalized number —
+  meaningful as a ranking within one query's results, meaningless as an
+  absolute confidence signal (normalizing to each source's own max means
+  the top hit for ANY query, including pure gibberish, always looks
+  "confident" relative to itself). A floor has to apply to raw scores,
+  before normalization — which the semantic/lexical gates above already
+  do; fusion was never the place a floor could meaningfully live.
+
+**Fix, not a new threshold — extraction + tests**: `MIN_SEMANTIC_SIMILARITY`,
+`filterByMinScore()`, and `fuseRetrievalResults()` moved into `rag/pure.ts`
+(native-module-free, same pattern as `assemblePrompt`), so the fusion and
+floor mechanics are independently unit-testable without a real device.
+`retrieve.ts` now calls these instead of duplicating the logic inline —
+external behavior (the `retrieve()` signature and what it returns) is
+unchanged, this is a refactor for testability, not a policy change.
+
+New `src/rag/retrieve.relevance.test.ts` (9 tests, synthetic scores — no
+real embeddings/bm25 available here, so these validate the CODE's policy
+mechanics, not real corpus behavior for specific queries): a floor
+correctly excludes below/keeps at-or-above; all-below-floor produces
+empty (the gibberish-query shape); a single-source match survives fusion
+uncorroborated (the weak/partial-wording requirement); a two-source
+agreement promotes to `"hybrid"` and outranks single-source matches;
+topK is respected; configurable weights work; fusion is deterministic.
+
+91 tests total, up from 82 (the requested baseline). Deep Research Mode
+untouched. **Not verified in this pass**: the specific example queries
+("what is a black hole?", "explain photosynthesis", "asdfghjkl qwerty",
+"tell me something") against the real bge-small model and this corpus on
+an actual device — no on-device runtime exists in this sandbox to compute
+that. Worth doing by hand on a real device as a follow-up, ideally with
+score logging added temporarily to capture real distributions before
+considering whether `MIN_SEMANTIC_SIMILARITY` itself should move.
