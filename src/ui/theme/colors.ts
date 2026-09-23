@@ -9,8 +9,8 @@ import { ThemeId } from "../../models/settings";
 
 export const midnightTheme = {
   id: "midnight" as ThemeId,
-  name: "Midnight",
-  icon: "🐗",
+  name: "Ocean",
+  icon: "🌊",
   description: "OLED dark mode with emerald telemetry",
   bg: {
     black: "#000000",
@@ -92,7 +92,7 @@ export const midnightTheme = {
 export const amberTheme = {
   id: "amber" as ThemeId,
   name: "Amber",
-  icon: "⚡",
+  icon: "🐗",
   description: "Warm night-vision CRT with zero blue-light strain",
   bg: {
     black: "#050402",
