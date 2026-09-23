@@ -310,3 +310,79 @@ Typecheck and the full test suite (32 tests) pass. Not yet tested on a real
 device — background-cancellation behavior in particular should be verified
 hands-on (background the app mid-generation, confirm the badge appears and
 the model context is actually released, not just that the promise resolves).
+
+**Phase 3 — deterministic routing policy: done.**
+
+- `src/routing/classify.ts` — rule-based `classifyTask()`, deliberately not
+  an LLM call per the plan ("do not initially ask an LLM to freely invent a
+  pipeline"). Ordered pattern list (compare/summarize/translate/code/
+  calculate/extract checked before the broader lookup/research/chat
+  fallbacks) — a query matching two patterns takes the more specific one,
+  e.g. "research the tradeoffs of X versus Y" classifies as `compare`, not
+  `research`. 11 tests.
+- `src/routing/router.ts` — `planRoute(context): RoutingPlan`, pure and
+  deterministic (no I/O, same input always produces the same output —
+  asserted directly in the tests). Implements every explicit rule from the
+  plan: simple task → fast/general role; retrieval skipped for
+  calculate/translate/code; complex task or research/compare task type →
+  reasoning role regardless of preset; verification only for research-preset
+  research/compare tasks with retrieved evidence *and* a verifier model
+  distinct from the generator (asking a model to grade its own answer isn't
+  verification); missing preferred model → graceful role-fallback chain,
+  never an empty/broken plan; low-power device state → forces the `fast`
+  role and caps the token budget, overriding task/preset. `reasonCodes` on
+  every plan explain each decision made (retrieval skipped and why,
+  which role resolved to which model, why verification did or didn't run) —
+  this is the "explain routing decisions" surface from Phase 9, arriving
+  earlier because the router already needed to justify its own choices to
+  be testable. 15 tests, including one asserting two `planRoute()` calls
+  with identical input produce a deep-equal plan.
+
+**Phase 4 — execution engine: done.**
+
+- `src/routing/executor.ts` — `executeRoutingPlan(plan, input, resolveModel,
+  callbacks)` runs a RoutingPlan's steps in order against the real
+  `llamaEngine`/`retrieve()`. Generalizes orchestrator.ts's existing
+  step-loop shape (shouldStop checked between every step, per-step timeout
+  reusing the same `timeoutMs`/`onTimeout` LlamaEngine gained for the
+  runtime-safety work) rather than inventing a different pattern —
+  orchestrator.ts itself is untouched, Deep Research Mode keeps working
+  exactly as before; this is new, separate infrastructure sitting alongside
+  it, not a replacement.
+  - Model loading is sequential and switch-aware: `ensureModelLoaded` only
+    calls `llamaEngine.load()` when the step's model actually differs from
+    what's resident, and counts genuine switches into `modelSwitches` on
+    the result — the real cost the teammate asked to make part of the
+    routing budget, now visible per-execution rather than implicit.
+  - `resolveModel` is injected (a `(modelId) => ExecutableModel | undefined`
+    callback), not imported from `MODEL_CATALOG` directly — same lesson as
+    Phase 2's bug (a hardcoded global instead of injected data breaks both
+    testability and correctness for discovered/custom models).
+  - Verification is evidence-grounded, not "ask if correct": the verify
+    step's prompt asks specifically whether the answer's claims are
+    supported by the retrieved chunks, parsed from a constrained
+    SUPPORTED/PARTIAL/UNSUPPORTED response format into `passed`/
+    `uncertain`/`failed`; an off-format response is `uncertain` (a real,
+    honest outcome — not a bug), and no retrieved evidence at all is
+    `not_applicable` rather than a meaningless check.
+  - 9 tests, run against a **mocked** `llamaEngine`/`retrieve()`
+    (`vi.mock`) — `assemblePrompt`/`ConversationHistory` are imported
+    directly from the native-module-free `rag/pure.ts` rather than
+    `rag/retrieve.ts`, so only `retrieve()` itself needs mocking. This
+    proves the orchestration logic (right model loaded for each step, model
+    switches counted correctly, required-step failure aborts cleanly,
+    optional-step failure just skips, verification parsing) is correct —
+    it does **not** prove real Phi/Qwen inference works end-to-end, which
+    this sandbox has no way to run (no Android device attached here).
+
+**Scope boundary — read before assuming this is live:** Phase 3 and 4 exist
+as complete, tested, standalone infrastructure. **Nothing in `ChatScreen.tsx`
+calls `planRoute`/`executeRoutingPlan` yet** — the existing chat send() flow
+and Deep Research Mode are both completely unchanged. Wiring this into the
+live chat UI is a real, separate decision (touches the main chat path every
+user goes through) that hasn't been made — that's Phase 9 (UI/UX) territory,
+and per this branch's whole pattern so far, worth doing deliberately with
+real-device verification of the routing/execution path first, not folded
+into "build the engine."
+
+Typecheck and the full test suite (68 tests total, up from 32) pass.
