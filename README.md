@@ -14,6 +14,9 @@ Research App" community bounty.
 - Import your own documents (.txt/.md/.csv/.json) into the local knowledge
   base, toggle or delete them per-collection, and export/share a collection
   as a portable JSON pack — see [Custom knowledge base](#custom-knowledge-base) below
+- Search Hugging Face for additional GGUF models beyond the curated default
+  list, and download them the same way — see
+  [Finding more models](#finding-more-models) below
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for the design (including exactly how
 first-run model setup works and why network permission is present but unused
@@ -76,6 +79,26 @@ local FTS5 + vector search used everywhere else in the app:
   embedding model. A recipient re-embeds the JSON locally by importing it the
   same way.
 - Everything happens on-device; nothing is uploaded anywhere.
+
+## Finding more models
+
+Settings > Tone & Model has a "Find more models" search box (below the
+curated model list) that searches Hugging Face for other GGUF models —
+`src/services/modelBrowser.ts` calls Hugging Face's public API, this is the
+app's only other network access besides the model-setup downloads, and only
+happens when you explicitly search. Tapping a result's file adds it to the
+model list above, where you download it through the normal flow (same
+progress tracking and post-download size check as every built-in model).
+
+This is deliberately separate from the curated `MODEL_CATALOG` in
+`src/models/manifest.ts`: nobody has run these models to confirm they fit
+typical phone RAM or work cleanly in `llama.rn`, so check a model's Hugging
+Face page yourself (size, license, quantization) before downloading. When
+Hugging Face's metadata includes a git-lfs checksum it's kept on the
+resulting catalog entry, but — like the rest of the app — only file size is
+verified automatically after download, not a full sha256 (reading a
+multi-gigabyte file into memory for a hash isn't worth doing on every
+download; see `ModelManager.verifyChecksum`'s doc comment).
 
 ## Development
 

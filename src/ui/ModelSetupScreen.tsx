@@ -5,8 +5,10 @@ import { ModelManager } from "../models/ModelManager";
 import { getActiveModelId, setActiveModelId } from "../models/settings";
 import { seedKnowledgeBaseIfEmpty } from "../rag/seedCorpus";
 import { startDownload, getDownloadState, isDownloading, subscribeDownloads } from "../services/downloadManager";
+import { listDiscoveredModels, removeDiscoveredModel } from "../models/discoveredModels";
 import { CatalogItemCard, CatalogRowState } from "./CatalogItemCard";
 import { CorpusSettingsTab } from "./CorpusSettingsTab";
+import { ModelBrowser } from "./ModelBrowser";
 import { PersonalitySettings } from "./PersonalitySettings";
 import { UsageStatsContent } from "./UsageStatsContent";
 import { VoiceSettings } from "./VoiceSettings";
@@ -45,7 +47,15 @@ export function ModelSetupScreen(props: Props) {
   const [presence, setPresence] = useState<Record<string, boolean>>({});
   const [activeIds, setActiveIds] = useState<Partial<Record<AssetKind, string>>>({});
   const [toast, setToast] = useState<string | null>(null);
+  const [discoveredModels, setDiscoveredModels] = useState<CatalogModel[]>([]);
   const [, forceRender] = useState(0);
+
+  const refreshDiscovered = useCallback(async () => {
+    const models = await listDiscoveredModels();
+    setDiscoveredModels(models);
+    const statuses = await Promise.all(models.map((m) => modelManager.statusOf(m)));
+    setPresence((prev) => ({ ...prev, ...Object.fromEntries(statuses.map((s) => [s.asset.id, s.present])) }));
+  }, []);
 
   // Re-render whenever any download's progress changes, so rows reflect
   // live state even if this screen wasn't the one that started it.
@@ -54,6 +64,7 @@ export function ModelSetupScreen(props: Props) {
   const refreshStatus = useCallback(async () => {
     const statuses = await modelManager.statusAll();
     setPresence(Object.fromEntries(statuses.map((s) => [s.asset.id, s.present])));
+    await refreshDiscovered();
 
     const next: Partial<Record<AssetKind, string>> = {};
     for (const kind of LLM_EMBEDDING_KINDS) {
@@ -63,7 +74,7 @@ export function ModelSetupScreen(props: Props) {
     setActiveIds(next);
 
     return statuses;
-  }, []);
+  }, [refreshDiscovered]);
 
   const getRow = useCallback(
     (item: CatalogModel): CatalogRowState => {
@@ -98,6 +109,9 @@ export function ModelSetupScreen(props: Props) {
   const remove = useCallback(
     async (model: CatalogModel) => {
       await modelManager.deleteModel(model);
+      if (model.id.startsWith("hf-")) {
+        await removeDiscoveredModel(model.id);
+      }
       await refreshStatus();
       setToast(`Removed "${model.label}"`);
     },
@@ -280,7 +294,7 @@ export function ModelSetupScreen(props: Props) {
           <PersonalitySettings />
           <Text style={styles.sectionHeading}>Generation model</Text>
           <FlatList
-            data={MODEL_CATALOG.filter((m) => m.kind === "llm" || m.kind === "embedding")}
+            data={[...MODEL_CATALOG.filter((m) => m.kind === "llm" || m.kind === "embedding"), ...discoveredModels]}
             keyExtractor={(m) => m.id}
             scrollEnabled={false}
             contentContainerStyle={styles.list}
@@ -295,6 +309,10 @@ export function ModelSetupScreen(props: Props) {
               />
             )}
           />
+          <Text style={styles.sectionHeading}>Find more models</Text>
+          <View style={styles.list}>
+            <ModelBrowser onAdded={refreshDiscovered} />
+          </View>
         </AccordionSection>
 
         <AccordionSection icon="📦" title="Knowledge Base">
