@@ -25,6 +25,25 @@ describe("classifyTask", () => {
     expect(classifyTask("hi, can you compare Rust and Go?")).toBe("compare");
   });
 
+  // Regression for the exact real-device inputs that produced hallucinated
+  // actions ("morning alarm set", "room temperature adjusted") — these are
+  // correctly classified as "greeting" already (retrieval skip was fixed in
+  // ad96592); the hallucination itself was a prompt-grounding gap, fixed in
+  // assemblePrompt (see rag/pure.ts's GROUNDING_INSTRUCTION and its tests).
+  it('regression: "hey!", "what\'s up?!", and "wake up" all classify as greeting', () => {
+    expect(classifyTask("hey!")).toBe("greeting");
+    expect(classifyTask("what's up?!")).toBe("greeting");
+    expect(classifyTask("wake up")).toBe("greeting");
+  });
+
+  it('regression: "turn on the lights" is a real action request, not a greeting', () => {
+    // Must NOT be classified as greeting (that would skip retrieval and
+    // treat it as small talk) — it's an action request BOAR has no tool for.
+    // The "don't fabricate having done it" guarantee comes from
+    // assemblePrompt's GROUNDING_INSTRUCTION, not from classification.
+    expect(classifyTask("turn on the lights")).not.toBe("greeting");
+  });
+
   it("detects compare", () => {
     expect(classifyTask("Compare Rust and Go for backend services")).toBe("compare");
     expect(classifyTask("What's the difference between TCP and UDP?")).toBe("compare");

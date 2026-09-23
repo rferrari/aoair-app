@@ -102,4 +102,27 @@ describe("assemblePrompt", () => {
     expect(prompt).not.toContain("Summary of earlier conversation:");
     expect(prompt).not.toContain("Recent conversation:");
   });
+
+  // Regression: "wake up" -> "morning alarm set / room temperature
+  // adjusted" (a hallucinated action BOAR has no ability to perform). The
+  // grounding instruction is universal (not a hardcoded response to any
+  // specific phrase) — always present regardless of query, persona, or
+  // retrieval state.
+  it("always includes the no-real-world-actions grounding instruction", () => {
+    const prompt = assemblePrompt("wake up", []);
+    expect(prompt).toContain("no ability to control real-world devices or take physical actions");
+    expect(prompt).toContain("Never claim to have done something");
+  });
+
+  it("includes the grounding instruction regardless of persona", () => {
+    const prompt = assemblePrompt("wake up", [], "You are a pirate.");
+    expect(prompt).toContain("no ability to control real-world devices or take physical actions");
+  });
+
+  it("includes the grounding instruction even with retrieved context and history", () => {
+    const prompt = assemblePrompt("wake up", chunks, undefined, {
+      turns: [{ role: "user", text: "hi" }],
+    });
+    expect(prompt).toContain("no ability to control real-world devices or take physical actions");
+  });
 });

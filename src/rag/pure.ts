@@ -68,8 +68,37 @@ export function assemblePrompt(
       : "";
 
   return `${instruction} Use the context below when relevant, and cite sources as [n]. ` +
-    `If the context doesn't cover the question, say so and answer from general knowledge.\n\n` +
+    `If the context doesn't cover the question, say so and answer from general knowledge. ` +
+    `${GROUNDING_INSTRUCTION}\n\n` +
     `${summarySection}${turnsSection}` +
     `Context:\n${context}\n\n` +
     `Question: ${userQuery}\n\nAnswer:`;
 }
+
+/**
+ * Universal capability/tone boundary, appended for every request regardless
+ * of persona or content — not a hardcoded response to any specific phrase.
+ *
+ * Root cause of the "wake up" -> "morning alarm set / room temperature
+ * adjusted" hallucination: this prompt hand-builds a generic "Question: ...
+ * Answer:" completion shape rather than Phi-3.5's actual fine-tuned chat
+ * template (see LlamaEngine.ts's DEFAULT_STOP_SEQUENCES comment — no chat
+ * template is used anywhere in this app). Off that template, a small model
+ * given a short, ambiguous, command-shaped fragment with no explicit
+ * "you're a chat assistant with no real-world abilities" framing tends to
+ * free-associate into a narrative completion (the classic sci-fi/smart-home
+ * assistant pattern) instead of a real conversational reply. Switching to
+ * a proper chat template is a bigger, separate change (it's shared with
+ * Deep Research's per-stage prompts too, via researchSubQuestion in
+ * orchestrator.ts — not attempted here to avoid touching that path); this
+ * instruction is the smallest fix that directly targets the actual failure
+ * mode without it. It's a no-op for genuine questions (Deep Research's
+ * decomposed sub-questions are always real questions, never action
+ * requests), so it doesn't change that path's behavior in practice.
+ */
+const GROUNDING_INSTRUCTION =
+  "You have no ability to control real-world devices or take physical actions — no alarms, " +
+  "lights, thermostats, timers, or any other device or system. You can only respond with text. " +
+  "Treat greetings and casual small talk conversationally and briefly, not as a command or task. " +
+  "Never claim to have done something (set, adjusted, turned on/off, scheduled, etc.) that you " +
+  "don't actually have the ability to do.";

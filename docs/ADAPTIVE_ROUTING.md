@@ -458,3 +458,45 @@ retrieved in the unwired module too.
   `router.test.ts` (greeting skips retrieval, prefers `"fast"` role under
   every preset, produces a single generate step with no verification —
   directly modeling the "wake up!" trace). 73 tests total, up from 68.
+
+**Follow-up: fixing retrieval didn't fix the actual response — hallucinated
+actions traced and fixed (`rag/pure.ts`'s `assemblePrompt`): done.**
+
+With retrieval correctly skipped, real-device testing surfaced the deeper
+problem: "wake up" → *"morning alarm set to standard wake up / room
+temperature adjusted."* — a fabricated action; BOAR has no alarm or
+smart-home capability at all. Traced the exact final prompt sent to Phi for
+this input (no chat template in use anywhere — see `LlamaEngine.ts`'s
+`DEFAULT_STOP_SEQUENCES` comment, `assemblePrompt` hand-builds a generic
+`"...Question: <query>\n\nAnswer:"` completion shape, not Phi-3.5's actual
+fine-tuned `<|system|>/<|user|>/<|assistant|>` template). Root cause:
+combination of (a) the off-template prompt shape, which lets a small model
+free-associate into a narrative continuation instead of a grounded chat
+reply on short, ambiguous, command-shaped input, and (b) no instruction
+anywhere telling the model it has no real-world capabilities or that
+casual talk should get a conversational reply rather than a "task" answer.
+
+Fix: a universal `GROUNDING_INSTRUCTION` in `assemblePrompt`, always
+appended regardless of persona/content — **not** a hardcoded response to
+any specific phrase. States BOAR can't control real-world devices or take
+physical actions, that casual small talk should get a brief conversational
+reply, and that it must never claim to have done something it can't
+actually do. `assemblePrompt` is shared with Deep Research's
+`researchSubQuestion` stage (`orchestrator.ts`) — deliberately not
+duplicated into two versions, since the instruction is a no-op for genuine
+questions (Deep Research's decomposed sub-questions are never action
+requests), so Deep Research's actual behavior is unaffected.
+
+Switching to Phi-3.5's real chat template would likely help further but is
+a bigger, separate change (touches Deep Research's exact prompt shape and
+stop-token behavior too) — identified as a contributing factor and
+deliberately deferred, not attempted in this pass.
+
+Regression tests: `rag/pure.test.ts` (grounding instruction present
+regardless of persona/context/history) and `classify.test.ts` (the three
+real-device inputs — "hey!", "what's up?!", "wake up" — all classify as
+`"greeting"`; "turn on the lights" does NOT, since it's a genuine action
+request, not small talk, and must keep going through the normal path where
+the grounding instruction — not classification — is what stops a false
+success claim; "tell me about black holes" remains "chat", not
+"greeting"). 78 tests total, up from 73.
