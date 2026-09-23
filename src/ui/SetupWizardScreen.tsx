@@ -7,6 +7,7 @@ import {
   ScrollView,
   Image,
   ActivityIndicator,
+  AppState,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
@@ -201,6 +202,24 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [failedAssets, refreshPresence]);
+
+  // Auto-resume when the user returns to the app after backgrounding it —
+  // expo-file-system pauses (not fails) a download while backgrounded, and
+  // ModelManager.downloadCatalogModel's inactivity timeout also pauses
+  // rather than cancels, so a "failed" download at this point is really
+  // just parked, waiting for the same resumable to be resumed. Without
+  // this, the only way to keep the mandatory setup screen moving forward
+  // after swapping apps was to notice the error card and tap Retry
+  // manually.
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "active" && failedAssets.length > 0) {
+        retryFailedDownloads();
+      }
+    });
+    return () => sub.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [failedAssets, retryFailedDownloads]);
 
   const aggregateProgress =
     totalBytesExpected > 0 ? Math.min(totalBytesWritten / totalBytesExpected, 1) : 0;
@@ -406,6 +425,13 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
               )}
             </View>
           </View>
+
+          {isAnyDownloading && (
+            <View style={styles.tipBox}>
+              <Text style={styles.tipLabel}>{t("setupWizard.step3.keepOpenLabel")}</Text>
+              <Text style={styles.tipText}>{t("setupWizard.step3.keepOpenText")}</Text>
+            </View>
+          )}
 
           {/* Pipeline Phases */}
           <View style={styles.phasesCard}>

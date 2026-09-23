@@ -212,7 +212,9 @@
       "buildingIndex": "Construindo base de conhecimento SQLite local & índice vetorial…",
       "waitingForDownloads": "Aguardando downloads…",
       "downloadFailedLabel": "Falha no download",
-      "retryDownloads": "Repetir Download"
+      "retryDownloads": "Repetir Download",
+      "keepOpenLabel": "⚠ MANTENHA O BOAR ABERTO",
+      "keepOpenText": "Os downloads pausam automaticamente se você trocar de app e retomam de onde pararam quando você voltar — mas não avançam em segundo plano. Mantenha o BOAR em primeiro plano para a configuração inicial mais rápida."
     },
     "phaseStatus": {
       "complete": "COMPLETO",

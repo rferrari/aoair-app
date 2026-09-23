@@ -47,6 +47,20 @@ export class ModelManager {
   constructor(private catalog: CatalogModel[] = MODEL_CATALOG) {}
 
   /**
+   * Paused-but-resumable downloads, keyed by asset id. expo-file-system's
+   * own docs: "When the app has been moved to the background, this
+   * [progress] callback won't be fired until it's moved to the foreground"
+   * — so backgrounding looks identical to a truly stalled connection from
+   * downloadCatalogModel's inactivity timer's point of view, and the timer
+   * correctly fires. The fix isn't to stop detecting that (a genuinely dead
+   * connection should still surface an error) — it's to make what happens
+   * next cheap: pause (keep the partial bytes + resume token) instead of
+   * cancel-and-delete, so a retry continues from here instead of
+   * restarting a multi-GB download from 0%.
+   */
+  private pausedDownloads = new Map<string, FileSystem.DownloadResumable>();
+
+  /**
    * A file that exists but doesn't match the catalog's expected size is
    * treated as NOT present (and cleaned up) rather than a false "present" —
    * this is what an interrupted/truncated download looks like (e.g. the
@@ -142,48 +156,69 @@ export class ModelManager {
 
     // Inactivity timeout, not a flat deadline: a large model on a slow-but-
     // working connection can legitimately take many minutes, but zero
-    // progress callbacks for this long (rate limiting, a hung TCP
-    // connection, a server that accepted the request and never responds)
-    // means something is actually wrong — before this, a stalled download
-    // sat at 0% forever with no error, no retry option, and no way for the
-    // user to escape the mandatory first-run setup screen.
+    // progress callbacks for this long means something stopped it —
+    // either a genuinely dead connection, OR the app was backgrounded
+    // (expo-file-system: progress callbacks "won't be fired until moved to
+    // foreground"). Both look identical from here, so both are handled the
+    // same way: pause (keep the partial file + resume token), not
+    // cancel-and-delete. A subsequent call for the same asset — the Retry
+    // button, or the auto-resume-on-foreground in SetupWizardScreen —
+    // reuses the paused resumable and continues from where it left off
+    // instead of restarting a multi-GB download from 0%.
     let timedOut = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let downloadResumable: FileSystem.DownloadResumable;
     const resetInactivityTimer = () => {
       clearTimeout(timer);
       timer = setTimeout(() => {
         timedOut = true;
-        downloadResumable.cancelAsync().catch(() => {});
+        downloadResumable.pauseAsync().catch(() => {});
       }, DOWNLOAD_INACTIVITY_TIMEOUT_MS);
     };
 
-    const downloadResumable = FileSystem.createDownloadResumable(
-      asset.sourceUrl,
-      destPath,
-      {},
-      (data) => {
+    const resuming = this.pausedDownloads.get(asset.id);
+    downloadResumable =
+      resuming ??
+      FileSystem.createDownloadResumable(asset.sourceUrl, destPath, {}, (data) => {
         resetInactivityTimer();
         onProgress?.({
           totalBytesWritten: data.totalBytesWritten,
           totalBytesExpectedToWrite: data.totalBytesExpectedToWrite,
         });
-      }
-    );
+      });
+    this.pausedDownloads.set(asset.id, downloadResumable);
     resetInactivityTimer();
 
+    let result: FileSystem.FileSystemDownloadResult | undefined;
     try {
-      await downloadResumable.downloadAsync();
+      result = await (resuming ? downloadResumable.resumeAsync() : downloadResumable.downloadAsync());
     } catch (e: any) {
-      await FileSystem.deleteAsync(destPath, { idempotent: true }).catch(() => {});
+      clearTimeout(timer);
       if (timedOut) {
+        // Paused, not deleted — stays in pausedDownloads for the next call
+        // to pick up. Only genuinely-failed (non-timeout) downloads below
+        // are treated as unrecoverable and cleaned up.
         throw new Error(
-          `Download of ${asset.label} stalled (no progress for ${DOWNLOAD_INACTIVITY_TIMEOUT_MS / 1000}s) — check your connection and try again.`
+          `Download of ${asset.label} stalled (no progress for ${DOWNLOAD_INACTIVITY_TIMEOUT_MS / 1000}s) — tap Retry to resume, or check your connection.`
         );
       }
+      this.pausedDownloads.delete(asset.id);
+      await FileSystem.deleteAsync(destPath, { idempotent: true }).catch(() => {});
       throw e;
     } finally {
       clearTimeout(timer);
     }
+
+    if (!result) {
+      // resolves to undefined on pause too, not just cancel — same
+      // stalled/paused case as the throw path above, just via the resolve
+      // side of the promise instead of a rejection.
+      throw new Error(
+        `Download of ${asset.label} paused (no progress for ${DOWNLOAD_INACTIVITY_TIMEOUT_MS / 1000}s) — tap Retry to resume, or check your connection.`
+      );
+    }
+
+    this.pausedDownloads.delete(asset.id);
 
     const info = await FileSystem.getInfoAsync(destPath);
     if (!info.exists || info.size !== asset.sizeBytes) {

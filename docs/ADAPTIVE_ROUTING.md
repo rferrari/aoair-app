@@ -386,3 +386,38 @@ real-device verification of the routing/execution path first, not folded
 into "build the engine."
 
 Typecheck and the full test suite (68 tests total, up from 32) pass.
+
+**Download backgrounding fix (unrelated to Phases 3/4, same runtime-safety
+theme): done.**
+
+The mandatory-setup download-stall fix (inactivity timeout + retry UI,
+committed earlier) had a gap surfaced by hands-on testing: backgrounding the
+app during a download looked identical to a real stall from
+`ModelManager`'s point of view (expo-file-system's own docs: progress
+callbacks "won't be fired until it's moved to foreground"), so the
+inactivity timer fired — but it then **cancelled and deleted** the partial
+file, so returning to the app meant restarting a multi-GB download from 0%.
+
+- `ModelManager.downloadCatalogModel` now **pauses** on timeout instead of
+  cancelling+deleting, keeping the `DownloadResumable` handle in a
+  `pausedDownloads` map keyed by asset id. A subsequent call for the same
+  asset reuses that handle and calls `resumeAsync()` instead of starting
+  over — genuine (non-timeout) failures are still treated as unrecoverable
+  and clean up the partial file as before.
+- `SetupWizardScreen.tsx` now auto-retries (`retryFailedDownloads()`) when
+  `AppState` returns to `"active"` and a failed/paused asset exists, so the
+  user doesn't have to notice the error card and tap Retry manually after
+  switching back to the app — it resumes on its own.
+- Explicit "keep BOAR open" notice added to Step 3 while a download is
+  active, since true background downloading would need a native Android
+  Foreground Service — a disproportionate cost for a one-time setup
+  download — so the honest fix is graceful pause/resume, not silently
+  promising background progress that doesn't happen.
+
+Typecheck and the full test suite (68 tests) still pass. Not yet verified
+hands-on: whether `resumeAsync()` on a real device actually continues from
+the paused byte offset as expected (the code defensively treats both a
+thrown timeout-error and a `resumeAsync()` resolving to `undefined` as the
+same pause outcome, since expo-file-system's own type signature only
+documents `undefined` for "cancelled" — pause's exact resolution shape
+wasn't confirmed against a real device in this sandbox).
