@@ -5,6 +5,7 @@
  * the bounty's 12GB RAM / 50GB storage caps, live on-device.
  */
 import { getMemoryInfo } from "ram-monitor";
+import type { TaskType } from "../routing/types";
 
 export interface QueryStats {
   tokensGenerated: number;
@@ -13,6 +14,25 @@ export interface QueryStats {
   tokPerSec: number;
   peakRssBytes: number;
   timestamp: number;
+  /**
+   * Adaptive routing (Phase 9) fields — all optional, present only when
+   * the request actually went through runAdaptiveChat()
+   * (src/services/adaptiveChat.ts). Undefined for the existing fixed-
+   * active-model path and for Deep Research Mode (unaffected by this
+   * integration), so this stays a strict addition — every existing
+   * QueryStats consumer keeps working unchanged.
+   */
+  adaptiveRoutingUsed?: boolean;
+  modelId?: string;
+  taskType?: TaskType;
+  reasonCodes?: string[];
+  modelSwitches?: number;
+  retrievalUsed?: boolean;
+  /** Time spent specifically inside executeRoutingPlan() — retrieval + generation + verification steps, not settings/history assembly. */
+  generationLatencyMs?: number;
+  /** Full request span, same basis as durationMs (start of send() to final response) — kept as a named field so it doesn't get confused with generationLatencyMs for adaptive-routed requests. */
+  totalLatencyMs?: number;
+  outcome?: "success" | "failure" | "cancelled";
 }
 
 type Listener = (stats: QueryStats) => void;

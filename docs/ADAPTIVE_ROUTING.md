@@ -608,3 +608,59 @@ an actual device — no on-device runtime exists in this sandbox to compute
 that. Worth doing by hand on a real device as a follow-up, ideally with
 score logging added temporarily to capture real distributions before
 considering whether `MIN_SEMANTIC_SIMILARITY` itself should move.
+
+**Phase 9 (+ minimal telemetry instrumentation) — wire `planRoute`/
+`executeRoutingPlan` into ordinary chat: done, feature-flagged, off by
+default.** See the full report in the conversation for exact files/flow —
+summary here:
+
+- New `src/services/adaptiveChat.ts` (`runAdaptiveChat`) is the ONLY new
+  integration point: resolves on-device model presence, routing
+  preset/overrides, and device RAM, then runs classify → planRoute →
+  executeRoutingPlan, reusing Phases 3/4 entirely unmodified.
+- `ChatScreen.tsx`'s `send()` (non-Deep-Research branch) calls it behind a
+  new `getAdaptiveRoutingEnabled()` setting (default `false`). Deep
+  Research Mode's branch is untouched — separate code path, never calls
+  `runAdaptiveChat`.
+- Fail-safe by construction: a thrown exception OR an empty answer with no
+  cancellation both fall back to the exact pre-existing fixed-active-model
+  path (`runFixedModelChat`, extracted verbatim from the prior code, not
+  rewritten) — a routing failure or "nothing available" never leaves the
+  user without a response.
+- Single-resident-model constraint unchanged — routing switches still go
+  through the same `LlamaEngine.load()`/`executor.ts` `ensureModelLoaded`
+  already governing this everywhere else; nothing here allows two models
+  resident at once.
+- Minimal, in-memory-only telemetry (`telemetry.ts`'s `QueryStats`, new
+  optional fields — not the persisted SQLite `execution_telemetry` Phase 7
+  describes): `adaptiveRoutingUsed`, `modelId`, `taskType`, `reasonCodes`,
+  `modelSwitches`, `retrievalUsed`, `generationLatencyMs`,
+  `totalLatencyMs` (now recorded for every path, not just adaptive),
+  `outcome`. Deliberately not Phase 7 itself — no persistence, no new
+  DB table, per the explicit "stop after Phase 9" instruction.
+- Settings UI: new "Adaptive Routing (Experimental)" toggle in
+  `PersonalitySettings.tsx`, same pattern/styling as the existing Deep
+  Research toggle.
+- Tests: `src/services/adaptiveChat.test.ts`, 8 cases (greeting → no
+  retrieval + fast model; chat → fast model + retrieval; research → 
+  reasoning model, under the "research" preset specifically — "balanced"/
+  "simple" don't even declare a reasoning role slot; preferred role
+  unavailable → graceful fallback, no empty answer; model switch across
+  two requests → real `LlamaEngine.load()` calls; `shouldStop` already
+  true → model never loaded; nothing installed at all → empty answer with
+  `reasonCodes` explaining why, not a throw; callback propagation). 99
+  tests total, up from 91.
+- **Known, disclosed scope gap**: `routingPreset` defaults to `"simple"`
+  (pre-existing default, unchanged) and there's still no UI to change it —
+  only "research" preset even declares a `reasoning` role slot, and
+  "balanced" is needed to unlock the `fast` role at all. Turning on the
+  new toggle alone, with preset left at `"simple"`, only ever resolves to
+  the `general` role (effectively the same single model as today) — real
+  model-switching requires manually setting `routingPreset` via
+  `settings.ts` for now (no picker UI built in this pass, out of scope per
+  the "keep it minimal" instruction).
+- **Not done, deliberately**: Phase 7 (persistent/model-tagged
+  `ExecutionTelemetry`), Phase 8 (feedback-based routing improvement), any
+  UI display of the new telemetry fields (not touched — avoided
+  `UsageStatsContent.tsx`, being concurrently edited by another session),
+  a `routingPreset` picker UI, real-device verification.

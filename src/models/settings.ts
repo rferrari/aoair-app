@@ -24,6 +24,7 @@ interface Settings {
   languageId?: LanguageId;
   routingPreset?: RoutingPreset;
   modelRoleAssignments?: Partial<Record<ModelRole, string>>;
+  adaptiveRoutingEnabled?: boolean;
 }
 
 export interface MemorySettings {
@@ -228,5 +229,26 @@ export async function setModelRoleAssignment(role: ModelRole, modelId: string | 
     delete assignments[role];
   }
   s.modelRoleAssignments = assignments;
+  await writeSettings(s);
+}
+
+/**
+ * Phase 9 (docs/ADAPTIVE_ROUTING.md) — wires planRoute()/executeRoutingPlan()
+ * into ordinary chat (Deep Research Mode is unaffected either way, see
+ * src/services/orchestrator.ts). Off by default: a real, reversible
+ * feature flag, not a default-on behavior change, until real-device
+ * testing passes. ChatScreen.tsx falls back to the existing fixed-active-
+ * model path whenever this is off OR whenever the adaptive path throws for
+ * any reason — a routing failure must never leave the user without a
+ * response.
+ */
+export async function getAdaptiveRoutingEnabled(): Promise<boolean> {
+  const s = await readSettings();
+  return s.adaptiveRoutingEnabled ?? false;
+}
+
+export async function setAdaptiveRoutingEnabled(enabled: boolean): Promise<void> {
+  const s = await readSettings();
+  s.adaptiveRoutingEnabled = enabled;
   await writeSettings(s);
 }

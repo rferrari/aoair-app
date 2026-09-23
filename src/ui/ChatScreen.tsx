@@ -36,8 +36,10 @@ import {
   DEFAULT_MEMORY_SETTINGS,
   getDeepResearchMode,
   setDeepResearchMode,
+  getAdaptiveRoutingEnabled,
 } from "../models/settings";
 import { runDeepResearch, ResearchProgress } from "../services/orchestrator";
+import { runAdaptiveChat } from "../services/adaptiveChat";
 import { getPersonality, PersonalityId } from "../constants/personalities";
 import {
   createSession,
@@ -62,7 +64,7 @@ import { Toast } from "./Toast";
 import { ModelLoadErrorCard } from "./components/ModelLoadErrorCard";
 import { MarkdownMessage } from "./components/MarkdownMessage";
 import { SourceFootnotes } from "./components/SourceFootnotes";
-import { recordQueryStats, trackPeakRss, startAppMemoryTracking } from "../services/telemetry";
+import { recordQueryStats, trackPeakRss, startAppMemoryTracking, QueryStats } from "../services/telemetry";
 import { getMemoryInfo } from "ram-monitor";
 import { useTheme, colors, typography } from "./theme";
 import { spacing, radii, shadows } from "./theme/spacing";
@@ -435,8 +437,16 @@ export function ChatScreen({
       };
 
       let chunks: RetrievedChunk[];
+      // Adaptive-routing-specific telemetry, merged into the regular
+      // recordQueryStats() call below — stays null (contributing nothing)
+      // for Deep Research and for the plain fixed-active-model path, so
+      // existing QueryStats consumers see no shape change for those.
+      let adaptiveTelemetry: Partial<QueryStats> | null = null;
 
       if (deepResearchModeRef.current) {
+        // Deep Research Mode is completely separate from adaptive routing
+        // and untouched by it — orchestrator.ts's own sequential pipeline,
+        // same as before this integration.
         setDeepResearchActive(true);
         const result = await runDeepResearch(
           query,
@@ -457,23 +467,88 @@ export function ChatScreen({
         }
       } else {
         // classifyTask/isRetrievalIrrelevant are the same deterministic,
-        // tested rule router.ts uses (src/routing/classify.ts) — not the
-        // full adaptive router (planRoute/executeRoutingPlan stay unwired,
-        // see docs/ADAPTIVE_ROUTING.md's scope boundary), just this one
-        // narrow, well-tested skip reused here so a pure greeting like
-        // "wake up!" doesn't retrieve unrelated knowledge-base chunks for
-        // no reason. Every other task type (including the broad "chat"
-        // fallback, which also catches real informational requests phrased
-        // as commands) still retrieves, unchanged.
-        if (isRetrievalIrrelevant(classifyTask(query))) {
-          chunks = [];
+        // tested rule router.ts uses (src/routing/classify.ts) — reused
+        // directly by the fixed-model path below regardless of whether
+        // adaptive routing is enabled, so a pure greeting like "wake up!"
+        // never retrieves unrelated knowledge-base chunks either way.
+        const runFixedModelChat = async (): Promise<RetrievedChunk[]> => {
+          let c: RetrievedChunk[];
+          if (isRetrievalIrrelevant(classifyTask(query))) {
+            c = [];
+          } else {
+            setProcessing({ messageId: assistantId, status: "retrieving" });
+            c = await retrieve(query);
+          }
+          setProcessing({ messageId: assistantId, status: "thinking" });
+          const prompt = assemblePrompt(query, c, systemPrompt, history);
+          await llamaEngine.generate({ prompt, nPredict: maxTokens, onToken });
+          return c;
+        };
+
+        const adaptiveRoutingEnabled = await getAdaptiveRoutingEnabled();
+
+        if (adaptiveRoutingEnabled) {
+          try {
+            const result = await runAdaptiveChat(
+              { query, systemPrompt, history },
+              maxTokens,
+              {
+                onToken,
+                shouldStop: () => stopRequestedRef.current,
+                onStepStart: (step) => {
+                  setProcessing({
+                    messageId: assistantId,
+                    status: step.type === "retrieve" ? "retrieving" : "thinking",
+                  });
+                },
+              }
+            );
+
+            // executeRoutingPlan doesn't throw when a required step's model
+            // can't be resolved — it resolves normally with an empty answer
+            // and a warning instead. And when NOTHING is available at all
+            // (no model resolves to any role), planRoute never even builds
+            // a generate step, so executor-level `warnings` stays empty too
+            // — checking for that would miss this case entirely. The
+            // simple, comprehensive signal is just "no answer text and the
+            // user didn't stop it themselves" — a try/catch alone wouldn't
+            // see either of these as a failure, but the user would still be
+            // left with a blank response, so it's checked explicitly and
+            // falls back the same way a thrown error does.
+            if (result.answer.trim().length === 0 && !stopRequestedRef.current) {
+              console.warn("[ChatScreen] adaptive routing produced no answer, falling back:", result.warnings, result.plan.reasonCodes);
+              adaptiveTelemetry = { adaptiveRoutingUsed: true, outcome: "failure" };
+              chunks = await runFixedModelChat();
+            } else {
+              chunks = result.citations;
+              if (result.timedOut) {
+                setMessages((prev) =>
+                  prev.map((m) => (m.id === assistantId ? { ...m, timedOut: true } : m))
+                );
+              }
+              if (result.modelUsed) setActiveModel(result.modelUsed);
+              adaptiveTelemetry = {
+                adaptiveRoutingUsed: true,
+                modelId: result.plan.steps.find((s) => s.type === "generate")?.modelId,
+                taskType: result.taskType,
+                reasonCodes: result.plan.reasonCodes,
+                modelSwitches: result.modelSwitches,
+                retrievalUsed: chunks.length > 0,
+                generationLatencyMs: result.generationLatencyMs,
+                outcome: stopRequestedRef.current ? "cancelled" : "success",
+              };
+            }
+          } catch (e: any) {
+            // A routing failure must never leave the user without a
+            // response — same fixed-active-model path as adaptive routing
+            // being off, just reached via a caught exception instead.
+            console.warn("[ChatScreen] adaptive routing threw, falling back to active model:", e?.message ?? String(e));
+            adaptiveTelemetry = { adaptiveRoutingUsed: true, outcome: "failure" };
+            chunks = await runFixedModelChat();
+          }
         } else {
-          setProcessing({ messageId: assistantId, status: "retrieving" });
-          chunks = await retrieve(query);
+          chunks = await runFixedModelChat();
         }
-        setProcessing({ messageId: assistantId, status: "thinking" });
-        const prompt = assemblePrompt(query, chunks, systemPrompt, history);
-        await llamaEngine.generate({ prompt, nPredict: maxTokens, onToken });
       }
 
       const wasStopped = stopRequestedRef.current;
@@ -496,6 +571,8 @@ export function ChatScreen({
         tokPerSec: tokensGenerated > 0 ? tokensGenerated / ((durationMs - ttftMs) / 1000) : 0,
         peakRssBytes: peakRss.stop(),
         timestamp: Date.now(),
+        totalLatencyMs: durationMs,
+        ...(adaptiveTelemetry ?? {}),
       });
 
       if (assistantText.trim().length > 0) {

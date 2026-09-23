@@ -11,6 +11,8 @@ import {
   setMaxTokens,
   getDeepResearchMode,
   setDeepResearchMode,
+  getAdaptiveRoutingEnabled,
+  setAdaptiveRoutingEnabled,
 } from "../models/settings";
 
 /**
@@ -25,6 +27,7 @@ export function PersonalitySettings() {
   const [customPrompt, setCustomPromptState] = useState("");
   const [maxTokens, setMaxTokensState] = useState(512);
   const [deepResearch, setDeepResearchState] = useState(false);
+  const [adaptiveRouting, setAdaptiveRoutingState] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -32,12 +35,18 @@ export function PersonalitySettings() {
       setCustomPromptState(await getCustomSystemPrompt());
       setMaxTokensState(await getMaxTokens());
       setDeepResearchState(await getDeepResearchMode());
+      setAdaptiveRoutingState(await getAdaptiveRoutingEnabled());
     })();
   }, []);
 
   const toggleDeepResearch = async (value: boolean) => {
     setDeepResearchState(value);
     await setDeepResearchMode(value);
+  };
+
+  const toggleAdaptiveRouting = async (value: boolean) => {
+    setAdaptiveRoutingState(value);
+    await setAdaptiveRoutingEnabled(value);
   };
 
   const selectPersonality = async (id: PersonalityId) => {
@@ -115,6 +124,20 @@ export function PersonalitySettings() {
           <Switch
             value={deepResearch}
             onValueChange={toggleDeepResearch}
+            trackColor={{ false: "#333", true: "#3a7a4a" }}
+          />
+        </View>
+      </View>
+
+      <View style={styles.card}>
+        <View style={styles.deepResearchRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.title}>🧭 {t("personalitySettings.adaptiveRoutingTitle")}</Text>
+            <Text style={styles.note}>{t("personalitySettings.adaptiveRoutingNote")}</Text>
+          </View>
+          <Switch
+            value={adaptiveRouting}
+            onValueChange={toggleAdaptiveRouting}
             trackColor={{ false: "#333", true: "#3a7a4a" }}
           />
         </View>
