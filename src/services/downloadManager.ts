@@ -67,6 +67,26 @@ export function resetDownloadState(): void {
   notify();
 }
 
+/**
+ * Force-restarts a download that's stuck with no error surfaced at all —
+ * no progress, no failure, just inert. This can happen with no real device
+ * problem: `inFlight`/`state` are module-level singletons, so a dev Fast
+ * Refresh mid-download can leave a stale in-flight entry pointing at a
+ * promise nothing will ever resolve, which `startDownload`'s "already
+ * running" guard then treats as legitimately in progress forever. Unlike
+ * `startDownload`, this doesn't check that guard — it clears the tracked
+ * state unconditionally and cancels+deletes whatever ModelManager was
+ * actually holding, then starts clean.
+ */
+export async function restartDownload(asset: CatalogModel): Promise<void> {
+  await modelManager.forceRestartDownload(asset);
+  inFlight.delete(asset.id);
+  state.delete(asset.id);
+  downloadTimestamps.delete(asset.id);
+  notify();
+  await startDownload(asset);
+}
+
 /** Starts a download if one isn't already running for this asset; otherwise no-ops. */
 export function startDownload(asset: CatalogModel): Promise<void> {
   const existing = inFlight.get(asset.id);

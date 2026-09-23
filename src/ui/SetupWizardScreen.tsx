@@ -24,6 +24,7 @@ import {
 import { ModelManager } from "../models/ModelManager";
 import {
   startDownload,
+  restartDownload,
   getDownloadState,
   isDownloading,
   subscribeDownloads,
@@ -211,6 +212,26 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [failedAssets, refreshPresence]);
+
+  // Manual, unconditional escape hatch — distinct from retryFailedDownloads,
+  // which only acts on assets that surfaced an explicit error. A download
+  // can also go stuck with NO error at all (module-level download-tracking
+  // state surviving a dev Fast Refresh mid-transfer while the actual native
+  // task it pointed at is gone, or a real device silently dropping a
+  // network task without a callback ever firing) — that state can't be
+  // reliably auto-detected from here, so instead of guessing, this button
+  // is just always available whenever setup isn't finished, and force-clears
+  // + restarts every not-yet-present asset regardless of what the UI
+  // currently believes its state is.
+  const restartAllDownloads = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    for (const asset of tierAssets) {
+      if (!presence[asset.id]) {
+        restartDownload(asset).finally(() => refreshPresence());
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tierAssets, presence, refreshPresence]);
 
   // Auto-resume when the user returns to the app after backgrounding it —
   // expo-file-system pauses (not fails) a download while backgrounded, and
@@ -445,6 +466,12 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
             </View>
           </View>
 
+          {!allAssetsPresent && (
+            <Pressable style={styles.restartAllBtn} onPress={restartAllDownloads}>
+              <Text style={styles.restartAllBtnText}>{t("setupWizard.step3.restartDownloads")}</Text>
+            </Pressable>
+          )}
+
           {isAnyDownloading && (
             <View style={styles.tipBox}>
               <Text style={styles.tipLabel}>{t("setupWizard.step3.keepOpenLabel")}</Text>
@@ -518,12 +545,14 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
           {/* Interactive Theme & Font Legibility Customization — collapsible,
               same AccordionSection as Settings, last section on this page
               since it's cosmetic/optional, not part of getting set up. */}
-          <AccordionSection icon="🎨" title={t("setupWizard.step3.interfaceCustomization")}>
+          <View style={styles.tipBox}>
             <Text style={styles.customizeWhileWaitingText}>
               {t("setupWizard.step3.customizeWhileWaiting")}
             </Text>
-            <ThemeSelector />
-          </AccordionSection>
+            <AccordionSection icon="🎨" title={t("setupWizard.step3.interfaceCustomization")}>
+              <ThemeSelector />
+            </AccordionSection>
+          </View>
 
           {/* Ready Action */}
           <View style={styles.actionsBottom}>
@@ -946,7 +975,7 @@ const styles = StyleSheet.create({
   },
   customizeWhileWaitingText: {
     ...typography.mono.xs,
-    color: colors.text.dim,
+    color: colors.text.heading,
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.xs,
   },
@@ -1108,6 +1137,16 @@ const styles = StyleSheet.create({
     ...typography.ui.titleSm,
     color: "#FFFFFF",
     fontWeight: "800",
+  },
+  restartAllBtn: {
+    alignSelf: "center",
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+  },
+  restartAllBtnText: {
+    ...typography.mono.xs,
+    color: colors.text.dim,
+    textDecorationLine: "underline",
   },
   actionsBottom: {
     marginTop: spacing.md,

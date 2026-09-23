@@ -216,7 +216,8 @@
       "retryDownloads": "Repetir Download",
       "keepOpenLabel": "⚠ MANTENHA O BOAR ABERTO",
       "keepOpenText": "Os downloads pausam automaticamente se você trocar de app e retomam de onde pararam quando você voltar — mas não avançam em segundo plano. Mantenha o BOAR em primeiro plano para a configuração inicial mais rápida.",
-      "assetCounter": "Modelo {{current}} de {{total}} — {{label}}"
+      "assetCounter": "Modelo {{current}} de {{total}} — {{label}}",
+      "restartDownloads": "⟳ Download travado? Toque para reiniciar"
     },
     "phaseStatus": {
       "complete": "COMPLETO",

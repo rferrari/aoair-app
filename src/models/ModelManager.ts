@@ -140,6 +140,27 @@ export class ModelManager {
   }
 
   /**
+   * Escape hatch for a download that's stuck with no error at all — no
+   * progress, no failure, `pausedDownloads` possibly holding a resumable
+   * whose underlying transfer nothing is actually driving forward anymore
+   * (e.g. a stale reference left over from a dev Fast Refresh mid-download,
+   * or a native task that silently stopped calling back). Unlike the
+   * timeout/backgrounding path, this doesn't wait for anything to detect
+   * the stall — it's user-triggered, cancels whatever's tracked, and wipes
+   * the partial file so the next downloadCatalogModel() call is guaranteed
+   * to start genuinely from scratch rather than resuming from
+   * possibly-corrupt state.
+   */
+  async forceRestartDownload(asset: CatalogModel): Promise<void> {
+    const active = this.pausedDownloads.get(asset.id);
+    if (active) {
+      await active.pauseAsync().catch(() => {});
+      this.pausedDownloads.delete(asset.id);
+    }
+    await FileSystem.deleteAsync(assetPath(asset), { idempotent: true }).catch(() => {});
+  }
+
+  /**
    * Downloads an optional (non-bundled) catalog model. Network access
    * happens ONLY here, and only when explicitly invoked (a user tap in
    * ModelSetupScreen) — never automatically and never during chat/inference.

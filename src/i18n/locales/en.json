@@ -216,7 +216,8 @@
       "retryDownloads": "Retry Download",
       "keepOpenLabel": "⚠ KEEP BOAR OPEN",
       "keepOpenText": "Downloads pause automatically if you switch to another app and resume where they left off when you come back — but they don't progress while backgrounded. Keep BOAR in the foreground for the fastest one-time setup.",
-      "assetCounter": "Model {{current}} of {{total}} — {{label}}"
+      "assetCounter": "Model {{current}} of {{total}} — {{label}}",
+      "restartDownloads": "⟳ Downloads stuck? Tap to restart"
     },
     "phaseStatus": {
       "complete": "COMPLETE",
