@@ -421,3 +421,40 @@ thrown timeout-error and a `resumeAsync()` resolving to `undefined` as the
 same pause outcome, since expo-file-system's own type signature only
 documents `undefined` for "cancelled" — pause's exact resolution shape
 wasn't confirmed against a real device in this sandbox).
+
+**New `TaskType`: `"greeting"`, and a narrow live-path retrieval skip
+(first real crossing of the ChatScreen ↔ routing scope boundary): done.**
+
+Hands-on testing of "wake up!" surfaced a real gap in both places: the live
+chat path (`ChatScreen.tsx` `send()`) calls `retrieve(query)`
+unconditionally for *every* message, with zero classification — it never
+called `classifyTask`/`planRoute` at all, so the router's own rules never
+applied. But tracing what `planRoute` *would* have done revealed the router
+had the same gap: `retrievalIrrelevant` only excluded
+`calculate`/`translate`/`code` — a plain `"chat"`-classified greeting still
+retrieved in the unwired module too.
+
+- Added a `"greeting"` `TaskType` (`src/routing/types.ts`), deliberately
+  **not** folded into the existing `"chat"` fallback — `"chat"` is a broad
+  bucket that also catches real informational requests phrased as commands
+  ("Tell me about black holes"), which should still retrieve. Only pure
+  social small talk (an anchored regex matching the *whole* trimmed query —
+  "hi, can you compare X and Y" must not match) classifies as `"greeting"`.
+- `classify.ts` gained `isRetrievalIrrelevant(taskType)` — the
+  calculate/translate/code/greeting skip rule, now defined in exactly one
+  place instead of inlined in `router.ts`.
+- `router.ts`'s `retrievalIrrelevant` and `preferredRole` (greeting → always
+  `"fast"` role, even under the `"research"` preset) both now use it.
+- **`ChatScreen.tsx`'s live `send()` now also uses it** — a narrow, additive
+  change, not the full router: `classifyTask(query)` gates the existing
+  unconditional `retrieve()` call, nothing else changes (model selection,
+  step count, verification are all still untouched — those still require
+  the deliberate `planRoute`/`executeRoutingPlan` wiring decision described
+  above, which remains deferred). This is the first place any routing
+  module code runs against real chat traffic, but it's a single `if` around
+  an existing call, not the scope-boundary-crossing decision itself.
+- Regression tests: `classify.test.ts` (greeting detection, the
+  chat-vs-greeting disambiguation case, `isRetrievalIrrelevant`) and
+  `router.test.ts` (greeting skips retrieval, prefers `"fast"` role under
+  every preset, produces a single generate step with no verification —
+  directly modeling the "wake up!" trace). 73 tests total, up from 68.

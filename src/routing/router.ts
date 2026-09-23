@@ -12,6 +12,7 @@
  */
 import { ModelProfile } from "./profiles";
 import { TaskType, ModelRole, RoutingPreset, RoutingStepType } from "./types";
+import { isRetrievalIrrelevant } from "./classify";
 
 export interface InferenceBudget {
   maxTokens: number;
@@ -82,6 +83,7 @@ function findProfile(models: ModelProfile[], role: ModelRole): ModelProfile | un
  * picked the low-overhead preset for everyday chat.
  */
 function preferredRole(taskType: TaskType, preset: RoutingPreset): ModelRole {
+  if (taskType === "greeting") return "fast";
   if (taskType === "research" || taskType === "compare" || preset === "research") {
     return "reasoning";
   }
@@ -101,9 +103,11 @@ export function planRoute(context: RoutingContext): RoutingPlan {
   if (constrained) reasonCodes.push("budget:low-power-mode-caps-tokens-and-role");
 
   // 1. Retrieval — skipped for task types where local documents genuinely
-  // aren't the relevant input (a translation or a calculation doesn't get
-  // better by retrieving unrelated knowledge-base chunks).
-  const retrievalIrrelevant = context.taskType === "calculate" || context.taskType === "translate" || context.taskType === "code";
+  // aren't the relevant input (a translation, a calculation, or a pure
+  // greeting doesn't get better by retrieving unrelated knowledge-base
+  // chunks). Shared with the live chat path via classify.ts's
+  // isRetrievalIrrelevant, so this rule lives in exactly one place.
+  const retrievalIrrelevant = isRetrievalIrrelevant(context.taskType);
   const wantsRetrieval =
     context.budget.allowRetrieval &&
     context.retrievalAvailable &&

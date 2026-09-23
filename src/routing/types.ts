@@ -8,8 +8,15 @@
  * not here.
  */
 
-/** What kind of task a query is, as classified before routing. */
+/**
+ * What kind of task a query is, as classified before routing.
+ * "greeting" is deliberately distinct from "chat" — pure social small talk
+ * ("hi", "wake up!") vs. the broader chat fallback, which also catches real
+ * informational requests phrased as commands ("Tell me about black holes")
+ * that should still retrieve. Only "greeting" is retrieval-irrelevant.
+ */
 export type TaskType =
+  | "greeting"
   | "chat"
   | "lookup"
   | "research"

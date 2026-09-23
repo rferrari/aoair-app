@@ -62,11 +62,38 @@ describe("planRoute", () => {
     expect(plan.reasonCodes).toContain("generate:no-model-available");
   });
 
-  it("skips retrieval for calculate/translate/code tasks even with a knowledge base available", () => {
-    for (const taskType of ["calculate", "translate", "code"] as const) {
+  it("skips retrieval for calculate/translate/code/greeting tasks even with a knowledge base available", () => {
+    for (const taskType of ["calculate", "translate", "code", "greeting"] as const) {
       const plan = planRoute(context({ taskType }));
       expect(plan.steps.find((s) => s.type === "retrieve")).toBeUndefined();
     }
+  });
+
+  it('regression: "wake up!" (classifies as greeting) produces a plan with no retrieval, no verification, and a single generate step on the fast role', () => {
+    const plan = planRoute(
+      context({
+        taskType: "greeting",
+        preset: "simple",
+        availableModels: [profile("general", "phi"), profile("fast", "qwen-1.5b")],
+      })
+    );
+    expect(plan.steps.map((s) => s.type)).toEqual(["generate"]);
+    const genStep = plan.steps[0];
+    expect(genStep.modelId).toBe("qwen-1.5b");
+    expect(plan.estimatedCost.modelSwitches).toBe(0);
+    expect(plan.reasonCodes).toContain("retrieve:skipped-task-not-knowledge-based");
+    expect(plan.reasonCodes).toContain("verify:not-applicable");
+  });
+
+  it("prefers the fast role for a greeting even under the research preset", () => {
+    const plan = planRoute(
+      context({
+        taskType: "greeting",
+        preset: "research",
+        availableModels: [profile("fast", "qwen-1.5b"), profile("reasoning", "qwen-7b")],
+      })
+    );
+    expect(plan.steps.find((s) => s.type === "generate")?.modelId).toBe("qwen-1.5b");
   });
 
   it("includes retrieval for a research task when a knowledge base is available", () => {

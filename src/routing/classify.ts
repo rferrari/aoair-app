@@ -17,9 +17,19 @@ const PATTERNS: Array<{ type: TaskType; test: RegExp }> = [
   { type: "extract", test: /\b(extract|list all|pull out|find every)\b/i },
 ];
 
+// Anchored to the whole (trimmed) query, not just "contains" — "hi, can you
+// compare X and Y" must NOT match this; only pure social small talk with
+// nothing else in the message should. Checked before PATTERNS would ever
+// matter here (none of them overlap with these phrases), but kept as its
+// own pass for clarity.
+const GREETING_RE =
+  /^(hi|hello|hey|hey there|yo|sup|wake up|good (morning|afternoon|evening|night)|how(?:'s| is| are) it going|how are you\??|what'?s up\??|thanks?( you)?|thank you|bye|goodbye|see ya|see you|ok(ay)?|cool|nice)[!.?~\s]*$/i;
+
 export function classifyTask(query: string): TaskType {
   const trimmed = query.trim();
   if (!trimmed) return "unknown";
+
+  if (GREETING_RE.test(trimmed)) return "greeting";
 
   for (const { type, test } of PATTERNS) {
     if (test.test(trimmed)) return type;
@@ -33,4 +43,22 @@ export function classifyTask(query: string): TaskType {
     return "research";
   }
   return "chat";
+}
+
+/**
+ * Whether local-knowledge-base retrieval is genuinely irrelevant for this
+ * task type — shared between the (unwired) router and the live chat path
+ * (`ChatScreen.tsx`) so the rule lives in exactly one place. A translation,
+ * calculation, code request, or pure greeting doesn't get better by
+ * retrieving unrelated knowledge-base chunks; every other task type
+ * (including the broad "chat" fallback, which also catches real
+ * informational requests phrased as commands) still retrieves.
+ */
+export function isRetrievalIrrelevant(taskType: TaskType): boolean {
+  return (
+    taskType === "calculate" ||
+    taskType === "translate" ||
+    taskType === "code" ||
+    taskType === "greeting"
+  );
 }

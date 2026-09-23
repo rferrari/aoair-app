@@ -1,10 +1,28 @@
 import { describe, it, expect } from "vitest";
-import { classifyTask } from "./classify";
+import { classifyTask, isRetrievalIrrelevant } from "./classify";
 
 describe("classifyTask", () => {
   it("returns unknown for empty input", () => {
     expect(classifyTask("")).toBe("unknown");
     expect(classifyTask("   ")).toBe("unknown");
+  });
+
+  it("detects pure social greetings as a distinct type from chat", () => {
+    expect(classifyTask("wake up!")).toBe("greeting");
+    expect(classifyTask("hi")).toBe("greeting");
+    expect(classifyTask("Hello!")).toBe("greeting");
+    expect(classifyTask("hey there")).toBe("greeting");
+    expect(classifyTask("good morning")).toBe("greeting");
+    expect(classifyTask("thanks!")).toBe("greeting");
+    expect(classifyTask("bye")).toBe("greeting");
+  });
+
+  it("does not misclassify an informational request phrased as a command as a greeting", () => {
+    // "chat" is a broad fallback bucket that also catches real information
+    // needs that don't match the wh-question/research heuristics — only
+    // pure social small talk (nothing else in the message) is "greeting".
+    expect(classifyTask("Tell me about black holes")).toBe("chat");
+    expect(classifyTask("hi, can you compare Rust and Go?")).toBe("compare");
   });
 
   it("detects compare", () => {
@@ -58,8 +76,17 @@ describe("classifyTask", () => {
   });
 
   it("falls back to chat for everything else", () => {
-    expect(classifyTask("hi")).toBe("chat");
     expect(classifyTask("tell me a joke")).toBe("chat");
+  });
+
+  it("isRetrievalIrrelevant is true only for greeting/calculate/translate/code", () => {
+    expect(isRetrievalIrrelevant("greeting")).toBe(true);
+    expect(isRetrievalIrrelevant("calculate")).toBe(true);
+    expect(isRetrievalIrrelevant("translate")).toBe(true);
+    expect(isRetrievalIrrelevant("code")).toBe(true);
+    expect(isRetrievalIrrelevant("chat")).toBe(false);
+    expect(isRetrievalIrrelevant("lookup")).toBe(false);
+    expect(isRetrievalIrrelevant("research")).toBe(false);
   });
 
   it("is deterministic", () => {

@@ -18,6 +18,7 @@ import { useTranslation } from "react-i18next";
 import { llamaEngine } from "../inference/LlamaEngine";
 import { embeddingEngine } from "../rag/embed";
 import { retrieve, assemblePrompt, RetrievedChunk, ConversationTurn } from "../rag/retrieve";
+import { classifyTask, isRetrievalIrrelevant } from "../routing/classify";
 import { seedKnowledgeBaseIfEmpty } from "../rag/seedCorpus";
 import { MODEL_CATALOG, CORPUS_CATALOG, REQUIRED_MODELS, CatalogModel } from "../models/manifest";
 import { listDiscoveredModels } from "../models/discoveredModels";
@@ -455,8 +456,21 @@ export function ChatScreen({
           );
         }
       } else {
-        setProcessing({ messageId: assistantId, status: "retrieving" });
-        chunks = await retrieve(query);
+        // classifyTask/isRetrievalIrrelevant are the same deterministic,
+        // tested rule router.ts uses (src/routing/classify.ts) — not the
+        // full adaptive router (planRoute/executeRoutingPlan stay unwired,
+        // see docs/ADAPTIVE_ROUTING.md's scope boundary), just this one
+        // narrow, well-tested skip reused here so a pure greeting like
+        // "wake up!" doesn't retrieve unrelated knowledge-base chunks for
+        // no reason. Every other task type (including the broad "chat"
+        // fallback, which also catches real informational requests phrased
+        // as commands) still retrieves, unchanged.
+        if (isRetrievalIrrelevant(classifyTask(query))) {
+          chunks = [];
+        } else {
+          setProcessing({ messageId: assistantId, status: "retrieving" });
+          chunks = await retrieve(query);
+        }
         setProcessing({ messageId: assistantId, status: "thinking" });
         const prompt = assemblePrompt(query, chunks, systemPrompt, history);
         await llamaEngine.generate({ prompt, nPredict: maxTokens, onToken });
