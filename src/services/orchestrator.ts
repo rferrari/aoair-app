@@ -82,7 +82,8 @@ export async function runDeepResearch(
   history: ConversationHistory | undefined,
   maxTokens: number,
   onProgress?: (p: ResearchProgress) => void,
-  onToken?: (piece: string) => void
+  onToken?: (piece: string) => void,
+  shouldStop?: () => boolean
 ): Promise<ResearchResult> {
   onProgress?.({ stage: "decomposing" });
   const subQuestions = await decompose(query);
@@ -90,11 +91,19 @@ export async function runDeepResearch(
   const subResults: { subQuestion: string; answer: string }[] = [];
   const allChunks: RetrievedChunk[] = [];
   for (let i = 0; i < subQuestions.length; i++) {
+    // llamaEngine.stop() only interrupts whichever single completion call is
+    // in flight *right now* — with several sequential completions here
+    // (decompose, each sub-question, synthesize), a stop request needs its
+    // own check between stages or the pipeline just carries on to the next
+    // one regardless of the user having asked it to stop.
+    if (shouldStop?.()) return { answer: "", subQuestions, citations: allChunks };
     onProgress?.({ stage: "researching", subQuestionIndex: i, subQuestionCount: subQuestions.length });
     const { answer, chunks } = await researchSubQuestion(subQuestions[i], systemPrompt, history);
     subResults.push({ subQuestion: subQuestions[i], answer });
     allChunks.push(...chunks);
   }
+
+  if (shouldStop?.()) return { answer: "", subQuestions, citations: allChunks };
 
   onProgress?.({ stage: "synthesizing" });
   // The final synthesized answer respects the user's Max Output Tokens

@@ -119,6 +119,7 @@ export function ChatScreen({
   const sessionSummaryRef = useRef<string | null>(null);
   const messagesRef = useRef<Message[]>([]);
   const backgroundTaskRef = useRef<Promise<void> | null>(null);
+  const sendTaskRef = useRef<Promise<void> | null>(null);
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -216,22 +217,45 @@ export function ChatScreen({
     backgroundTaskRef.current = null;
   }, []);
 
+  /**
+   * Stops whatever's actively generating (single-pass or Deep Research) and
+   * waits for send()'s own promise to fully settle — including its finally
+   * block and DB persistence — before returning. Switching sessions or
+   * starting a new chat while a generation is in flight used to just swap
+   * `messages`/`activeSessionId` out from under it: the old generation kept
+   * running against a now-stale assistantId, so its token updates and even
+   * its final "insert the finished answer" update silently no-opped (a
+   * .map() that can't find a matching id), losing the response from the
+   * live UI even though it was still correctly persisted to that session's
+   * history (only a fresh DB read — e.g. re-selecting the session — ever
+   * surfaced it again). Awaiting the real generation task here, not just
+   * the post-generation title/summary background task, closes that gap.
+   */
+  const stopAndAwaitGeneration = useCallback(async () => {
+    if (!sendTaskRef.current) return;
+    stopRequestedRef.current = true;
+    await llamaEngine.stop();
+    await sendTaskRef.current.catch(() => {});
+  }, []);
+
   const resetToNewChat = useCallback(async () => {
+    await stopAndAwaitGeneration();
     await cancelBackgroundTask();
     setMessages([]);
     setActiveSessionId(null);
     sessionSummaryRef.current = null;
     haptic(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium));
-  }, [cancelBackgroundTask, haptic]);
+  }, [stopAndAwaitGeneration, cancelBackgroundTask, haptic]);
 
   const selectSession = useCallback(async (id: string) => {
+    await stopAndAwaitGeneration();
     await cancelBackgroundTask();
     const records = await getSessionMessages(id);
     setMessages(records.map((r) => ({ id: r.id, role: r.role, text: r.text })));
     setActiveSessionId(id);
     const session = sessions.find((s) => s.id === id);
     sessionSummaryRef.current = session?.summary ?? null;
-  }, [cancelBackgroundTask, sessions]);
+  }, [stopAndAwaitGeneration, cancelBackgroundTask, sessions]);
 
   const removeSession = useCallback(
     async (id: string) => {
@@ -324,7 +348,8 @@ export function ChatScreen({
           (p: ResearchProgress) => {
             setProcessing({ messageId: assistantId, status: "thinking", label: researchStageLabel(p) });
           },
-          onToken
+          onToken,
+          () => stopRequestedRef.current
         );
         chunks = result.citations;
       } else {
@@ -414,6 +439,16 @@ export function ChatScreen({
       setDeepResearchActive(false);
     }
   }, [input, generating, haptic, activeSessionId, cancelBackgroundTask, refreshSessions]);
+
+  // send() itself isn't awaited by its callers (onPress/onSubmitEditing) —
+  // stopAndAwaitGeneration needs a handle on the in-flight promise so a
+  // session switch can wait for it to actually finish. Only the entry point
+  // sets sendTaskRef; send() doesn't need to know about it.
+  const handleSend = useCallback(() => {
+    sendTaskRef.current = send().finally(() => {
+      sendTaskRef.current = null;
+    });
+  }, [send]);
 
   const drawerItems: DrawerItem[] = [
     { key: "prompts", icon: "💡", label: "Prompt Ideas", onPress: () => setShowPromptIdeas(true) },
@@ -519,9 +554,6 @@ export function ChatScreen({
                   >
                     {item.role === "user" ? "YOU" : "🐗 BOAR RESEARCHER"}
                   </Text>
-                  {item.role === "assistant" && activeModel && (
-                    <Text style={[styles.bubbleModelTag, { color: colors.text.dim }]}>{activeModel.label}</Text>
-                  )}
                 </View>
 
                 {showProcessing ? (
@@ -562,7 +594,7 @@ export function ChatScreen({
               placeholder="Ask an offline research question…"
               placeholderTextColor={colors.text.dim}
               editable={ready && !generating}
-              onSubmitEditing={send}
+              onSubmitEditing={handleSend}
               returnKeyType="send"
               multiline={false}
             />
@@ -578,7 +610,7 @@ export function ChatScreen({
             ) : (
               <Pressable
                 style={[styles.sendBtn, (!ready || !input.trim()) && styles.sendBtnDisabled]}
-                onPress={send}
+                onPress={handleSend}
                 disabled={!ready || !input.trim()}
                 hitSlop={8}
                 accessibilityLabel="Send message"
@@ -729,11 +761,6 @@ const styles = StyleSheet.create({
   },
   assistantRoleLabel: {
     color: colors.text.accentEmerald,
-  },
-  bubbleModelTag: {
-    ...typography.mono.xs,
-    fontSize: 9,
-    color: colors.text.dim,
   },
   stoppedBadge: {
     marginTop: 4,
