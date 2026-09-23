@@ -100,8 +100,9 @@ export function PersonalDocumentsManager() {
   return (
     <View style={{ gap: 4 }}>
       <Text style={styles.hint}>
-        Import your own .txt, .md, .csv, or .json notes — indexed on this device only,
-        never uploaded anywhere. PDF isn't supported yet; convert to text/markdown first.
+        Import your own .txt, .md, .csv, .json, or .pdf notes — indexed on this device only,
+        never uploaded anywhere. PDFs need selectable text (scanned/image-only pages won't
+        extract — there's no OCR), and password-protected PDFs aren't supported.
       </Text>
 
       <View style={styles.importCard}>

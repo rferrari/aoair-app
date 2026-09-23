@@ -77,11 +77,11 @@ local FTS5 + vector search used everywhere else in the app:
 
 - **Supported formats:** `.txt`, `.md`, `.csv` (naive comma-split, no quoted-field
   escaping), `.json` (either the app's own `{title, source, body}[]` corpus-pack
-  shape, or any other JSON — imported as raw text otherwise). **PDF is not
-  supported** — there's no pure-JS PDF text extractor reliable enough for
-  real-world (compressed-stream) PDFs to run in Hermes, and a native PDF
-  library would reintroduce the native-dependency/rebuild risk this project
-  has otherwise avoided. Convert a PDF to text/markdown first.
+  shape, or any other JSON — imported as raw text otherwise), and `.pdf`
+  (embedded/selectable text only, via [`expo-pdf-text-extract`](https://www.npmjs.com/package/expo-pdf-text-extract) —
+  Apache PDFBox-Android on-device, no network, no OCR — so a scanned/image-only
+  PDF extracts to empty text, and password-protected PDFs are rejected with a
+  clear error rather than attempted).
 - Each import is chunked (~500 tokens, 50-token overlap, heuristic
   char-based split) and embedded on-device with the same embedding model used
   for the rest of the knowledge base, then saved as a named, toggleable

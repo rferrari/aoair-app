@@ -1,6 +1,7 @@
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
+import { extractText as extractPdfText } from "expo-pdf-text-extract";
 import { embeddingEngine } from "../rag/embed";
 import {
   insertChunk,
@@ -14,8 +15,7 @@ import {
 
 /**
  * User-supplied document import for the local knowledge base (Settings >
- * Knowledge Base > Import Documents). Deliberately limited to formats we can
- * parse reliably on-device without a new native dependency:
+ * Knowledge Base > Import Documents). Formats:
  *
  * - .txt / .md: read as plain text.
  * - .csv: naive comma-split per line (no quoted-field escaping) — fine for
@@ -23,11 +23,10 @@ import {
  * - .json: if it matches the same {title, source, body}[] shape used by the
  *   app's own downloadable corpus packs (assets/corpus/*.json), each entry
  *   is imported as its own doc; otherwise the whole file is chunked as text.
- *
- * PDF is NOT supported: there is no pure-JS PDF text extractor that works
- * reliably in Hermes for real-world (compressed-stream) PDFs, and a native
- * PDF library would add exactly the native-dependency/rebuild risk this
- * project has been avoiding. Convert PDFs to text/markdown first.
+ * - .pdf: embedded/selectable text only, via expo-pdf-text-extract (Apache
+ *   PDFBox-Android on-device, no network, no OCR). Scanned/image-only PDFs
+ *   extract to empty text — there's no OCR step. Password-protected PDFs
+ *   are rejected with a clear error rather than attempted.
  */
 
 const CHARS_PER_TOKEN = 4; // rough English-text heuristic, no tokenizer on-device
@@ -39,6 +38,7 @@ export const SUPPORTED_MIME_TYPES = [
   "text/markdown",
   "text/csv",
   "application/json",
+  "application/pdf",
 ];
 
 export interface ImportProgress {
@@ -73,8 +73,39 @@ function csvToText(raw: string): string {
 
 type ParsedDoc = { title: string; source: string; body: string };
 
-function parseFileContent(filename: string, raw: string, fallbackTitle: string): ParsedDoc[] {
+/**
+ * PDFs are binary — reading them with readAsStringAsync (used for every
+ * other format) would just return garbage, so extraction has its own path
+ * via the native module rather than going through the raw-text branches
+ * below. Password-protected PDFs surface a clear message instead of the
+ * native module's raw PASSWORD_REQUIRED/INCORRECT_PASSWORD error code —
+ * this importer has no password-prompt UI, so there's nothing useful to do
+ * with an encrypted PDF beyond telling the user why it was skipped.
+ */
+async function extractPdf(uri: string, filename: string): Promise<string> {
+  try {
+    return await extractPdfText(uri);
+  } catch (e: any) {
+    if (e?.code === "PASSWORD_REQUIRED" || e?.code === "INCORRECT_PASSWORD") {
+      throw new Error(`"${filename}" is password-protected — password-protected PDFs aren't supported.`);
+    }
+    throw new Error(`Couldn't read "${filename}": ${e?.message ?? e}`);
+  }
+}
+
+async function parseFileContent(
+  file: DocumentPicker.DocumentPickerAsset,
+  fallbackTitle: string
+): Promise<ParsedDoc[]> {
+  const filename = file.name;
   const ext = filename.toLowerCase().split(".").pop();
+
+  if (ext === "pdf") {
+    const text = await extractPdf(file.uri, filename);
+    return [{ title: fallbackTitle, source: filename, body: text }];
+  }
+
+  const raw = await FileSystem.readAsStringAsync(file.uri);
 
   if (ext === "json") {
     try {
@@ -136,10 +167,9 @@ export async function importDocuments(
   const allDocs: ParsedDoc[] = [];
   let totalSizeBytes = 0;
   for (const file of files) {
-    const raw = await FileSystem.readAsStringAsync(file.uri);
-    totalSizeBytes += file.size ?? raw.length;
+    totalSizeBytes += file.size ?? 0;
     const fallbackTitle = file.name.replace(/\.[^.]+$/, "");
-    allDocs.push(...parseFileContent(file.name, raw, fallbackTitle));
+    allDocs.push(...(await parseFileContent(file, fallbackTitle)));
   }
 
   onProgress?.({ stage: "chunking" });
