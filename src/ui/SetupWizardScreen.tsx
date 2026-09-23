@@ -170,6 +170,8 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
   let activeSpeed = 0;
   let maxEta = 0;
   let isAnyDownloading = false;
+  let completedCount = 0;
+  let currentAssetLabel: string | null = null;
   // Before this, a stalled/failed download just silently reverted to
   // "PENDING" with no way to know why or to retry — the mandatory first-run
   // wizard had no escape hatch at all (see docs/ADAPTIVE_ROUTING.md's
@@ -183,10 +185,16 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
     totalBytesExpected += asset.sizeBytes;
     if (presence[asset.id]) {
       totalBytesWritten += asset.sizeBytes;
+      completedCount++;
     } else if (dl) {
       totalBytesWritten += dl.bytesWritten ?? 0;
       if (dl.downloading) {
         isAnyDownloading = true;
+        // Assets download concurrently, but on a typical connection only
+        // one actually makes visible progress at a time — surfacing which
+        // one, plus a "2/3" count, is what stops a finished asset handing
+        // off to the next one from reading as the whole thing restarting.
+        if (!currentAssetLabel) currentAssetLabel = asset.label;
         if (dl.speedBytesPerSec) activeSpeed += dl.speedBytesPerSec;
         if (dl.etaSeconds && dl.etaSeconds > maxEta) maxEta = dl.etaSeconds;
       } else if (dl.error) {
@@ -398,6 +406,16 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
                 {(aggregateProgress * 100).toFixed(0)}%
               </Text>
             </View>
+
+            {!allAssetsPresent && tierAssets.length > 1 && (
+              <Text style={styles.progressAssetLabel}>
+                {t("setupWizard.step3.assetCounter", {
+                  current: Math.min(completedCount + 1, tierAssets.length),
+                  total: tierAssets.length,
+                  label: currentAssetLabel ?? "",
+                })}
+              </Text>
+            )}
 
             <View style={styles.progressTrack}>
               <View
@@ -917,6 +935,10 @@ const styles = StyleSheet.create({
     color: colors.text.heading,
     fontWeight: "800",
     fontVariant: ["tabular-nums"],
+  },
+  progressAssetLabel: {
+    ...typography.mono.xs,
+    color: colors.text.dim,
   },
   progressTrack: {
     height: 10,
