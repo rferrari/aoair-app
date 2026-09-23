@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from "react";
 import { View, Text, StyleSheet, TextInput, Pressable, FlatList, ActivityIndicator, Alert } from "react-native";
+import { useTranslation } from "react-i18next";
 import { searchModels, listGgufFiles, toCatalogModel, HFModelSummary, HFGgufFile } from "../services/modelBrowser";
 import { addDiscoveredModel } from "../models/discoveredModels";
 
@@ -22,6 +23,7 @@ interface Props {
  * verification, and duplicate-download guard as every other model.
  */
 export function ModelBrowser({ onAdded }: Props) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [results, setResults] = useState<HFModelSummary[]>([]);
@@ -38,12 +40,12 @@ export function ModelBrowser({ onAdded }: Props) {
     try {
       setResults(await searchModels(q));
     } catch (e: any) {
-      Alert.alert("Search failed", e?.message ?? String(e));
+      Alert.alert(t("modelBrowser.searchFailedTitle"), e?.message ?? String(e));
       setResults([]);
     } finally {
       setSearching(false);
     }
-  }, [query]);
+  }, [query, t]);
 
   const toggleRepo = useCallback(
     async (repoId: string) => {
@@ -58,14 +60,14 @@ export function ModelBrowser({ onAdded }: Props) {
           const files = await listGgufFiles(repoId);
           setFilesByRepo((prev) => ({ ...prev, [repoId]: files }));
         } catch (e: any) {
-          Alert.alert("Couldn't load files", e?.message ?? String(e));
+          Alert.alert(t("modelBrowser.loadFilesFailedTitle"), e?.message ?? String(e));
           setExpandedRepo(null);
         } finally {
           setFilesLoading(null);
         }
       }
     },
-    [expandedRepo, filesByRepo]
+    [expandedRepo, filesByRepo, t]
   );
 
   const addFile = useCallback(
@@ -76,26 +78,23 @@ export function ModelBrowser({ onAdded }: Props) {
         const model = toCatalogModel(repoId, file);
         await addDiscoveredModel(model);
         onAdded();
-        Alert.alert("Added", `"${model.label}" was added to the model list above — download it from there.`);
+        Alert.alert(t("modelBrowser.addedTitle"), t("modelBrowser.addedMessage", { label: model.label }));
       } catch (e: any) {
-        Alert.alert("Couldn't add model", e?.message ?? String(e));
+        Alert.alert(t("modelBrowser.addFailedTitle"), e?.message ?? String(e));
       } finally {
         setAddingKey(null);
       }
     },
-    [onAdded]
+    [onAdded, t]
   );
 
   return (
     <View style={styles.container}>
-      <Text style={styles.hint}>
-        Search Hugging Face for other GGUF models. Not vetted by aoair — check RAM fit and
-        licensing yourself on the model's page before downloading.
-      </Text>
+      <Text style={styles.hint}>{t("modelBrowser.hint")}</Text>
       <View style={styles.searchRow}>
         <TextInput
           style={styles.input}
-          placeholder="e.g. llama 3.2 3b instruct"
+          placeholder={t("modelBrowser.searchPlaceholder")}
           placeholderTextColor="#666"
           value={query}
           onChangeText={setQuery}
@@ -117,7 +116,10 @@ export function ModelBrowser({ onAdded }: Props) {
             <Pressable onPress={() => toggleRepo(item.id)}>
               <Text style={styles.repoId}>{item.id}</Text>
               <Text style={styles.repoMeta}>
-                {item.downloads?.toLocaleString() ?? "?"} downloads · {item.likes ?? 0} likes
+                {t("modelBrowser.downloadsLikes", {
+                  downloads: item.downloads?.toLocaleString() ?? "?",
+                  likes: item.likes ?? 0,
+                })}
               </Text>
             </Pressable>
 
@@ -135,7 +137,7 @@ export function ModelBrowser({ onAdded }: Props) {
                       <Text style={styles.fileName}>{file.filename}</Text>
                       <Text style={styles.fileMeta}>
                         {formatBytes(file.sizeBytes)}
-                        {!file.sha256 ? " · no checksum available" : ""}
+                        {!file.sha256 ? ` · ${t("modelBrowser.noChecksum")}` : ""}
                       </Text>
                     </View>
                     <Pressable
@@ -143,14 +145,16 @@ export function ModelBrowser({ onAdded }: Props) {
                       disabled={addingKey === key}
                       onPress={() => addFile(item.id, file)}
                     >
-                      <Text style={styles.addBtnText}>{addingKey === key ? "Adding…" : "➕ Add"}</Text>
+                      <Text style={styles.addBtnText}>
+                        {addingKey === key ? t("modelBrowser.adding") : t("modelBrowser.addButton")}
+                      </Text>
                     </Pressable>
                   </View>
                 );
               })}
 
             {expandedRepo === item.id && filesLoading !== item.id && (filesByRepo[item.id]?.length ?? 0) === 0 && (
-              <Text style={styles.fileMeta}>No .gguf files found in this repo.</Text>
+              <Text style={styles.fileMeta}>{t("modelBrowser.noGgufFiles")}</Text>
             )}
           </View>
         )}

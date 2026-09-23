@@ -3,6 +3,7 @@
     "done": "DONE",
     "cancel": "Cancel",
     "close": "Close",
+    "back": "Back",
     "remove": "Remove",
     "retry": "Retry"
   },
@@ -16,5 +17,90 @@
     "subtitle": "Best Offline AI Researcher",
     "newChat": "New Research Session",
     "recentSessions": "RECENT SESSIONS"
+  },
+  "modelCatalogScreen": {
+    "title": "MODEL CATALOG",
+    "subtitle": "Verified Local Offline Weights",
+    "filters": {
+      "all": "ALL",
+      "llm": "LLM",
+      "corpus": "CORPUS",
+      "community": "COMMUNITY"
+    },
+    "removedToast": "Removed \"{{label}}\"",
+    "activeModelToast": "Active {{kind}} model set to \"{{label}}\"",
+    "browserSectionTitle": "HUGGING FACE REPOSITORY SEARCH"
+  },
+  "modelBrowser": {
+    "hint": "Search Hugging Face for other GGUF models. Not vetted by BOAR — check RAM fit and licensing yourself on the model's page before downloading.",
+    "searchPlaceholder": "e.g. llama 3.2 3b instruct",
+    "searchFailedTitle": "Search failed",
+    "loadFilesFailedTitle": "Couldn't load files",
+    "addedTitle": "Added",
+    "addedMessage": "\"{{label}}\" was added to the model list above — download it from there.",
+    "addFailedTitle": "Couldn't add model",
+    "downloadsLikes": "{{downloads}} downloads · {{likes}} likes",
+    "noChecksum": "no checksum available",
+    "adding": "Adding…",
+    "addButton": "➕ Add",
+    "noGgufFiles": "No .gguf files found in this repo."
+  },
+  "catalogItemCard": {
+    "calculating": "Calculating…",
+    "removeCorpusTitle": "Remove Knowledge Base Pack?",
+    "removeModelTitle": "Remove Model Weights?",
+    "removeCorpusMessage": "This deletes the local dataset and frees {{size}}. Its topics will not be searchable offline until re-downloaded.",
+    "removeModelMessage": "This deletes the local weights file and frees {{size}}.",
+    "removeAssetButton": "Remove Asset",
+    "kind": {
+      "llm": "LLM",
+      "embedding": "EMBEDDING",
+      "corpus": "CORPUS"
+    },
+    "default": "DEFAULT",
+    "compat": {
+      "green": "Runs Great on this device",
+      "yellow": "High RAM / 12GB Required",
+      "red": "Incompatible (Exceeds Device RAM)"
+    },
+    "downloadingAsset": "DOWNLOADING ASSET",
+    "eta": "ETA: {{eta}}",
+    "retryDownload": "🔄 Retry Download",
+    "downloadAsset": "📥 Download Asset",
+    "selectUse": "🔘 Select & Use",
+    "indexedNote": "Indexed in offline knowledge base",
+    "activeNote": "Active inference model",
+    "deleteAccessibility": "Delete model asset",
+    "badge": {
+      "downloading": "DOWNLOADING",
+      "notOnDisk": "NOT ON DISK",
+      "active": "ACTIVE",
+      "cached": "CACHED"
+    }
+  },
+  "modelLoadErrorCard": {
+    "corrupt": {
+      "title": "Integrity Check Failed",
+      "detail": "The downloaded model file is truncated or corrupted (likely due to background network interruption).",
+      "recommendation": "Re-download the model file cleanly or switch to a cached model in Settings."
+    },
+    "missing": {
+      "title": "Model Asset Missing",
+      "detail": "The designated GGUF model binary is not present in local device storage.",
+      "recommendation": "Relaunch the Setup Wizard or select an installed model from the catalog."
+    },
+    "memory": {
+      "title": "Hardware RAM Exceeded",
+      "detail": "Insufficient resident memory to mmap the GGUF model weights and initialize KV cache.",
+      "recommendation": "Close background apps or switch to a lighter model (e.g., Compact 1.2GB) in Settings."
+    },
+    "general": {
+      "title": "Engine Initialization Halted",
+      "detailFallback": "Llama.rn engine failed to bind to the local GGUF context.",
+      "recommendation": "Review model settings or re-run the Setup Wizard to restore defaults."
+    },
+    "actionRequired": "ACTION REQUIRED",
+    "settings": "Settings",
+    "setupWizard": "Setup Wizard"
   }
 }

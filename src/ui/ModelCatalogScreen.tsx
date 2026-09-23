@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, FlatList, Pressable, ScrollView } from "react-native";
 import * as Haptics from "expo-haptics";
+import { useTranslation } from "react-i18next";
 import { MODEL_CATALOG, CatalogModel, AssetKind } from "../models/manifest";
 import { ModelManager } from "../models/ModelManager";
 import { getActiveModelId, setActiveModelId } from "../models/settings";
@@ -27,6 +28,7 @@ interface Props {
 }
 
 export function ModelCatalogScreen({ onClose }: Props) {
+  const { t } = useTranslation();
   const [presence, setPresence] = useState<Record<string, boolean>>({});
   const [activeIds, setActiveIds] = useState<Partial<Record<AssetKind, string>>>({});
   const [discoveredModels, setDiscoveredModels] = useState<CatalogModel[]>([]);
@@ -96,9 +98,9 @@ export function ModelCatalogScreen({ onClose }: Props) {
         await removeDiscoveredModel(model.id);
       }
       await refreshStatus();
-      setToast(`Removed "${model.label}"`);
+      setToast(t("modelCatalogScreen.removedToast", { label: model.label }));
     },
-    [refreshStatus]
+    [refreshStatus, t]
   );
 
   const useModel = useCallback(
@@ -106,9 +108,9 @@ export function ModelCatalogScreen({ onClose }: Props) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
       await setActiveModelId(model.kind, model.id);
       await refreshStatus();
-      setToast(`Active ${model.kind} model set to "${model.label}"`);
+      setToast(t("modelCatalogScreen.activeModelToast", { kind: model.kind, label: model.label }));
     },
-    [refreshStatus]
+    [refreshStatus, t]
   );
 
   const allModels = [...MODEL_CATALOG, ...discoveredModels];
@@ -126,14 +128,14 @@ export function ModelCatalogScreen({ onClose }: Props) {
       <View style={styles.header}>
         {onClose ? (
           <Pressable style={styles.backBtn} onPress={onClose} hitSlop={8}>
-            <Text style={styles.backBtnText}>‹ BACK</Text>
+            <Text style={styles.backBtnText}>‹ {t("common.back").toUpperCase()}</Text>
           </Pressable>
         ) : (
           <View style={{ width: 40 }} />
         )}
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>MODEL CATALOG</Text>
-          <Text style={styles.headerSubtitle}>Verified Local Offline Weights</Text>
+          <Text style={styles.headerTitle}>{t("modelCatalogScreen.title")}</Text>
+          <Text style={styles.headerSubtitle}>{t("modelCatalogScreen.subtitle")}</Text>
         </View>
         <View style={{ width: 40 }} />
       </View>
@@ -152,7 +154,7 @@ export function ModelCatalogScreen({ onClose }: Props) {
               }}
             >
               <Text style={[styles.tabBtnText, isSelected && styles.tabBtnTextActive]}>
-                {tab.toUpperCase()}
+                {t(`modelCatalogScreen.filters.${tab}`)}
               </Text>
             </Pressable>
           );
@@ -178,7 +180,7 @@ export function ModelCatalogScreen({ onClose }: Props) {
             <View style={styles.browserContainer}>
               <View style={styles.browserHeader}>
                 <Text style={styles.browserIcon}>🌐</Text>
-                <Text style={styles.browserTitle}>HUGGING FACE REPOSITORY SEARCH</Text>
+                <Text style={styles.browserTitle}>{t("modelCatalogScreen.browserSectionTitle")}</Text>
               </View>
               <ModelBrowser onAdded={refreshStatus} />
             </View>

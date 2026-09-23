@@ -1,48 +1,51 @@
 import React from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import * as Haptics from "expo-haptics";
+import { useTranslation } from "react-i18next";
 import { colors } from "../theme/colors";
 import { typography } from "../theme/typography";
 import { spacing, radii } from "../theme/spacing";
 
+type Category = "memory" | "corrupt" | "missing" | "general";
+
 interface Diagnosis {
   title: string;
-  category: "memory" | "corrupt" | "missing" | "general";
+  category: Category;
   detail: string;
   recommendation: string;
 }
 
-function diagnose(error: string): Diagnosis {
+function diagnose(error: string, t: (key: string, opts?: Record<string, unknown>) => string): Diagnosis {
   const lower = error.toLowerCase();
   if (lower.includes("size mismatch") || lower.includes("verification") || lower.includes("hash")) {
     return {
-      title: "Integrity Check Failed",
+      title: t("modelLoadErrorCard.corrupt.title"),
       category: "corrupt",
-      detail: "The downloaded model file is truncated or corrupted (likely due to background network interruption).",
-      recommendation: "Re-download the model file cleanly or switch to a cached model in Settings.",
+      detail: t("modelLoadErrorCard.corrupt.detail"),
+      recommendation: t("modelLoadErrorCard.corrupt.recommendation"),
     };
   }
   if (lower.includes("not found") || lower.includes("no such file")) {
     return {
-      title: "Model Asset Missing",
+      title: t("modelLoadErrorCard.missing.title"),
       category: "missing",
-      detail: "The designated GGUF model binary is not present in local device storage.",
-      recommendation: "Relaunch the Setup Wizard or select an installed model from the catalog.",
+      detail: t("modelLoadErrorCard.missing.detail"),
+      recommendation: t("modelLoadErrorCard.missing.recommendation"),
     };
   }
   if (lower.includes("memory") || lower.includes("oom") || lower.includes("allocate") || lower.includes("ram")) {
     return {
-      title: "Hardware RAM Exceeded",
+      title: t("modelLoadErrorCard.memory.title"),
       category: "memory",
-      detail: "Insufficient resident memory to mmap the GGUF model weights and initialize KV cache.",
-      recommendation: "Close background apps or switch to a lighter model (e.g., Compact 1.2GB) in Settings.",
+      detail: t("modelLoadErrorCard.memory.detail"),
+      recommendation: t("modelLoadErrorCard.memory.recommendation"),
     };
   }
   return {
-    title: "Engine Initialization Halted",
+    title: t("modelLoadErrorCard.general.title"),
     category: "general",
-    detail: error || "Llama.rn engine failed to bind to the local GGUF context.",
-    recommendation: "Review model settings or re-run the Setup Wizard to restore defaults.",
+    detail: error || t("modelLoadErrorCard.general.detailFallback"),
+    recommendation: t("modelLoadErrorCard.general.recommendation"),
   };
 }
 
@@ -59,7 +62,8 @@ export function ModelLoadErrorCard({
   onRelaunchWizard,
   onRetry,
 }: ModelLoadErrorCardProps) {
-  const diagnosis = diagnose(error);
+  const { t } = useTranslation();
+  const diagnosis = diagnose(error, t);
 
   const handleAction = (callback?: () => void) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
@@ -85,7 +89,7 @@ export function ModelLoadErrorCard({
       <View style={styles.body}>
         <Text style={styles.detailText}>{diagnosis.detail}</Text>
         <View style={styles.recommendationBox}>
-          <Text style={styles.recommendationLabel}>ACTION REQUIRED</Text>
+          <Text style={styles.recommendationLabel}>{t("modelLoadErrorCard.actionRequired")}</Text>
           <Text style={styles.recommendationText}>{diagnosis.recommendation}</Text>
         </View>
       </View>
@@ -98,7 +102,7 @@ export function ModelLoadErrorCard({
             onPress={() => handleAction(onRetry)}
             android_ripple={{ color: "rgba(255,255,255,0.1)" }}
           >
-            <Text style={styles.retryBtnText}>🔄 Retry</Text>
+            <Text style={styles.retryBtnText}>🔄 {t("common.retry")}</Text>
           </Pressable>
         )}
         {onOpenSettings && (
@@ -107,7 +111,7 @@ export function ModelLoadErrorCard({
             onPress={() => handleAction(onOpenSettings)}
             android_ripple={{ color: "rgba(255,255,255,0.1)" }}
           >
-            <Text style={styles.actionBtnText}>⚙️ Settings</Text>
+            <Text style={styles.actionBtnText}>⚙️ {t("modelLoadErrorCard.settings")}</Text>
           </Pressable>
         )}
         {onRelaunchWizard && (
@@ -116,7 +120,7 @@ export function ModelLoadErrorCard({
             onPress={() => handleAction(onRelaunchWizard)}
             android_ripple={{ color: "rgba(6,182,212,0.2)" }}
           >
-            <Text style={styles.wizardBtnText}>🪄 Setup Wizard</Text>
+            <Text style={styles.wizardBtnText}>🪄 {t("modelLoadErrorCard.setupWizard")}</Text>
           </Pressable>
         )}
       </View>

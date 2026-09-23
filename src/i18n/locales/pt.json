@@ -3,6 +3,7 @@
     "done": "PRONTO",
     "cancel": "Cancelar",
     "close": "Fechar",
+    "back": "Voltar",
     "remove": "Remover",
     "retry": "Tentar novamente"
   },
@@ -16,5 +17,90 @@
     "subtitle": "Melhor Pesquisador de IA Offline",
     "newChat": "Nova Sessão de Pesquisa",
     "recentSessions": "SESSÕES RECENTES"
+  },
+  "modelCatalogScreen": {
+    "title": "CATÁLOGO DE MODELOS",
+    "subtitle": "Pesos Offline Locais Verificados",
+    "filters": {
+      "all": "TODOS",
+      "llm": "LLM",
+      "corpus": "CORPUS",
+      "community": "COMUNIDADE"
+    },
+    "removedToast": "\"{{label}}\" removido",
+    "activeModelToast": "Modelo {{kind}} ativo definido como \"{{label}}\"",
+    "browserSectionTitle": "BUSCA NO REPOSITÓRIO HUGGING FACE"
+  },
+  "modelBrowser": {
+    "hint": "Busque outros modelos GGUF no Hugging Face. Não verificados pelo BOAR — confira o uso de RAM e a licença na página do modelo antes de baixar.",
+    "searchPlaceholder": "ex.: llama 3.2 3b instruct",
+    "searchFailedTitle": "Falha na busca",
+    "loadFilesFailedTitle": "Não foi possível carregar os arquivos",
+    "addedTitle": "Adicionado",
+    "addedMessage": "\"{{label}}\" foi adicionado à lista de modelos acima — baixe-o por lá.",
+    "addFailedTitle": "Não foi possível adicionar o modelo",
+    "downloadsLikes": "{{downloads}} downloads · {{likes}} curtidas",
+    "noChecksum": "checksum não disponível",
+    "adding": "Adicionando…",
+    "addButton": "➕ Adicionar",
+    "noGgufFiles": "Nenhum arquivo .gguf encontrado neste repositório."
+  },
+  "catalogItemCard": {
+    "calculating": "Calculando…",
+    "removeCorpusTitle": "Remover pacote da base de conhecimento?",
+    "removeModelTitle": "Remover pesos do modelo?",
+    "removeCorpusMessage": "Isso exclui o conjunto de dados local e libera {{size}}. Os tópicos não estarão disponíveis offline até serem baixados novamente.",
+    "removeModelMessage": "Isso exclui o arquivo de pesos local e libera {{size}}.",
+    "removeAssetButton": "Remover Recurso",
+    "kind": {
+      "llm": "LLM",
+      "embedding": "EMBEDDING",
+      "corpus": "CORPUS"
+    },
+    "default": "PADRÃO",
+    "compat": {
+      "green": "Funciona muito bem neste aparelho",
+      "yellow": "RAM alta / 12GB necessários",
+      "red": "Incompatível (excede a RAM do aparelho)"
+    },
+    "downloadingAsset": "BAIXANDO RECURSO",
+    "eta": "Tempo restante: {{eta}}",
+    "retryDownload": "🔄 Repetir Download",
+    "downloadAsset": "📥 Baixar Recurso",
+    "selectUse": "🔘 Selecionar e Usar",
+    "indexedNote": "Indexado na base de conhecimento offline",
+    "activeNote": "Modelo de inferência ativo",
+    "deleteAccessibility": "Excluir recurso do modelo",
+    "badge": {
+      "downloading": "BAIXANDO",
+      "notOnDisk": "NÃO INSTALADO",
+      "active": "ATIVO",
+      "cached": "EM CACHE"
+    }
+  },
+  "modelLoadErrorCard": {
+    "corrupt": {
+      "title": "Falha na verificação de integridade",
+      "detail": "O arquivo do modelo baixado está truncado ou corrompido (provavelmente por uma interrupção de rede em segundo plano).",
+      "recommendation": "Baixe o arquivo do modelo novamente ou troque para um modelo já em cache nas Configurações."
+    },
+    "missing": {
+      "title": "Recurso do modelo ausente",
+      "detail": "O binário do modelo GGUF designado não está presente no armazenamento local do aparelho.",
+      "recommendation": "Reabra o Assistente de Configuração ou selecione um modelo instalado no catálogo."
+    },
+    "memory": {
+      "title": "RAM do hardware excedida",
+      "detail": "Memória residente insuficiente para mapear (mmap) os pesos do modelo GGUF e inicializar o cache KV.",
+      "recommendation": "Feche aplicativos em segundo plano ou troque para um modelo mais leve (ex.: Compacto 1,2GB) nas Configurações."
+    },
+    "general": {
+      "title": "Inicialização do motor interrompida",
+      "detailFallback": "O motor llama.rn falhou ao se conectar ao contexto GGUF local.",
+      "recommendation": "Revise as configurações do modelo ou execute novamente o Assistente de Configuração para restaurar os padrões."
+    },
+    "actionRequired": "AÇÃO NECESSÁRIA",
+    "settings": "Configurações",
+    "setupWizard": "Assistente de Configuração"
   }
 }

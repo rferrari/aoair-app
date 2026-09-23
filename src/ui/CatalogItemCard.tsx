@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ActivityIndicator, Alert } from "react-native";
 import * as Haptics from "expo-haptics";
+import { useTranslation } from "react-i18next";
 import { CatalogModel } from "../models/manifest";
 import { getDeviceTotalRamBytes } from "ram-monitor";
 import { colors } from "./theme/colors";
@@ -14,16 +15,16 @@ function formatMB(bytes: number): string {
     : `${(bytes / (1024 * 1024)).toFixed(0)} MB`;
 }
 
-function formatSpeed(bytesPerSec?: number): string {
-  if (!bytesPerSec || bytesPerSec <= 0) return "Calculating…";
+function formatSpeed(bytesPerSec: number | undefined, calculating: string): string {
+  if (!bytesPerSec || bytesPerSec <= 0) return calculating;
   if (bytesPerSec >= 1024 * 1024) {
     return `${(bytesPerSec / (1024 * 1024)).toFixed(1)} MB/s`;
   }
   return `${(bytesPerSec / 1024).toFixed(0)} KB/s`;
 }
 
-function formatEta(seconds?: number): string {
-  if (seconds == null || seconds <= 0 || !isFinite(seconds)) return "Calculating…";
+function formatEta(seconds: number | undefined, calculating: string): string {
+  if (seconds == null || seconds <= 0 || !isFinite(seconds)) return calculating;
   if (seconds < 60) return `${Math.ceil(seconds)}s`;
   const mins = Math.floor(seconds / 60);
   const secs = Math.ceil(seconds % 60);
@@ -61,6 +62,7 @@ interface Props {
 }
 
 export function CatalogItemCard({ item, row, isActive, onDownload, onUse, onRemove }: Props) {
+  const { t } = useTranslation();
   const isCorpus = item.kind === "corpus";
   const present = row?.present ?? false;
   const effectivelyActive = isCorpus ? present : isActive;
@@ -75,18 +77,19 @@ export function CatalogItemCard({ item, row, isActive, onDownload, onUse, onRemo
   }, []);
 
   const compatibility = item.kind === "llm" ? computeCompatibility(item.sizeBytes, deviceRam) : "unknown";
+  const calculating = t("catalogItemCard.calculating");
 
   const confirmRemove = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     Alert.alert(
-      isCorpus ? "Remove Knowledge Base Pack?" : "Remove Model Weights?",
+      isCorpus ? t("catalogItemCard.removeCorpusTitle") : t("catalogItemCard.removeModelTitle"),
       isCorpus
-        ? `This deletes the local dataset and frees ${formatMB(item.sizeBytes)}. Its topics will not be searchable offline until re-downloaded.`
-        : `This deletes the local weights file and frees ${formatMB(item.sizeBytes)}.`,
+        ? t("catalogItemCard.removeCorpusMessage", { size: formatMB(item.sizeBytes) })
+        : t("catalogItemCard.removeModelMessage", { size: formatMB(item.sizeBytes) }),
       [
-        { text: "Cancel", style: "cancel" },
+        { text: t("common.cancel"), style: "cancel" },
         {
-          text: "Remove Asset",
+          text: t("catalogItemCard.removeAssetButton"),
           style: "destructive",
           onPress: () => onRemove(item),
         },
@@ -107,7 +110,7 @@ export function CatalogItemCard({ item, row, isActive, onDownload, onUse, onRemo
           <Text style={styles.label}>{item.label}</Text>
           <View style={styles.metaChipsRow}>
             <View style={styles.kindChip}>
-              <Text style={styles.kindChipText}>{item.kind.toUpperCase()}</Text>
+              <Text style={styles.kindChipText}>{t(`catalogItemCard.kind.${item.kind}`)}</Text>
             </View>
             <Text style={styles.metaText}>{formatMB(item.sizeBytes)}</Text>
             <Text style={styles.metaBullet}>•</Text>
@@ -115,7 +118,7 @@ export function CatalogItemCard({ item, row, isActive, onDownload, onUse, onRemo
             {item.required && (
               <>
                 <Text style={styles.metaBullet}>•</Text>
-                <Text style={styles.defaultChipText}>DEFAULT</Text>
+                <Text style={styles.defaultChipText}>{t("catalogItemCard.default")}</Text>
               </>
             )}
           </View>
@@ -134,19 +137,19 @@ export function CatalogItemCard({ item, row, isActive, onDownload, onUse, onRemo
           {compatibility === "green" && (
             <View style={[styles.compatPill, styles.compatGreen]}>
               <Text style={styles.compatIcon}>🟢</Text>
-              <Text style={styles.compatGreenText}>Runs Great on this device</Text>
+              <Text style={styles.compatGreenText}>{t("catalogItemCard.compat.green")}</Text>
             </View>
           )}
           {compatibility === "yellow" && (
             <View style={[styles.compatPill, styles.compatAmber]}>
               <Text style={styles.compatIcon}>🟡</Text>
-              <Text style={styles.compatAmberText}>High RAM / 12GB Required</Text>
+              <Text style={styles.compatAmberText}>{t("catalogItemCard.compat.yellow")}</Text>
             </View>
           )}
           {compatibility === "red" && (
             <View style={[styles.compatPill, styles.compatRed]}>
               <Text style={styles.compatIcon}>🔴</Text>
-              <Text style={styles.compatRedText}>Incompatible (Exceeds Device RAM)</Text>
+              <Text style={styles.compatRedText}>{t("catalogItemCard.compat.red")}</Text>
             </View>
           )}
         </View>
@@ -169,7 +172,7 @@ export function CatalogItemCard({ item, row, isActive, onDownload, onUse, onRemo
           <View style={styles.downloadProgressHeader}>
             <View style={styles.downloadProgressLeft}>
               <ActivityIndicator size="small" color={colors.emerald[400]} />
-              <Text style={styles.downloadStatusTitle}>DOWNLOADING ASSET</Text>
+              <Text style={styles.downloadStatusTitle}>{t("catalogItemCard.downloadingAsset")}</Text>
             </View>
             <Text style={styles.downloadProgressPct}>
               {(row.progress * 100).toFixed(0)}%
@@ -193,11 +196,11 @@ export function CatalogItemCard({ item, row, isActive, onDownload, onUse, onRemo
             </Text>
             <View style={styles.metricsRight}>
               <Text style={styles.metricSpeedText}>
-                {formatSpeed(row.speedBytesPerSec)}
+                {formatSpeed(row.speedBytesPerSec, calculating)}
               </Text>
               <Text style={styles.metricBullet}>•</Text>
               <Text style={styles.metricEtaText}>
-                ETA: {formatEta(row.etaSeconds)}
+                {t("catalogItemCard.eta", { eta: formatEta(row.etaSeconds, calculating) })}
               </Text>
             </View>
           </View>
@@ -213,7 +216,7 @@ export function CatalogItemCard({ item, row, isActive, onDownload, onUse, onRemo
               onPress={() => handleAction(() => onDownload(item))}
             >
               <Text style={styles.downloadBtnText}>
-                {row?.error ? "🔄 Retry Download" : "📥 Download Asset"}
+                {row?.error ? t("catalogItemCard.retryDownload") : t("catalogItemCard.downloadAsset")}
               </Text>
             </Pressable>
           )}
@@ -223,21 +226,21 @@ export function CatalogItemCard({ item, row, isActive, onDownload, onUse, onRemo
               style={styles.useBtn}
               onPress={() => handleAction(() => onUse(item))}
             >
-              <Text style={styles.useBtnText}>🔘 Select & Use</Text>
+              <Text style={styles.useBtnText}>{t("catalogItemCard.selectUse")}</Text>
             </Pressable>
           )}
 
           {present && isCorpus && (
             <View style={styles.activeCheckRow}>
               <Text style={styles.activeCheckIcon}>✓</Text>
-              <Text style={styles.activeNote}>Indexed in offline knowledge base</Text>
+              <Text style={styles.activeNote}>{t("catalogItemCard.indexedNote")}</Text>
             </View>
           )}
 
           {present && !isCorpus && isActive && (
             <View style={styles.activeCheckRow}>
               <Text style={styles.activeCheckIcon}>✓</Text>
-              <Text style={styles.activeNote}>Active inference model</Text>
+              <Text style={styles.activeNote}>{t("catalogItemCard.activeNote")}</Text>
             </View>
           )}
 
@@ -246,7 +249,7 @@ export function CatalogItemCard({ item, row, isActive, onDownload, onUse, onRemo
               onPress={confirmRemove}
               hitSlop={8}
               style={styles.trashBtn}
-              accessibilityLabel="Delete model asset"
+              accessibilityLabel={t("catalogItemCard.deleteAccessibility")}
             >
               <Text style={styles.trashIcon}>🗑️</Text>
             </Pressable>
@@ -266,17 +269,18 @@ function StatusBadge({
   active: boolean;
   downloading: boolean;
 }) {
+  const { t } = useTranslation();
   if (downloading) {
     return (
       <View style={[styles.badge, styles.badgeDownloading]}>
-        <Text style={styles.badgeTextCyan}>DOWNLOADING</Text>
+        <Text style={styles.badgeTextCyan}>{t("catalogItemCard.badge.downloading")}</Text>
       </View>
     );
   }
   if (!present) {
     return (
       <View style={[styles.badge, styles.badgeGrey]}>
-        <Text style={styles.badgeTextMuted}>NOT ON DISK</Text>
+        <Text style={styles.badgeTextMuted}>{t("catalogItemCard.badge.notOnDisk")}</Text>
       </View>
     );
   }
@@ -284,13 +288,13 @@ function StatusBadge({
     return (
       <View style={[styles.badge, styles.badgeActive]}>
         <View style={styles.activeDot} />
-        <Text style={styles.badgeTextEmerald}>ACTIVE</Text>
+        <Text style={styles.badgeTextEmerald}>{t("catalogItemCard.badge.active")}</Text>
       </View>
     );
   }
   return (
     <View style={[styles.badge, styles.badgeCached]}>
-      <Text style={styles.badgeTextCached}>CACHED</Text>
+      <Text style={styles.badgeTextCached}>{t("catalogItemCard.badge.cached")}</Text>
     </View>
   );
 }
