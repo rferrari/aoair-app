@@ -131,7 +131,12 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
 
     for (const asset of tierAssets) {
       if (!presMap[asset.id]) {
-        startDownload(asset);
+        // presence (and therefore allAssetsPresent / each PhaseRow's status)
+        // is only ever set from an explicit statusAll() scan, not derived
+        // from download progress — without re-checking here, a finished
+        // 100%-downloaded file never flips its PhaseRow from
+        // PENDING/QUEUED to COMPLETE, and indexing never starts.
+        startDownload(asset).finally(() => refreshPresence());
       }
     }
   }, [refreshPresence, tierAssets]);
