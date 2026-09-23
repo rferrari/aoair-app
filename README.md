@@ -1,14 +1,20 @@
 <img src="./assets/boar.png" width="96" alt="BOAR mascot" align="left" />
 
-# BOAR — Best Offline AI Researcher (Android)
+# BOAR — Adaptive Local Intelligence (Android)
 
 <br clear="left" />
 
-A fully offline research assistant for Android: local LLM inference (`llama.cpp`
-via `llama.rn`) + local hybrid retrieval (SQLite FTS5 + on-device embeddings).
-First launch does a one-time model download (the app's only required network
-use); after that it works completely offline. Built for the "Best Offline AI
-Research App" community bounty.
+An open-source AI that runs, learns, and adapts locally on your device.
+
+BOAR is an offline-first mobile AI system exploring adaptive model routing,
+local retrieval, selective verification, and resource-aware inference. It
+chooses how to spend limited device compute based on the task, rather than
+relying on a fixed model or an always-on multi-model pipeline — built on
+local LLM inference (`llama.cpp` via `llama.rn`) and local hybrid retrieval
+(SQLite FTS5 + on-device embeddings). First launch does a one-time model
+download (the app's only required network use); after that it works
+completely offline. Originally built for the "Best Offline AI Research App"
+community bounty.
 
 - ≤ 12GB peak RAM
 - ≤ 50GB total on-disk footprint (app + model weights + indexes)
