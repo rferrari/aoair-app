@@ -1,20 +1,46 @@
-.PHONY: help setup install start run-android build-eas test typecheck clean
+.PHONY: help setup install check-android start run-android build-eas test typecheck clean
 
 help:
 	@echo "BOAR - Best Offline AI Researcher"
 	@echo "-----------------------------------"
-	@echo "make setup        - Install npm dependencies"
+	@echo "make setup        - Install npm dependencies (checks for the Android SDK too)"
 	@echo "make start        - Start Expo dev server"
-	@echo "make run-android  - Build & run on connected Android device"
-	@echo "make build-eas    - Build APK via Expo EAS Cloud"
+	@echo "make run-android  - Build & run on connected Android device (needs Android SDK)"
+	@echo "make build-eas    - Build APK via Expo EAS Cloud (no local Android SDK needed)"
 	@echo "make test         - Run unit tests"
 	@echo "make typecheck    - Run TypeScript type checking"
 	@echo "make clean        - Remove generated native folders & build caches"
 
 setup:
 	npm install
+	@$(MAKE) --no-print-directory check-android
 
 install: setup
+
+# Informational only — never fails `make setup`. npm install is all this repo
+# actually needs; the Android SDK/NDK/JDK toolchain is a separate, much
+# bigger, machine-level install that neither npm nor this Makefile can do
+# for you, so this just tells you up front whether `make run-android` will
+# work or whether you need `make build-eas` instead.
+check-android:
+	@if [ -n "$$ANDROID_HOME" ] && [ -d "$$ANDROID_HOME" ]; then \
+		echo "Android SDK found at $$ANDROID_HOME — 'make run-android' should work."; \
+	elif [ -n "$$ANDROID_SDK_ROOT" ] && [ -d "$$ANDROID_SDK_ROOT" ]; then \
+		echo "Android SDK found at $$ANDROID_SDK_ROOT — 'make run-android' should work."; \
+	elif command -v adb >/dev/null 2>&1; then \
+		echo "Android platform tools found on PATH (adb) — 'make run-android' should work."; \
+	else \
+		echo ""; \
+		echo "No Android SDK detected on this machine (no \$$ANDROID_HOME, no \$$ANDROID_SDK_ROOT, no adb on PATH)."; \
+		echo ""; \
+		echo "  'make run-android' needs a local Android SDK + NDK + a JDK. Install Android"; \
+		echo "  Studio (it sets this up for you) — see:"; \
+		echo "  https://docs.expo.dev/workflow/android-studio-emulator/"; \
+		echo ""; \
+		echo "  Don't want to install all that? Use 'make build-eas' instead — it builds"; \
+		echo "  in the cloud via EAS and needs no local Android SDK at all."; \
+		echo ""; \
+	fi
 
 start:
 	npx expo start

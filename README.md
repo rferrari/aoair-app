@@ -56,8 +56,8 @@ The same steps, via a `Makefile` (`make help` lists all targets):
 ```bash
 git clone https://github.com/rferrari/boar-app.git
 cd boar-app
-make setup
-make run-android   # local build — needs the Android SDK set up
+make setup         # npm install — also checks whether you have the Android SDK
+make run-android   # local build — needs the Android SDK (make setup told you if you have it)
 # or: make build-eas   # cloud build via EAS, no local Android SDK needed
 ```
 
