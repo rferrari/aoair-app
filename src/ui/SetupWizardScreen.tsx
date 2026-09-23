@@ -974,9 +974,10 @@ const styles = StyleSheet.create({
     color: colors.text.dim,
   },
   customizeWhileWaitingText: {
-    ...typography.mono.xs,
-    color: colors.text.heading,
-    paddingHorizontal: spacing.md,
+    ...typography.ui.caption,
+    color: colors.text.secondary,
+    lineHeight: 18,
+    paddingHorizontal: spacing.xs,
     paddingBottom: spacing.xs,
   },
   progressTrack: {
