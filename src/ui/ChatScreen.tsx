@@ -50,6 +50,7 @@ import { VoiceInputButton } from "./VoiceInputButton";
 import { ProcessingIndicator, ProcessingStatus } from "./ProcessingIndicator";
 import { Drawer, DrawerItem } from "./Drawer";
 import { AboutScreen } from "./AboutScreen";
+import { KnowledgeBaseScreen } from "./KnowledgeBaseScreen";
 import { ChatHeader } from "./ChatHeader";
 import { ModelLoadErrorCard } from "./components/ModelLoadErrorCard";
 import { MarkdownMessage } from "./components/MarkdownMessage";
@@ -101,6 +102,7 @@ export function ChatScreen({
   const [showPromptIdeas, setShowPromptIdeas] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
+  const [showKnowledgeBase, setShowKnowledgeBase] = useState(false);
   const [personalityId, setPersonalityIdState] = useState<PersonalityId>("succinct");
   const [processing, setProcessing] = useState<{ messageId: string; status: ProcessingStatus; label?: string } | null>(null);
   const [deepResearchActive, setDeepResearchActive] = useState(false);
@@ -452,11 +454,16 @@ export function ChatScreen({
 
   const drawerItems: DrawerItem[] = [
     { key: "prompts", icon: "💡", label: "Prompt Ideas", onPress: () => setShowPromptIdeas(true) },
+    { key: "knowledge", icon: "📚", label: "My Documents", onPress: () => setShowKnowledgeBase(true) },
     ...(onOpenSettings
       ? [{ key: "settings", icon: "⚙️", label: "Settings", onPress: onOpenSettings }]
       : []),
     { key: "about", icon: "ℹ️", label: "About & Info", onPress: () => setShowAbout(true) },
   ];
+
+  if (showKnowledgeBase) {
+    return <KnowledgeBaseScreen onClose={() => setShowKnowledgeBase(false)} />;
+  }
 
   if (showAbout) {
     return <AboutScreen onClose={() => setShowAbout(false)} />;
