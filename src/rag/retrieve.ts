@@ -34,6 +34,15 @@ async function lexicalSearch(query: string, limit: number): Promise<RetrievedChu
   }));
 }
 
+// bge-small-en-v1.5 cosine similarity heuristic: below this, a chunk isn't
+// actually about the query, it's just whatever happened to be "closest" out
+// of everything in the knowledge base — brute-force top-K with no floor
+// means even a query with nothing relevant on-device (e.g. "say hi") always
+// gets K chunks back, which then get force-fed into the prompt as "Context"
+// the model is told to answer from. Not a precise cutoff, just cheap
+// insurance against near-random matches being presented as relevant.
+const MIN_SEMANTIC_SIMILARITY = 0.45;
+
 /** Brute-force cosine search over stored embeddings; fine at knowledge-base scale on-device. */
 async function semanticSearch(query: string, limit: number): Promise<RetrievedChunk[]> {
   const db = await getDb();
@@ -70,7 +79,7 @@ async function semanticSearch(query: string, limit: number): Promise<RetrievedCh
   });
 
   scored.sort((a, b) => b.score - a.score);
-  return scored.slice(0, limit);
+  return scored.filter((c) => c.score >= MIN_SEMANTIC_SIMILARITY).slice(0, limit);
 }
 
 /**

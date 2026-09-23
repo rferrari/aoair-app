@@ -7,7 +7,21 @@ export interface GenerateOptions {
   nPredict?: number;
   temperature?: number;
   onToken?: (piece: string) => void;
+  stop?: string[];
 }
+
+/**
+ * assemblePrompt (src/rag/pure.ts) hand-builds a plain-text prompt with our
+ * own "User:"/"Assistant:"/"Question:" role labels rather than using
+ * llama.rn's chat-template API (which would auto-derive stop tokens from
+ * the GGUF's own Jinja template) — so nothing tells the model where a turn
+ * actually ends. Left unset, a model that's done answering (especially on
+ * a short/trivial prompt with little else to say) just keeps predicting
+ * tokens and starts hallucinating a fake continuation of the conversation,
+ * inventing new "User:" turns rather than stopping. These match our own
+ * template's role markers so generation halts the moment it tries to do that.
+ */
+const DEFAULT_STOP_SEQUENCES = ["\nUser:", "\n\nUser:", "\nQuestion:", "\n\nQuestion:"];
 
 export interface LoadedModelInfo {
   filename: string;
@@ -140,7 +154,7 @@ export class LlamaEngine {
     return this.context !== null;
   }
 
-  async generate({ prompt, nPredict = 512, temperature = 0.7, onToken }: GenerateOptions): Promise<string> {
+  async generate({ prompt, nPredict = 512, temperature = 0.7, onToken, stop }: GenerateOptions): Promise<string> {
     if (!this.context) throw new Error("LlamaEngine: model not loaded");
 
     let full = "";
@@ -149,6 +163,7 @@ export class LlamaEngine {
         prompt,
         n_predict: nPredict,
         temperature,
+        stop: stop ?? DEFAULT_STOP_SEQUENCES,
       },
       (data) => {
         full += data.token;
