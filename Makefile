@@ -47,7 +47,7 @@ start:
 
 run-android:
 	npx expo prebuild -p android
-	npx expo run:android
+	npx expo run:android --device
 
 # Use this ONLY if native builds get corrupted or when updating Expo plugins
 clean-android:

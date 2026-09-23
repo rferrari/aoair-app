@@ -56,8 +56,7 @@ import { MarkdownMessage } from "./components/MarkdownMessage";
 import { SourceFootnotes } from "./components/SourceFootnotes";
 import { recordQueryStats, trackPeakRss, startAppMemoryTracking } from "../services/telemetry";
 import { getMemoryInfo } from "ram-monitor";
-import { colors } from "./theme/colors";
-import { typography } from "./theme/typography";
+import { useTheme, colors, typography } from "./theme";
 import { spacing, radii, shadows } from "./theme/spacing";
 
 interface Message {
@@ -92,6 +91,7 @@ export function ChatScreen({
   onOpenSettings?: () => void;
   onRelaunchWizard?: () => void;
 }) {
+  const { colors, typography } = useTheme();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [ready, setReady] = useState(false);
@@ -431,7 +431,7 @@ export function ChatScreen({
 
   return (
     <LinearGradient
-      colors={isDeepActive ? ["#0D0B1A", "#060914"] : [colors.bg.terminal, "#0B1120"]}
+      colors={isDeepActive ? [colors.frontier.gradientStart, colors.bg.terminal] : [colors.bg.terminal, colors.bg.surface]}
       style={styles.container}
     >
       {/* Ambient background glows */}
@@ -461,10 +461,10 @@ export function ChatScreen({
 
         {/* Deep Research Mode Banner */}
         {isDeepActive && (
-          <View style={styles.deepResearchBanner}>
+          <View style={[styles.deepResearchBanner, { backgroundColor: colors.frontier.badgeBg, borderBottomColor: colors.frontier.badgeBorder }]}>
             <View style={styles.deepBannerPill}>
               <Text style={styles.deepBannerIcon}>🔬</Text>
-              <Text style={styles.deepBannerText}>
+              <Text style={[styles.deepBannerText, { color: colors.frontier.text }]}>
                 MIXTURE-OF-AGENTS: DECOMPOSE ➔ LOCAL EMBEDDINGS ➔ SYNTHESIS
               </Text>
             </View>
@@ -481,9 +481,9 @@ export function ChatScreen({
         )}
 
         {!ready && !loadError && (
-          <View style={styles.loadingBanner}>
+          <View style={[styles.loadingBanner, { backgroundColor: colors.emerald.bgSubtle, borderBottomColor: colors.emerald.border }]}>
             <ActivityIndicator color={colors.emerald[400]} size="small" />
-            <Text style={styles.loadingBannerText}>{loadStatus}</Text>
+            <Text style={[styles.loadingBannerText, { color: colors.text.accentEmerald }]}>{loadStatus}</Text>
           </View>
         )}
 
@@ -502,7 +502,9 @@ export function ChatScreen({
               <View
                 style={[
                   styles.bubble,
-                  item.role === "user" ? styles.userBubble : styles.assistantBubble,
+                  item.role === "user"
+                    ? [styles.userBubble, { backgroundColor: colors.bg.cardElevated, borderColor: colors.border.focus }]
+                    : [styles.assistantBubble, { backgroundColor: colors.bg.surface, borderColor: colors.border.default }],
                 ]}
               >
                 {/* Bubble role label */}
@@ -510,13 +512,15 @@ export function ChatScreen({
                   <Text
                     style={[
                       styles.bubbleRoleLabel,
-                      item.role === "user" ? styles.userRoleLabel : styles.assistantRoleLabel,
+                      item.role === "user"
+                        ? [styles.userRoleLabel, { color: colors.text.accentCyan }]
+                        : [styles.assistantRoleLabel, { color: colors.text.accentEmerald }],
                     ]}
                   >
                     {item.role === "user" ? "YOU" : "🐗 BOAR RESEARCHER"}
                   </Text>
                   {item.role === "assistant" && activeModel && (
-                    <Text style={styles.bubbleModelTag}>{activeModel.label}</Text>
+                    <Text style={[styles.bubbleModelTag, { color: colors.text.dim }]}>{activeModel.label}</Text>
                   )}
                 </View>
 
@@ -534,8 +538,8 @@ export function ChatScreen({
                 )}
 
                 {item.stopped && (
-                  <View style={styles.stoppedBadge}>
-                    <Text style={styles.stoppedTag}>⏹ Stopped by user</Text>
+                  <View style={[styles.stoppedBadge, { backgroundColor: colors.amber.bgSubtle, borderColor: colors.amber.border }]}>
+                    <Text style={[styles.stoppedTag, { color: colors.text.accentAmber }]}>⏹ Stopped by user</Text>
                   </View>
                 )}
               </View>
@@ -544,7 +548,7 @@ export function ChatScreen({
         />
 
         {/* Input Bar */}
-        <View style={styles.inputContainer}>
+        <View style={[styles.inputContainer, { backgroundColor: colors.bg.cardElevated, borderTopColor: colors.border.default }]}>
           <View style={styles.inputRow}>
             <VoiceInputButton
               disabled={!ready || generating}
@@ -552,7 +556,7 @@ export function ChatScreen({
             />
             <TextInput
               ref={inputRef}
-              style={styles.input}
+              style={[styles.input, { backgroundColor: colors.bg.input, color: colors.text.primary, borderColor: colors.border.default }]}
               value={input}
               onChangeText={setInput}
               placeholder="Ask an offline research question…"

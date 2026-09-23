@@ -31,9 +31,9 @@ import { VoiceSettings } from "./VoiceSettings";
 import { MemorySettings } from "./MemorySettings";
 import { AccordionSection } from "./AccordionSection";
 import { SetupWizardScreen } from "./SetupWizardScreen";
+import { ThemeSelector } from "./components/ThemeSelector";
 import { Toast } from "./Toast";
-import { colors } from "./theme/colors";
-import { typography } from "./theme/typography";
+import { useTheme, colors, typography } from "./theme";
 import { spacing, radii } from "./theme/spacing";
 
 const modelManager = new ModelManager();
@@ -49,6 +49,7 @@ type Props =
  * - "optional": Field Settings dashboard (Tone, Model Catalog, Offline Knowledge Base, Telemetry, and Danger Zone).
  */
 export function ModelSetupScreen(props: Props) {
+  const { colors, typography } = useTheme();
   const requiredMode = props.mode === "required";
   const [presence, setPresence] = useState<Record<string, boolean>>({});
   const [activeIds, setActiveIds] = useState<Partial<Record<AssetKind, string>>>({});
@@ -232,6 +233,12 @@ export function ModelSetupScreen(props: Props) {
           <UsageStatsContent />
         </AccordionSection>
 
+        <AccordionSection icon="🎨" title="Display & Theme">
+          <View style={styles.themeSectionWrapper}>
+            <ThemeSelector />
+          </View>
+        </AccordionSection>
+
         <AccordionSection icon="🎙️" title="Voice Input Configuration">
           <VoiceSettings />
         </AccordionSection>
@@ -409,6 +416,10 @@ const styles = StyleSheet.create({
   browserWrapper: {
     paddingHorizontal: spacing.md,
     marginBottom: spacing.sm,
+  },
+  themeSectionWrapper: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
   },
   recoveryContainer: {
     padding: spacing.md,

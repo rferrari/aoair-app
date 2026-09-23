@@ -1,8 +1,7 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, Pressable, Share } from "react-native";
 import * as Haptics from "expo-haptics";
-import { colors } from "../theme/colors";
-import { typography } from "../theme/typography";
+import { useTheme } from "../theme";
 import { spacing, radii } from "../theme/spacing";
 
 interface Props {
@@ -16,9 +15,6 @@ interface Block {
   language?: string;
 }
 
-/**
- * Parses markdown into text blocks and fenced code blocks (` ```lang ... ``` `).
- */
 function parseBlocks(text: string): Block[] {
   const blocks: Block[] = [];
   const codeBlockRegex = /```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g;
@@ -50,37 +46,17 @@ function parseBlocks(text: string): Block[] {
   return blocks;
 }
 
-/**
- * Formats inline segments: handles `inline code` and **bold** text.
- */
-function renderInlineContent(text: string) {
-  const parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*)/g);
-  return parts.map((part, index) => {
-    if (part.startsWith("`") && part.endsWith("`") && part.length > 2) {
-      const codeSnippet = part.slice(1, -1);
-      return (
-        <Text key={index} style={styles.inlineCode} selectable>
-          {codeSnippet}
-        </Text>
-      );
-    }
-    if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
-      const boldText = part.slice(2, -2);
-      return (
-        <Text key={index} style={styles.boldText} selectable>
-          {boldText}
-        </Text>
-      );
-    }
-    return (
-      <Text key={index} style={styles.bodyText} selectable>
-        {part}
-      </Text>
-    );
-  });
-}
-
-function CodeBlockView({ code, language }: { code: string; language?: string }) {
+function CodeBlockView({
+  code,
+  language,
+  colors,
+  typography,
+}: {
+  code: string;
+  language?: string;
+  colors: any;
+  typography: any;
+}) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -95,24 +71,74 @@ function CodeBlockView({ code, language }: { code: string; language?: string }) 
   };
 
   return (
-    <View style={styles.codeBlock}>
-      <View style={styles.codeHeader}>
+    <View
+      style={[
+        styles.codeBlock,
+        {
+          backgroundColor: colors.bg.terminal,
+          borderColor: colors.border.default,
+        },
+      ]}
+    >
+      <View
+        style={[
+          styles.codeHeader,
+          {
+            backgroundColor: colors.bg.cardElevated,
+            borderBottomColor: colors.border.default,
+          },
+        ]}
+      >
         <View style={styles.codeHeaderLeft}>
-          <View style={styles.codeIndicatorDot} />
-          <Text style={styles.codeLangText}>{(language || "plaintext").toUpperCase()}</Text>
+          <View
+            style={[
+              styles.codeIndicatorDot,
+              { backgroundColor: colors.emerald[400] },
+            ]}
+          />
+          <Text
+            style={[
+              typography.mono.xs,
+              { color: colors.text.secondary, fontWeight: "700" },
+            ]}
+          >
+            {(language || "plaintext").toUpperCase()}
+          </Text>
         </View>
         <Pressable
-          style={[styles.copyBtn, copied && styles.copyBtnSuccess]}
+          style={[
+            styles.copyBtn,
+            { backgroundColor: "rgba(255, 255, 255, 0.08)" },
+            copied && {
+              backgroundColor: colors.emerald.bgSubtle,
+              borderColor: colors.emerald.border,
+              borderWidth: 1,
+            },
+          ]}
           onPress={handleCopy}
           hitSlop={8}
         >
-          <Text style={[styles.copyBtnText, copied && styles.copyBtnTextSuccess]}>
+          <Text
+            style={[
+              typography.mono.xs,
+              {
+                color: copied ? colors.text.accentEmerald : colors.text.muted,
+                fontWeight: "700",
+              },
+            ]}
+          >
             {copied ? "✓ SHARED" : "COPY / SHARE"}
           </Text>
         </Pressable>
       </View>
       <View style={styles.codeBody}>
-        <Text style={styles.codeContent} selectable>
+        <Text
+          style={[
+            typography.mono.sm,
+            { color: colors.text.primary, lineHeight: 19 },
+          ]}
+          selectable
+        >
           {code}
         </Text>
       </View>
@@ -121,16 +147,74 @@ function CodeBlockView({ code, language }: { code: string; language?: string }) 
 }
 
 export function MarkdownMessage({ content, isStreaming }: Props) {
+  const { colors, typography } = useTheme();
   const blocks = parseBlocks(content);
+
+  const renderInline = (text: string) => {
+    const parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*)/g);
+    return parts.map((part, index) => {
+      if (part.startsWith("`") && part.endsWith("`") && part.length > 2) {
+        const codeSnippet = part.slice(1, -1);
+        return (
+          <Text
+            key={index}
+            style={[
+              typography.mono.sm,
+              styles.inlineCode,
+              {
+                backgroundColor: "rgba(0, 0, 0, 0.45)",
+                color: colors.text.accentCyan,
+                borderColor: colors.cyan.border,
+              },
+            ]}
+            selectable
+          >
+            {codeSnippet}
+          </Text>
+        );
+      }
+      if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
+        const boldText = part.slice(2, -2);
+        return (
+          <Text
+            key={index}
+            style={[
+              typography.ui.bodyLg,
+              { fontWeight: "800", color: colors.text.heading },
+            ]}
+            selectable
+          >
+            {boldText}
+          </Text>
+        );
+      }
+      return (
+        <Text
+          key={index}
+          style={[typography.ui.bodyLg, { color: colors.text.primary }]}
+          selectable
+        >
+          {part}
+        </Text>
+      );
+    });
+  };
 
   return (
     <View style={styles.container}>
       {blocks.map((block, idx) => {
         if (block.type === "code") {
-          return <CodeBlockView key={idx} code={block.content} language={block.language} />;
+          return (
+            <CodeBlockView
+              key={idx}
+              code={block.content}
+              language={block.language}
+              colors={colors}
+              typography={typography}
+            />
+          );
         }
 
-        // Render paragraph text with inline code/bold
         const lines = block.content.split("\n");
         return (
           <View key={idx} style={styles.paragraphContainer}>
@@ -138,21 +222,39 @@ export function MarkdownMessage({ content, isStreaming }: Props) {
               const trimmed = line.trim();
               if (trimmed.startsWith("### ")) {
                 return (
-                  <Text key={lineIdx} style={styles.h3}>
+                  <Text
+                    key={lineIdx}
+                    style={[
+                      typography.ui.titleSm,
+                      { color: colors.text.accentCyan, marginTop: 4, marginBottom: 2 },
+                    ]}
+                  >
                     {trimmed.slice(4)}
                   </Text>
                 );
               }
               if (trimmed.startsWith("## ")) {
                 return (
-                  <Text key={lineIdx} style={styles.h2}>
+                  <Text
+                    key={lineIdx}
+                    style={[
+                      typography.ui.title,
+                      { color: colors.text.heading, marginTop: 6, marginBottom: 2 },
+                    ]}
+                  >
                     {trimmed.slice(3)}
                   </Text>
                 );
               }
               if (trimmed.startsWith("# ")) {
                 return (
-                  <Text key={lineIdx} style={styles.h1}>
+                  <Text
+                    key={lineIdx}
+                    style={[
+                      typography.ui.titleLg,
+                      { color: colors.text.heading, marginTop: 8, marginBottom: 4 },
+                    ]}
+                  >
                     {trimmed.slice(2)}
                   </Text>
                 );
@@ -160,15 +262,22 @@ export function MarkdownMessage({ content, isStreaming }: Props) {
               if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
                 return (
                   <View key={lineIdx} style={styles.bulletRow}>
-                    <Text style={styles.bulletSymbol}>•</Text>
-                    <Text style={styles.bulletText}>{renderInlineContent(trimmed.slice(2))}</Text>
+                    <Text
+                      style={[
+                        typography.ui.body,
+                        { color: colors.text.accentEmerald, fontWeight: "800" },
+                      ]}
+                    >
+                      •
+                    </Text>
+                    <Text style={styles.bulletText}>{renderInline(trimmed.slice(2))}</Text>
                   </View>
                 );
               }
 
               return (
-                <Text key={lineIdx} style={styles.line}>
-                  {renderInlineContent(line)}
+                <Text key={lineIdx} style={[typography.ui.bodyLg, { color: colors.text.primary }]}>
+                  {renderInline(line)}
                 </Text>
               );
             })}
@@ -178,7 +287,12 @@ export function MarkdownMessage({ content, isStreaming }: Props) {
 
       {isStreaming && (
         <View style={styles.cursorRow}>
-          <View style={styles.streamingCursor} />
+          <View
+            style={[
+              styles.streamingCursor,
+              { backgroundColor: colors.emerald[400] },
+            ]}
+          />
         </View>
       )}
     </View>
@@ -192,47 +306,11 @@ const styles = StyleSheet.create({
   paragraphContainer: {
     gap: 4,
   },
-  line: {
-    ...typography.ui.bodyLg,
-    color: colors.text.primary,
-  },
-  bodyText: {
-    ...typography.ui.bodyLg,
-    color: colors.text.primary,
-    lineHeight: 22,
-  },
-  boldText: {
-    ...typography.ui.bodyLg,
-    fontWeight: "700",
-    color: "#FFFFFF",
-  },
   inlineCode: {
-    ...typography.mono.sm,
-    backgroundColor: "rgba(0, 0, 0, 0.45)",
-    color: colors.text.accentCyan,
     paddingHorizontal: 5,
     paddingVertical: 1,
     borderRadius: radii.xs,
     borderWidth: 1,
-    borderColor: "rgba(6, 182, 212, 0.25)",
-  },
-  h1: {
-    ...typography.ui.titleLg,
-    color: colors.text.heading,
-    marginTop: spacing.xs,
-    marginBottom: 2,
-  },
-  h2: {
-    ...typography.ui.title,
-    color: colors.text.heading,
-    marginTop: 4,
-    marginBottom: 2,
-  },
-  h3: {
-    ...typography.ui.titleSm,
-    color: colors.text.accentCyan,
-    marginTop: 2,
-    marginBottom: 1,
   },
   bulletRow: {
     flexDirection: "row",
@@ -241,31 +319,22 @@ const styles = StyleSheet.create({
     gap: 6,
     marginVertical: 1,
   },
-  bulletSymbol: {
-    ...typography.ui.body,
-    color: colors.text.accentEmerald,
-    fontWeight: "700",
-  },
   bulletText: {
     flex: 1,
   },
   codeBlock: {
-    backgroundColor: colors.bg.terminal,
-    borderColor: colors.border.default,
-    borderWidth: 1,
     borderRadius: radii.md,
     overflow: "hidden",
     marginVertical: spacing.xs,
+    borderWidth: 1,
   },
   codeHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "rgba(30, 41, 59, 0.7)",
     paddingHorizontal: spacing.sm,
     paddingVertical: 6,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border.default,
   },
   codeHeaderLeft: {
     flexDirection: "row",
@@ -276,39 +345,14 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: colors.emerald[400],
-  },
-  codeLangText: {
-    ...typography.mono.xs,
-    color: colors.text.secondary,
-    fontWeight: "700",
   },
   copyBtn: {
     paddingHorizontal: 8,
     paddingVertical: 3,
-    backgroundColor: "rgba(255, 255, 255, 0.08)",
     borderRadius: radii.xs,
-  },
-  copyBtnSuccess: {
-    backgroundColor: colors.emerald.bgSubtle,
-    borderColor: colors.emerald.border,
-    borderWidth: 1,
-  },
-  copyBtnText: {
-    ...typography.mono.xs,
-    color: colors.text.muted,
-    fontWeight: "700",
-  },
-  copyBtnTextSuccess: {
-    color: colors.text.accentEmerald,
   },
   codeBody: {
     padding: spacing.sm,
-  },
-  codeContent: {
-    ...typography.mono.sm,
-    color: "#E2E8F0",
-    lineHeight: 18,
   },
   cursorRow: {
     flexDirection: "row",
@@ -317,9 +361,8 @@ const styles = StyleSheet.create({
   },
   streamingCursor: {
     width: 8,
-    height: 16,
-    backgroundColor: colors.emerald[400],
+    height: 18,
     borderRadius: 2,
-    opacity: 0.8,
+    opacity: 0.85,
   },
 });

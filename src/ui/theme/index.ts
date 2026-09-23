@@ -1,8 +1,27 @@
-import { colors } from "./colors";
-import { typography, fontFamilies } from "./typography";
+import { colors, getThemeColors, THEMES, midnightTheme, amberTheme, frontierTheme } from "./colors";
+import { typography, fontFamilies, getTypography, FONT_SCALES, Typography } from "./typography";
 import { spacing, radii, shadows } from "./spacing";
+import { ThemeProvider, useTheme } from "./ThemeContext";
 
-export { colors, typography, fontFamilies, spacing, radii, shadows };
+export {
+  colors,
+  getThemeColors,
+  THEMES,
+  midnightTheme,
+  amberTheme,
+  frontierTheme,
+  typography,
+  fontFamilies,
+  getTypography,
+  FONT_SCALES,
+  spacing,
+  radii,
+  shadows,
+  ThemeProvider,
+  useTheme,
+};
+
+export type { Typography };
 
 export const theme = {
   colors,
@@ -11,7 +30,6 @@ export const theme = {
   spacing,
   radii,
   shadows,
-  // Helper for quick terminal badge styling
   badges: {
     emerald: {
       backgroundColor: colors.emerald.bgSubtle,

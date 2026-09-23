@@ -2,6 +2,9 @@ import * as FileSystem from "expo-file-system/legacy";
 import { AssetKind } from "./manifest";
 import { PersonalityId, DEFAULT_PERSONALITY_ID } from "../constants/personalities";
 
+export type ThemeId = "midnight" | "amber" | "frontier";
+export type FontScale = "compact" | "standard" | "large";
+
 interface Settings {
   activeModelId: Partial<Record<AssetKind, string>>;
   hidePromptIdeas?: boolean;
@@ -14,6 +17,8 @@ interface Settings {
   maxSavedSessions?: number;
   autoGenerateTitles?: boolean;
   deepResearchMode?: boolean;
+  themeId?: ThemeId;
+  fontScale?: FontScale;
 }
 
 export interface MemorySettings {
@@ -151,5 +156,27 @@ export async function getDeepResearchMode(): Promise<boolean> {
 export async function setDeepResearchMode(enabled: boolean): Promise<void> {
   const s = await readSettings();
   s.deepResearchMode = enabled;
+  await writeSettings(s);
+}
+
+export async function getThemeId(): Promise<ThemeId> {
+  const s = await readSettings();
+  return s.themeId ?? "midnight";
+}
+
+export async function setThemeId(theme: ThemeId): Promise<void> {
+  const s = await readSettings();
+  s.themeId = theme;
+  await writeSettings(s);
+}
+
+export async function getFontScale(): Promise<FontScale> {
+  const s = await readSettings();
+  return s.fontScale ?? "standard";
+}
+
+export async function setFontScale(scale: FontScale): Promise<void> {
+  const s = await readSettings();
+  s.fontScale = scale;
   await writeSettings(s);
 }

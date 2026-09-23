@@ -27,8 +27,8 @@ import {
   subscribeDownloads,
 } from "../services/downloadManager";
 import { seedKnowledgeBaseIfEmpty } from "../rag/seedCorpus";
-import { colors } from "./theme/colors";
-import { typography } from "./theme/typography";
+import { useTheme, colors, typography } from "./theme";
+import { ThemeSelector } from "./components/ThemeSelector";
 import { spacing, radii } from "./theme/spacing";
 
 const modelManager = new ModelManager();
@@ -67,6 +67,7 @@ function formatEta(seconds?: number): string {
 }
 
 export function SetupWizardScreen({ onReady, onSkip }: Props) {
+  const { colors, typography } = useTheme();
   const [step, setStep] = useState<WizardStep>(1);
   const [selectedTier, setSelectedTier] = useState<SetupTier>("standard");
   const [presence, setPresence] = useState<Record<string, boolean>>({});
@@ -417,6 +418,15 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
                   : "QUEUED"
               }
             />
+          </View>
+
+          {/* Interactive Theme & Font Legibility Customization */}
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <Text style={styles.cardIcon}>🎨</Text>
+              <Text style={styles.cardTitle}>INTERFACE CUSTOMIZATION</Text>
+            </View>
+            <ThemeSelector />
           </View>
 
           {/* Off-Grid Terminal Tips */}
