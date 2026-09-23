@@ -20,10 +20,22 @@ export const PERSONALITIES: Personality[] = [
     id: "succinct",
     label: "Succinct & Direct",
     icon: "⚡",
-    description: "Fastest — 2–3 brief paragraphs or bullets, no preamble. Default for mobile.",
+    description: "Fastest — 2–3 brief paragraphs, no preamble. Default for mobile.",
+    // Small instruct models default heavily toward a "one-sentence takeaway,
+    // then 3 bullet points" shape for almost any "be concise" instruction —
+    // that's a real, common tendency, not a bug in personality selection
+    // (getPersonalityId() is read fresh from persisted settings at both the
+    // header and generate() call, single source of truth, no desync). The
+    // original wording here explicitly allowed "bullet points", with
+    // nothing distinguishing it from "summary"'s deliberately stricter
+    // 1-sentence+3-bullets template below — the two ended up looking the
+    // same in practice. This is now prose-first and explicitly steers away
+    // from mimicking that specific shape, reserving it for "summary".
     systemPrompt:
-      "You are a concise offline research assistant. Deliver direct, high-density " +
-      "answers in bullet points or brief paragraphs without preamble.",
+      "You are a concise offline research assistant. Answer in 2-3 short, direct " +
+      "sentences or a brief paragraph, no preamble. Do not default to a bulleted list " +
+      "or a single takeaway sentence followed by three bullet points — use bullets only " +
+      "when the content is genuinely a list of distinct items.",
   },
   {
     // Deliberately not called "Deep Research" or using 🔬 — that name/icon
