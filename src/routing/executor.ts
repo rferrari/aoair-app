@@ -53,7 +53,29 @@ export interface PipelineResult {
   verification: { status: VerificationStatus; note?: string };
   warnings: string[];
   stepsExecuted: number;
+  /**
+   * How many times THIS plan's own execution needed to swap the resident
+   * model (a plan spanning multiple roles, e.g. retrieve+generate+verify
+   * with a distinct verifier) — plan-local, deliberately NOT "did the
+   * model differ from whatever the previous, separate request left
+   * loaded." Each executeRoutingPlan() call starts counting from a fresh
+   * `loadedModelId = null`, so a single-generate-step plan always reports
+   * 0 here regardless of what was resident before this call began — see
+   * `crossMessageModelSwitch` for that question instead.
+   */
   modelSwitches: number;
+  /**
+   * Whether the model actually resident in LlamaEngine (via
+   * llamaEngine.getModelInfo(), the real source of truth — never an
+   * assumption about what the previous request supposedly left loaded)
+   * changed between the start and end of THIS execution. False for a cold
+   * start (nothing was resident before this call — there's nothing to
+   * have switched FROM), false when nothing loaded successfully (a failed
+   * or skipped load leaves residency unchanged, so no false positive),
+   * true for a genuine Qwen->Phi or Phi->Qwen transition either within
+   * this plan or carried over from a previous, separate request.
+   */
+  crossMessageModelSwitch: boolean;
   timedOut: boolean;
   stopped: boolean;
 }
@@ -76,9 +98,22 @@ export async function executeRoutingPlan(
   let timedOut = false;
   let loadedModelId: string | null = null;
   let modelSwitches = 0;
+  // Read once, before anything in this execution can touch it — the real
+  // resident state at the moment this request started, not an assumption.
+  const residentFilenameBefore = llamaEngine.getModelInfo()?.filename ?? null;
 
   const markTimedOut = () => {
     timedOut = true;
+  };
+
+  // Re-reads llamaEngine's actual current state (never the filename
+  // ensureModelLoaded merely *intended* to load) at whichever point the
+  // function is about to return, so a failed/skipped load that never
+  // actually changed residency can't produce a false positive.
+  const crossMessageModelSwitch = (): boolean => {
+    if (residentFilenameBefore === null) return false; // cold start — nothing to have switched from
+    const residentFilenameAfter = llamaEngine.getModelInfo()?.filename ?? null;
+    return residentFilenameAfter !== residentFilenameBefore;
   };
 
   const ensureModelLoaded = async (modelId: string | undefined): Promise<boolean> => {
@@ -98,7 +133,7 @@ export async function executeRoutingPlan(
 
   for (const step of plan.steps) {
     if (callbacks.shouldStop?.()) {
-      return { answer, plan, citations, verification, warnings, stepsExecuted, modelSwitches, timedOut, stopped: true };
+      return { answer, plan, citations, verification, warnings, stepsExecuted, modelSwitches, timedOut, crossMessageModelSwitch: crossMessageModelSwitch(), stopped: true };
     }
     callbacks.onStepStart?.(step);
 
@@ -114,7 +149,7 @@ export async function executeRoutingPlan(
         if (!ok) {
           if (step.required) {
             warnings.push("generate-step-failed-no-model");
-            return { answer, plan, citations, verification, warnings, stepsExecuted, modelSwitches, timedOut, stopped: false };
+            return { answer, plan, citations, verification, warnings, stepsExecuted, modelSwitches, timedOut, crossMessageModelSwitch: crossMessageModelSwitch(), stopped: false };
           }
           break;
         }
@@ -179,7 +214,7 @@ export async function executeRoutingPlan(
     }
   }
 
-  return { answer, plan, citations, verification, warnings, stepsExecuted, modelSwitches, timedOut, stopped: false };
+  return { answer, plan, citations, verification, warnings, stepsExecuted, modelSwitches, timedOut, crossMessageModelSwitch: crossMessageModelSwitch(), stopped: false };
 }
 
 /**

@@ -553,6 +553,7 @@ export function ChatScreen({
                 taskType: result.taskType,
                 reasonCodes: result.plan.reasonCodes,
                 modelSwitches: result.modelSwitches,
+                crossMessageModelSwitch: result.crossMessageModelSwitch,
                 retrievalUsed: chunks.length > 0,
                 generationLatencyMs: result.generationLatencyMs,
                 outcome: stopRequestedRef.current ? "cancelled" : "success",
@@ -1035,7 +1036,7 @@ const styles = StyleSheet.create({
   },
   bubbleRoleLabel: {
     ...typography.mono.xs,
-    fontWeight: "800",
+    fontWeight: "600",
     letterSpacing: 0.5,
   },
   userRoleLabel: {

@@ -380,8 +380,13 @@ export function UsageStatsContent() {
                 value={stats.retrievalUsed ? "Yes" : "No"}
               />
               <TelemetryRow
-                label="Model Switches"
+                label="Model Switches (this plan)"
                 value={`${stats.modelSwitches ?? 0}`}
+              />
+              <TelemetryRow
+                label="Switched Since Last Message"
+                value={stats.crossMessageModelSwitch ? "Yes" : "No"}
+                highlight={stats.crossMessageModelSwitch ? colors.text.accentCyan : undefined}
               />
               {stats.generationLatencyMs != null && (
                 <TelemetryRow

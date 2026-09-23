@@ -732,3 +732,44 @@ exists here to execute it. Using llama.rn's own public, documented chat-
 formatting API (rather than hand-typing a guessed ChatML string) is the
 most defensible approach available without that runtime, but real-device
 confirmation is the next step.
+
+**Follow-up: telemetry gap fixed — `modelSwitches` vs. cross-message model
+change.** Real-device test: "compare Linux and Windows" correctly switched
+from Qwen to Phi (confirmed via "Model Used: Phi" and response quality),
+but Usage Stats showed `modelSwitches: 0`, which read as a bug. It wasn't
+a routing bug — `modelSwitches` is plan-local by design (a single plan
+needing multiple roles, e.g. retrieve+generate+verify with a distinct
+verifier) and every `executeRoutingPlan()` call starts counting from a
+fresh `loadedModelId = null`, so a single-generate-step plan always
+reports 0 regardless of what was resident before that call began. There
+was no field answering "did the model actually change since the last,
+separate request" at all.
+
+Added `PipelineResult.crossMessageModelSwitch: boolean` (`executor.ts`),
+computed from `llamaEngine.getModelInfo()`'s real resident filename read
+before and after execution — never an assumption about what a previous
+request supposedly left loaded. False for a cold start (nothing resident
+before — nothing to have switched from) and false when a load fails or is
+skipped (residency genuinely unchanged, so no false positive); true for a
+genuine Qwen<->Phi transition, whether it happens within one plan or is
+carried over from a separate, earlier request. `modelSwitches`'s existing
+plan-local meaning is unchanged — both fields now coexist, answering
+different questions, and are documented as such on `PipelineResult`
+itself. Flows through `AdaptiveChatResult` (`adaptiveChat.ts`, via its
+existing `...result` spread — no change needed there) into
+`QueryStats.crossMessageModelSwitch` (`telemetry.ts`) and a new
+"Switched Since Last Message" row in Usage Stats
+(`UsageStatsContent.tsx`).
+
+5 new tests in `executor.test.ts` (mock `llamaEngine.getModelInfo()` now
+actually mutates on `load()`, mirroring the real engine, so it correctly
+reflects what a *previous* `executeRoutingPlan()` call left resident):
+cold start -> false; Qwen then Phi -> true; Phi then Phi -> false; Phi
+then Qwen -> true; a failed/unresolvable model load leaves residency
+(and thus the field) correctly unchanged. Existing plan-local
+`modelSwitches` test extended to also assert `crossMessageModelSwitch:
+false` for that scenario (cold start, even though the plan itself
+switches models internally) — the two fields' independence is itself
+tested, not just each field alone. 116 tests total, up from 111.
+Routing rules/classification/model-selection/retrieval thresholds/
+generation prompts/Deep Research: untouched.

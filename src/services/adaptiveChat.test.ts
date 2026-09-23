@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { RoutingPreset } from "../routing/types";
 
-const loadMock = vi.fn(async (_filename: string) => {});
+let mockResidentFilename: string | null = null;
+const loadMock = vi.fn(async (filename: string) => {
+  mockResidentFilename = filename;
+});
 const generateMock = vi.fn(async (_opts: any) => "mock answer");
 const retrieveMock = vi.fn(async (_query: string) => [] as any[]);
 const statusAllMock = vi.fn(async () => [] as any[]);
@@ -14,6 +17,8 @@ vi.mock("../inference/LlamaEngine", () => ({
   llamaEngine: {
     load: (filename: string) => loadMock(filename),
     generate: (opts: any) => generateMock(opts),
+    getModelInfo: () =>
+      mockResidentFilename ? { filename: mockResidentFilename, nCtx: 4096, nThreads: 4 } : null,
   },
 }));
 
@@ -54,6 +59,7 @@ beforeEach(() => {
   loadMock.mockClear();
   generateMock.mockClear();
   retrieveMock.mockClear();
+  mockResidentFilename = null;
   statusAllMock.mockReset();
   getRoutingPresetMock.mockReset().mockResolvedValue("balanced");
   getModelRoleAssignmentsMock.mockReset().mockResolvedValue({});
@@ -139,6 +145,10 @@ describe("runAdaptiveChat", () => {
     // that's a fresh executeRoutingPlan() call each time (see
     // adaptiveChat.ts's own doc comment on this), not "no switch happened."
     expect(research.modelSwitches).toBe(0);
+    // crossMessageModelSwitch is the field that actually answers "did the
+    // model change since the last request" — true here (Qwen -> Phi),
+    // read from LlamaEngine's real resident state, not assumed.
+    expect(research.crossMessageModelSwitch).toBe(true);
   });
 
   it("cancellation: shouldStop already true means the model is never even loaded", async () => {

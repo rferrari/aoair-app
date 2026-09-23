@@ -26,7 +26,10 @@ export interface QueryStats {
   modelId?: string;
   taskType?: TaskType;
   reasonCodes?: string[];
+  /** Plan-local switches only (a single plan needing multiple roles) — see executor.ts's PipelineResult.modelSwitches doc comment. NOT "did the model differ from the previous request" — see crossMessageModelSwitch for that. */
   modelSwitches?: number;
+  /** Whether the resident model actually changed between the start and end of this request, per LlamaEngine's own real state (not an assumption) — false for a cold start or a failed/skipped load, true for a genuine Qwen<->Phi transition, whether within this plan or carried over from a previous, separate request. */
+  crossMessageModelSwitch?: boolean;
   retrievalUsed?: boolean;
   /** Time spent specifically inside executeRoutingPlan() — retrieval + generation + verification steps, not settings/history assembly. */
   generationLatencyMs?: number;
