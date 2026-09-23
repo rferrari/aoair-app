@@ -197,7 +197,7 @@
     },
     "step3": {
       "title": "INICIALIZAÇÃO DO NÚCLEO OFFLINE",
-      "subtitle": "Baixando pesos abertos e preenchendo a base de conhecimento SQLite local.",
+      "subtitle": "Baixando pesos abertos e preenchendo a base de conhecimento local.",
       "assetsCached": "RECURSOS ARMAZENADOS EM DISCO",
       "downloadingWeights": "BAIXANDO PESOS",
       "eta": "Tempo restante: {{eta}}",
@@ -209,7 +209,7 @@
       "tipText": "Após a inicialização, o BOAR é completamente autônomo. Você pode ativar o modo avião e usar o app em total isolamento, sem perda de funcionalidade.",
       "launchButton": "🐗 Iniciar Terminal BOAR",
       "indexingError": "Erro de indexação: {{error}}",
-      "buildingIndex": "Construindo base de conhecimento SQLite local & índice vetorial…",
+      "buildingIndex": "Construindo base de conhecimento local & índice vetorial…",
       "waitingForDownloads": "Aguardando downloads…",
       "downloadFailedLabel": "Falha no download",
       "retryDownloads": "Repetir Download",
