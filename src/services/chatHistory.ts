@@ -14,6 +14,8 @@ export interface ChatMessageRecord {
   role: "user" | "assistant";
   text: string;
   createdAt: number;
+  /** null = no rating given. Present so reopening a past session restores previously-given thumbs. */
+  feedback: "up" | "down" | null;
 }
 
 function newId(): string {
@@ -57,9 +59,12 @@ export async function getMessages(sessionId: string): Promise<ChatMessageRecord[
     role: "user" | "assistant";
     text: string;
     created_at: number;
+    rating: "up" | "down" | null;
   }>(
-    `SELECT id, session_id, role, text, created_at FROM chat_messages
-     WHERE session_id = ? ORDER BY created_at ASC`,
+    `SELECT m.id, m.session_id, m.role, m.text, m.created_at, f.rating
+     FROM chat_messages m
+     LEFT JOIN answer_feedback f ON f.message_id = m.id
+     WHERE m.session_id = ? ORDER BY m.created_at ASC`,
     [sessionId]
   );
   return rows.map((r) => ({
@@ -68,21 +73,43 @@ export async function getMessages(sessionId: string): Promise<ChatMessageRecord[
     role: r.role,
     text: r.text,
     createdAt: r.created_at,
+    feedback: r.rating,
   }));
 }
 
+/**
+ * `id` is optional and defaults to a freshly generated one, but ChatScreen
+ * always passes its own in-memory message id explicitly (the same one used
+ * as the FlatList key / React state id) — so a thumbs-up/down tap can
+ * reference `item.id` directly as `setMessageFeedback`'s foreign key,
+ * rather than needing a separate id-mapping step.
+ */
 export async function addMessage(
   sessionId: string,
   role: "user" | "assistant",
-  text: string
+  text: string,
+  id: string = newId()
 ): Promise<void> {
   const db = await getDb();
   const now = Date.now();
   await db.runAsync(
     `INSERT INTO chat_messages (id, session_id, role, text, created_at) VALUES (?, ?, ?, ?, ?)`,
-    [newId(), sessionId, role, text, now]
+    [id, sessionId, role, text, now]
   );
   await db.runAsync(`UPDATE chat_sessions SET updated_at = ? WHERE id = ?`, [now, sessionId]);
+}
+
+/** `rating: null` clears any existing feedback (tapping the same thumb again to un-rate). */
+export async function setMessageFeedback(messageId: string, rating: "up" | "down" | null): Promise<void> {
+  const db = await getDb();
+  if (rating === null) {
+    await db.runAsync(`DELETE FROM answer_feedback WHERE message_id = ?`, [messageId]);
+    return;
+  }
+  await db.runAsync(
+    `INSERT OR REPLACE INTO answer_feedback (message_id, rating, created_at) VALUES (?, ?, ?)`,
+    [messageId, rating, Date.now()]
+  );
 }
 
 export async function setSessionTitle(sessionId: string, title: string): Promise<void> {
@@ -98,6 +125,10 @@ export async function setSessionSummary(sessionId: string, summary: string): Pro
 export async function deleteSession(sessionId: string): Promise<void> {
   const db = await getDb();
   await db.withTransactionAsync(async () => {
+    await db.runAsync(
+      `DELETE FROM answer_feedback WHERE message_id IN (SELECT id FROM chat_messages WHERE session_id = ?)`,
+      [sessionId]
+    );
     await db.runAsync(`DELETE FROM chat_messages WHERE session_id = ?`, [sessionId]);
     await db.runAsync(`DELETE FROM chat_sessions WHERE id = ?`, [sessionId]);
   });
@@ -106,6 +137,7 @@ export async function deleteSession(sessionId: string): Promise<void> {
 export async function clearAllHistory(): Promise<void> {
   const db = await getDb();
   await db.withTransactionAsync(async () => {
+    await db.runAsync(`DELETE FROM answer_feedback`);
     await db.runAsync(`DELETE FROM chat_messages`);
     await db.runAsync(`DELETE FROM chat_sessions`);
   });

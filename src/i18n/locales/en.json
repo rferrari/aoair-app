@@ -322,6 +322,8 @@
     "stoppedByUser": "Stopped by user",
     "deepResearchBanner": "MIXTURE-OF-AGENTS: DECOMPOSE ➔ LOCAL EMBEDDINGS ➔ SYNTHESIS",
     "copyResponse": "Copy response",
+    "rateUp": "Good response",
+    "rateDown": "Bad response",
     "stageTimedOut": "A research step took too long and was cut short",
     "interruptedByBackground": "Paused — app was backgrounded. Ask again to continue."
   },

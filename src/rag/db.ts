@@ -78,6 +78,17 @@ async function openAndMigrate(): Promise<SQLite.SQLiteDatabase> {
     CREATE INDEX IF NOT EXISTS idx_chat_messages_session
       ON chat_messages(session_id, created_at);
 
+    -- One rating per assistant message (message_id is the primary key, not
+    -- an auto-increment id) — a re-tap replaces the row via INSERT OR
+    -- REPLACE rather than accumulating a history of rating changes; this
+    -- app only needs "the user's current verdict on this answer," not an
+    -- edit trail.
+    CREATE TABLE IF NOT EXISTS answer_feedback (
+      message_id TEXT PRIMARY KEY REFERENCES chat_messages(id),
+      rating TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+
     -- User-imported document collections (Settings > Knowledge Base >
     -- Import). Chunks from the bundled/downloaded corpus have no collection
     -- (collection_id IS NULL on the chunks table below) and are always

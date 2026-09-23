@@ -322,6 +322,8 @@
     "stoppedByUser": "Interrompido pelo usuário",
     "deepResearchBanner": "MISTURA DE AGENTES: DECOMPOR ➔ EMBEDDINGS LOCAIS ➔ SINTETIZAR",
     "copyResponse": "Copiar resposta",
+    "rateUp": "Boa resposta",
+    "rateDown": "Resposta ruim",
     "stageTimedOut": "Uma etapa da pesquisa demorou demais e foi interrompida",
     "interruptedByBackground": "Pausado — o app foi para segundo plano. Pergunte novamente para continuar."
   },

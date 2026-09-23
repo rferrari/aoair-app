@@ -50,6 +50,7 @@ import {
   setSessionTitle,
   setSessionSummary,
   pruneSessions,
+  setMessageFeedback,
   ChatSession,
 } from "../services/chatHistory";
 import { generateSessionTitle, summarizeConversation } from "../services/summarize";
@@ -77,6 +78,7 @@ interface Message {
   stopped?: boolean;
   timedOut?: boolean;
   interruptedByBackground?: boolean;
+  feedback?: "up" | "down" | null;
 }
 
 const VERBATIM_MESSAGE_COUNT = 6;
@@ -233,6 +235,20 @@ export function ChatScreen({
     [haptic]
   );
 
+  // Tapping the currently-active thumb again clears the rating (matches
+  // copyMessage's own toggle-back-off pattern) rather than being a
+  // one-way, unchangeable vote.
+  const rateMessage = useCallback(
+    async (id: string, rating: "up" | "down") => {
+      const current = messagesRef.current.find((m) => m.id === id)?.feedback ?? null;
+      const next = current === rating ? null : rating;
+      haptic(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light));
+      setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, feedback: next } : m)));
+      await setMessageFeedback(id, next);
+    },
+    [haptic]
+  );
+
   const toggleDeepResearch = useCallback(async () => {
     const next = !deepResearchEnabled;
     setDeepResearchEnabled(next);
@@ -351,7 +367,7 @@ export function ChatScreen({
     await stopAndAwaitGeneration();
     await cancelBackgroundTask();
     const records = await getSessionMessages(id);
-    setMessages(records.map((r) => ({ id: r.id, role: r.role, text: r.text })));
+    setMessages(records.map((r) => ({ id: r.id, role: r.role, text: r.text, feedback: r.feedback })));
     setActiveSessionId(id);
     const session = sessions.find((s) => s.id === id);
     sessionSummaryRef.current = session?.summary ?? null;
@@ -383,10 +399,14 @@ export function ChatScreen({
       sessionId = session.id;
       setActiveSessionId(sessionId);
     }
-    await persistMessage(sessionId, "user", query);
-
     const userMsg: Message = { id: `${Date.now()}-u`, role: "user", text: query };
     const assistantId = `${Date.now()}-a`;
+    // Explicit id, matching the in-memory message id used for the FlatList
+    // key/React state — so a thumbs-up/down tap on this exact message can
+    // reference `item.id` directly as answer_feedback's foreign key later,
+    // rather than needing a separate id-mapping step.
+    await persistMessage(sessionId, "user", query, userMsg.id);
+
     setMessages((prev) => [...prev, userMsg, { id: assistantId, role: "assistant", text: "" }]);
     setProcessing({ messageId: assistantId, status: "retrieving" });
 
@@ -576,7 +596,7 @@ export function ChatScreen({
       });
 
       if (assistantText.trim().length > 0) {
-        await persistMessage(sessionId, "assistant", assistantText);
+        await persistMessage(sessionId, "assistant", assistantText, assistantId);
       }
 
       const settings = memorySettingsRef.current;
@@ -759,17 +779,6 @@ export function ChatScreen({
                   >
                     {item.role === "user" ? t("chatScreen.roleYou") : t("chatScreen.roleAssistant")}
                   </Text>
-                  {item.role === "assistant" && item.text.length > 0 && (
-                    <Pressable
-                      onPress={() => copyMessage(item.id, item.text)}
-                      hitSlop={8}
-                      accessibilityLabel={t("chatScreen.copyResponse")}
-                    >
-                      <Text style={[styles.copyIcon, { color: colors.text.dim }]}>
-                        {copiedMessageId === item.id ? "✓" : "⧉"}
-                      </Text>
-                    </Pressable>
-                  )}
                 </View>
 
                 {showProcessing ? (
@@ -800,6 +809,49 @@ export function ChatScreen({
                 {item.interruptedByBackground && (
                   <View style={[styles.stoppedBadge, { backgroundColor: colors.amber.bgSubtle, borderColor: colors.amber.border }]}>
                     <Text style={[styles.stoppedTag, { color: colors.text.accentAmber }]}>⏸ {t("chatScreen.interruptedByBackground")}</Text>
+                  </View>
+                )}
+
+                {item.role === "assistant" && item.text.length > 0 && (
+                  <View style={styles.bubbleFooter}>
+                    <Pressable
+                      onPress={() => rateMessage(item.id, "up")}
+                      hitSlop={8}
+                      accessibilityLabel={t("chatScreen.rateUp")}
+                    >
+                      <Text
+                        style={[
+                          styles.footerIcon,
+                          { color: item.feedback === "up" ? colors.text.accentEmerald : colors.text.dim },
+                        ]}
+                      >
+                        👍
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => rateMessage(item.id, "down")}
+                      hitSlop={8}
+                      accessibilityLabel={t("chatScreen.rateDown")}
+                    >
+                      <Text
+                        style={[
+                          styles.footerIcon,
+                          { color: item.feedback === "down" ? colors.crimson[400] : colors.text.dim },
+                        ]}
+                      >
+                        👎
+                      </Text>
+                    </Pressable>
+                    <View style={styles.footerSpacer} />
+                    <Pressable
+                      onPress={() => copyMessage(item.id, item.text)}
+                      hitSlop={8}
+                      accessibilityLabel={t("chatScreen.copyResponse")}
+                    >
+                      <Text style={[styles.footerIcon, { color: colors.text.dim }]}>
+                        {copiedMessageId === item.id ? "✓" : "⧉"}
+                      </Text>
+                    </Pressable>
                   </View>
                 )}
               </View>
@@ -995,6 +1047,20 @@ const styles = StyleSheet.create({
   copyIcon: {
     fontSize: 14,
     paddingHorizontal: 4,
+  },
+  bubbleFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 6,
+  },
+  footerIcon: {
+    fontSize: 14,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
+  footerSpacer: {
+    flex: 1,
   },
   stoppedBadge: {
     marginTop: 4,
