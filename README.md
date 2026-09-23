@@ -37,8 +37,8 @@ hardware — see open items below.
 ## Quickstart
 
 ```bash
-git clone <this repo>
-cd aoair_app
+git clone https://github.com/rferrari/boar-app.git
+cd boar-app
 npm install
 
 # Build via EAS (no local Android SDK needed) — see eas.json
@@ -47,6 +47,18 @@ npx eas-cli build --platform android --profile preview
 # OR build locally if you have the Android SDK set up:
 npx expo prebuild -p android
 npx expo run:android
+```
+
+### Quickstart with Make
+
+The same steps, via a `Makefile` (`make help` lists all targets):
+
+```bash
+git clone https://github.com/rferrari/boar-app.git
+cd boar-app
+make setup
+make run-android   # local build — needs the Android SDK set up
+# or: make build-eas   # cloud build via EAS, no local Android SDK needed
 ```
 
 On first launch, the app shows a one-time setup screen that downloads the
