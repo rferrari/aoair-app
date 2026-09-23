@@ -645,10 +645,17 @@ export function ChatScreen({
 
         <FlatList
           ref={listRef}
+          style={styles.flex}
           data={messages}
           keyExtractor={(m) => m.id}
           contentContainerStyle={styles.list}
-          onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
+          // Animated scrolling during active streaming fires on nearly every
+          // token — each call starts a new scroll animation before the last
+          // one finishes, so they fight each other and the view visibly
+          // lags behind the growing text until generation stops and the
+          // final call actually completes. Snap instantly while generating;
+          // animate only for the normal (new message / not streaming) case.
+          onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: !generating })}
           renderItem={({ item }) => {
             const showProcessing =
               item.text === "" && processing?.messageId === item.id && processing.status !== "generating";
