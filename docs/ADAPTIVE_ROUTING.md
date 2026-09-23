@@ -1,0 +1,246 @@
+# Adaptive Offline Intelligence — Phase 0 Architecture Audit
+
+Branch: `adaptive-offline-ai`. This audit is the required Phase 0 deliverable
+before any routing/execution-engine code is written, per the build plan.
+Everything below reflects the actual current code (checked directly, not
+recalled), not aspiration.
+
+## 1. Model catalog and manifest
+
+`src/models/manifest.ts` — `CatalogModel` (id, kind: `llm`/`embedding`/`corpus`,
+filename, sizeBytes, sha256, sourceUrl, license, description, required,
+bundled?). `MODEL_CATALOG` is the curated list; `TIERS` (Minimum/Standard/Full)
+bundle a required-model set + corpus packs for first-run setup.
+`src/models/discoveredModels.ts` persists models found via the Hugging Face
+search (`src/services/modelBrowser.ts`) — same `CatalogModel` shape, kept in a
+separate JSON file rather than merged into `MODEL_CATALOG` since they aren't
+vetted the same way.
+
+**No model capability/role metadata exists today.** `CatalogModel` has no
+notion of "this model is good at reasoning" or "this model supports role X" —
+that's exactly the gap Phase 1's `ModelCapabilities` fills. It will need to be
+layered on as a new, optional, separately-stored annotation (curated for
+`MODEL_CATALOG` entries, absent/defaulted for discovered/custom ones), not
+added as a required field on `CatalogModel` — discovered models have no one
+vetting their capabilities.
+
+## 2. Download/install lifecycle
+
+`src/models/ModelManager.ts` — `statusOf()` (verifies on-disk file size matches
+catalog, self-heals truncated files by treating them as absent),
+`downloadCatalogModel()` (network fetch + post-download size check, no
+per-download sha256 verification — reading a multi-GB file into memory for a
+hash isn't done routinely, see the class's own doc comments), `installBundled()`
+(alternate bundled-APK path, not the default build).
+
+`src/services/downloadManager.ts` — module-level singleton (survives screen
+unmount/remount), tracks per-asset progress/speed/ETA, guards against duplicate
+concurrent downloads to the same asset id.
+
+## 3. Model loading/unloading and the inference wrapper
+
+**Two independent singletons, each wrapping one `llama.rn` `LlamaContext`:**
+
+- `src/inference/LlamaEngine.ts` (`llamaEngine`) — generation. `load()` first
+  calls `unload()` (releases any previous context) before creating a new one —
+  this is a hard constraint: **only one generation-capable model can be loaded
+  at a time.** `load()` now no-ops if the same file is already loaded (fixed
+  earlier this session — re-mounting a screen used to force an unnecessary
+  multi-second native reload). Includes a pre-flight RAM estimate
+  (`estimateFit`) that throws a clear error before attempting a load likely to
+  OOM. `generate()` passes fixed `DEFAULT_STOP_SEQUENCES` matching the app's
+  own hand-built prompt template (not a chat-template API — see §9).
+  `stop()` calls `context.stopCompletion()`, which resolves the in-flight
+  `completion()` promise normally with partial text (llama.cpp's clean-stop
+  behavior) — it does **not** raise/reject.
+
+- `src/rag/embed.ts` (`embeddingEngine`) — embeddings, same load-guard pattern.
+
+**Implication for routing/roles:** the two engines can run concurrently with
+each other (generation + embedding coexist today, that's how RAG already
+works), but there is **no support for two different generation models loaded
+at once**. A routing plan that wants, say, a `fast` model and a separate
+`reasoning` model can only run them **sequentially**, paying a model-switch
+cost (unload + load, which does a RAM pre-flight and can be a multi-second
+native operation for a multi-GB model) between them. This directly confirms
+the build plan's own guidance: sequential execution only in the first
+implementation, no concurrent multi-model execution.
+
+## 4. Chat state and message persistence
+
+`src/services/chatHistory.ts` over `src/rag/db.ts`'s SQLite (`chat_sessions`,
+`chat_messages` tables: `id`, `session_id`, `role`, `text`, `created_at`).
+`ChatScreen.tsx` holds live message state in React state; persistence happens
+via explicit `createSession`/`addMessage` calls, not automatically.
+
+This is the natural join key for feedback records (Phase 6): `messageId` =
+`chat_messages.id`, `conversationId` = `chat_sessions.id`, both already stable,
+already-persisted identifiers — no new ID scheme needed.
+
+## 5. RAG / retrieval services
+
+`src/rag/retrieve.ts` — hybrid BM25 (FTS5) + cosine (brute-force over stored
+float32 embeddings) with a weighted-sum fusion. `semanticSearch` now enforces a
+minimum cosine-similarity floor (`MIN_SEMANTIC_SIMILARITY = 0.45`, added this
+session) so an irrelevant query doesn't get force-fed unrelated "context" —
+relevant precedent for Phase 5's "avoid presenting unsupported citations as
+verified facts."
+
+`src/services/orchestrator.ts` — the existing "Deep Research Mode": a
+**sequential multi-pass pipeline on the single loaded generation model**
+(decompose → per-sub-question retrieve+generate → synthesize), explicitly
+documented as not-actually-multi-agent. This is architecturally the closest
+existing thing to a "RoutingPlan executor" — Phase 4's execution engine should
+generalize this pattern (typed steps, sequential execution over one context)
+rather than replace it. `runDeepResearch` already accepts a `shouldStop`
+callback checked between stages (added this session, after discovering the
+Stop button didn't actually halt multi-stage research) — the same shape
+Phase 4's cancellation support needs.
+
+## 6. Embedding pipeline
+
+`src/rag/embed.ts` (above) + `src/rag/seedCorpus.ts` (idempotent bulk seeding:
+checks existing `chunk_id` before embedding, so re-running only embeds new
+docs). Embeddings are always computed on-device at seed/import time, never
+precomputed/shipped — this is deliberate (see `ARCHITECTURE.md`), so they
+always match whichever embedding model is actually loaded.
+
+## 7. Settings and localization
+
+`src/models/settings.ts` — single JSON file
+(`FileSystem.documentDirectory + "settings.json"`), read-modify-write on every
+change, no schema migration system (new fields are just optional with a
+default fallback in each getter). Everything from theme to personality to
+memory limits lives here. **This is the pattern Phase 2's presets/model-role
+assignments should follow** for simple key-value config (e.g.
+`routingPreset: RoutingPreset`, `modelRoleAssignments: Record<ModelRole,
+string>`) — small, infrequently-written, no query needs.
+
+`src/i18n/` — i18next/react-i18next, English + Portuguese, manual picker only
+(no device-locale auto-detection), 261 keys as of this session's localization
+pass. Any new user-facing strings (preset names, routing status text, feedback
+UI) need entries in both `src/i18n/locales/en.json` and `pt.json` to stay
+consistent with the rest of the app — the earlier i18n pass had gaps
+specifically where strings lived in module-level object literals rather than
+JSX text, worth remembering when the routing UI adds its own status-label maps.
+
+## 8. Model selection UI
+
+`ModelSetupScreen.tsx` (Settings) and `SetupWizardScreen.tsx` (first-run) both
+already have model-management UI (download, activate, remove). `ModelBrowser.tsx`
++ `ModelCatalogScreen.tsx` handle Hugging Face search. **The routing layer
+should read from/write to this existing model-management state, not introduce
+a second one** — e.g. "assign this already-downloaded model to the `reasoning`
+role" is a new relationship on top of existing `CatalogModel`/`discoveredModels`
+data, not a new model registry.
+
+## 9. Error handling and reset
+
+`src/ui/components/ModelLoadErrorCard.tsx` classifies raw load errors into a
+few buckets (corrupted download, missing file, likely OOM, generic) with
+retry/Settings/Setup-Wizard actions. `src/services/appReset.ts` does a full
+data wipe (unload both engines first, since they hold the model files open via
+mmap — deleting out from under a live context is a known bad pattern in this
+codebase's history). Any new local storage (routing config, telemetry,
+feedback) needs to be included in `resetAllAppData()`'s wipe list.
+
+## 10. Concurrent model loading — see §3
+
+Confirmed: **no.** One generation context, one embedding context, both
+singletons. Multi-model routing plans execute sequentially.
+
+## 11. Memory/runtime metrics availability
+
+`modules/ram-monitor` (native module) exposes `getMemoryInfo()` (process RSS)
+and `getDeviceTotalRamBytes()`. `src/services/telemetry.ts` already tracks
+peak RSS per-query (`trackPeakRss`) and app-lifetime peak RSS
+(`startAppMemoryTracking`), plus per-query stats (tokens generated, duration,
+time-to-first-token, tokens/sec) via `recordQueryStats`/`getLastQueryStats`.
+**This is real infrastructure Phase 7's `ExecutionTelemetry` should build on,
+not duplicate** — token/sec and TTFT are already measured per-generation in
+`ChatScreen.tsx`'s `send()`.
+
+No per-model "estimated tokens/sec" or "estimated memory" benchmark data
+exists yet — `ModelCapabilities.estimatedMemoryMb`/`estimatedTokensPerSecond`
+would need to be either hand-curated per catalog entry (rough, same spirit as
+the existing RAM-compatibility badge heuristic in `CatalogItemCard.tsx`) or
+derived from `telemetry.ts`'s recorded history once enough real executions
+exist — the plan's own Phase 8 guidance ("do not invent memory measurements")
+argues for starting with the latter, deferred, rather than fabricating numbers.
+
+## 12. Safest existing storage mechanism for routing config / telemetry / feedback
+
+Two mechanisms exist, matching to two different needs:
+
+- **`settings.ts` (JSON file)** — small, singular, human-editable-shaped
+  config: active preset, per-role model assignment, telemetry-enabled toggle.
+  Matches Phase 2/9 needs.
+- **SQLite (`src/rag/db.ts`)** — structured, queryable, growable records with
+  natural foreign keys into `chat_messages`/`chat_sessions`. Matches Phase 6
+  (`AnswerFeedback`) and Phase 7 (`ExecutionTelemetry`) needs — new tables
+  (`answer_feedback`, `execution_telemetry`) following the exact pattern
+  already used for `custom_collections`, with the same `db.ts`
+  open-once-lazily/migrate-on-open structure (`PRAGMA table_info` check before
+  `ALTER TABLE`, as already done for `chunks.collection_id`).
+
+Both mechanisms are already wired into `appReset.ts`'s wipe path (JSON file
+deletion, `resetDatabase()`) — new tables/fields need adding to that list, not
+a new deletion path.
+
+## 13. Model switching — does it recreate inference contexts?
+
+Yes, always, by design: `load()` unconditionally calls `unload()` (unless the
+same file is already loaded, per the no-op guard added this session). This is
+correct/necessary given §3 — there's no way to have two generation contexts
+resident, so switching models always means releasing native memory for the old
+one and mmap'ing the new one from disk. A routing plan that alternates between
+two role-mapped models on the same query will pay this cost each time it
+switches — worth surfacing in `ExecutionTelemetry` as a distinct
+"model-switch-ms" metric so it's visible rather than silently inflating
+per-step latency numbers.
+
+## 14. Cancellation, timeouts, and backgrounding
+
+- **Cancellation**: `ChatScreen.tsx` tracks the in-flight `send()` promise
+  (`sendTaskRef`) and a `stopRequestedRef` flag; `stopAndAwaitGeneration()`
+  sets the flag, calls `llamaEngine.stop()`, and awaits the actual promise —
+  added this session after discovering session-switching didn't previously
+  wait for generation to actually stop, causing stale-state bugs. Deep
+  Research's `runDeepResearch` checks `shouldStop()` between stages (also this
+  session) since `llamaEngine.stop()` alone only halts the *current* single
+  completion, not a multi-step pipeline.
+- **Timeouts**: **none exist anywhere in the codebase.** No per-generation or
+  per-step timeout budget. `InferenceBudget`/`RoutingStep.timeoutMs` (Phase 3)
+  is entirely new — needs a `Promise.race` against a timer wrapped around
+  `llamaEngine.generate()`, plus a decision on what "timeout" does to a
+  streaming completion already emitting tokens (calling `stop()` mid-stream is
+  the only existing mechanism; a clean timeout should probably just do that,
+  reusing the stop path rather than inventing a second cancellation
+  mechanism).
+- **Backgrounding**: **not handled at all.** No `AppState` listener anywhere
+  in the app. `ModelManager`'s own doc comments cite "app backgrounded... mid-transfer"
+  as a known cause of truncated downloads, but nothing currently detects or
+  reacts to backgrounding for chat generation, routing execution, or anything
+  else. This is a real, pre-existing gap the build plan's constraint
+  ("cancellable and resource-aware... do not implement... unexpected
+  background inference") implicitly assumes is handled — it isn't yet. Worth
+  a decision: should backgrounding auto-stop an in-flight generation/pipeline
+  (safest, matches "no unexpected background inference"), or just let it keep
+  running (simpler, but risks the OS killing the process mid-generation on
+  memory pressure with no clean state)? Recommend auto-stop, matching the
+  existing `stopAndAwaitGeneration` path — deferred to whichever phase adds
+  the execution engine, since it's the first place a background stop actually
+  has multi-step state worth protecting.
+
+## Summary: what Phase 1+ builds on top of, unchanged
+
+- Single generation context + single embedding context (sequential execution
+  only, confirmed necessary, not just recommended).
+- `orchestrator.ts`'s Deep Research pipeline is the closest existing precursor
+  to the execution engine — generalize its shape, don't replace it outright.
+- `telemetry.ts` already measures the core per-generation metrics
+  Phase 7 needs; extend, don't duplicate.
+- `settings.ts` (JSON) for routing config, SQLite for feedback/telemetry —
+  matches existing storage-choice conventions in this codebase exactly.
+- No timeout mechanism and no backgrounding handling exist yet — both are new
+  work, not gaps in this audit.
