@@ -111,7 +111,7 @@
     "live": "AO VIVO"
   },
   "systemMonitor": {
-    "title": "MEDIDORES DE CONFORMIDADE DA BOUNTY",
+    "title": "MEDIDORES DE CONFORMIDADE",
     "diskLabel": "Armazenamento em Disco (Limite: 50GB)",
     "ramLabel": "Memória RSS do Processo (Limite: 12GB)",
     "exceeded": "⚠️ EXCEDIDO",
@@ -179,7 +179,7 @@
       "verified": "Verificado",
       "availableStorage": "Armazenamento Disponível",
       "sufficient": "Suficiente",
-      "ramBudget": "Orçamento de RAM da Bounty",
+      "ramBudget": "Orçamento de RAM",
       "under12gb": "Abaixo do Limite de 12GB",
       "inferenceEngine": "Motor de Inferência",
       "inferenceEngineValue": "ARM64 llama.rn (Offline)",

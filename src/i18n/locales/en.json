@@ -111,7 +111,7 @@
     "live": "LIVE"
   },
   "systemMonitor": {
-    "title": "LIVE BOUNTY COMPLIANCE GAUGES",
+    "title": "LIVE COMPLIANCE GAUGES",
     "diskLabel": "Disk Storage (Cap: 50GB)",
     "ramLabel": "Process RSS Memory (Cap: 12GB)",
     "exceeded": "⚠️ EXCEEDED",
@@ -179,7 +179,7 @@
       "verified": "Verified",
       "availableStorage": "Available Disk Storage",
       "sufficient": "Sufficient",
-      "ramBudget": "Bounty RAM Budget",
+      "ramBudget": "RAM Budget",
       "under12gb": "Under 12GB Limit",
       "inferenceEngine": "Inference Engine",
       "inferenceEngineValue": "ARM64 llama.rn (Offline)",
