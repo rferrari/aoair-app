@@ -46,10 +46,6 @@ export function assemblePrompt(
   systemPrompt?: string,
   history?: ConversationHistory
 ): string {
-  const context = chunks
-    .map((c, i) => `[${i + 1}] ${c.title}\n${c.body}`)
-    .join("\n\n");
-
   const instruction =
     systemPrompt && systemPrompt.trim().length > 0
       ? systemPrompt.trim()
@@ -67,11 +63,26 @@ export function assemblePrompt(
           .join("\n")}\n\n`
       : "";
 
-  return `${instruction} Use the context below when relevant, and cite sources as [n]. ` +
-    `If the context doesn't cover the question, say so and answer from general knowledge. ` +
-    `${GROUNDING_INSTRUCTION}\n\n` +
+  // With zero retrieved chunks (a greeting/calculate/translate/code task
+  // per isRetrievalIrrelevant, or a "chat"-type query retrieve() genuinely
+  // found nothing relevant for), the whole context/citation framing is
+  // omitted entirely rather than left as an empty "Context:\n\n" section —
+  // an empty-but-present section still tells the model there's supposed to
+  // be something there and to "cite sources as [n]", which is exactly the
+  // kind of dangling framing that nudges a small model toward inventing
+  // content to fill it instead of just answering conversationally.
+  const hasContext = chunks.length > 0;
+  const contextInstruction = hasContext
+    ? " Use the context below when relevant, and cite sources as [n]. " +
+      "If the context doesn't cover the question, say so and answer from general knowledge."
+    : "";
+  const contextSection = hasContext
+    ? `Context:\n${chunks.map((c, i) => `[${i + 1}] ${c.title}\n${c.body}`).join("\n\n")}\n\n`
+    : "";
+
+  return `${instruction}${contextInstruction} ${GROUNDING_INSTRUCTION}\n\n` +
     `${summarySection}${turnsSection}` +
-    `Context:\n${context}\n\n` +
+    `${contextSection}` +
     `Question: ${userQuery}\n\nAnswer:`;
 }
 

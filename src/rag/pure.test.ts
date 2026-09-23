@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { cosineSimilarity, assemblePrompt } from "./pure";
+import { classifyTask, isRetrievalIrrelevant } from "../routing/classify";
 import type { RetrievedChunk } from "./retrieve.types";
 
 describe("cosineSimilarity", () => {
@@ -62,9 +63,22 @@ describe("assemblePrompt", () => {
     expect(prompt).not.toContain("You are an offline research assistant.");
   });
 
-  it("still appends the citation instruction with a custom system prompt", () => {
-    const prompt = assemblePrompt("What is X?", [], "You are a pirate.");
+  it("still appends the citation instruction with a custom system prompt, when there's context to cite", () => {
+    const prompt = assemblePrompt("What is X?", chunks, "You are a pirate.");
     expect(prompt).toContain("cite sources as [n]");
+  });
+
+  // Regression: an empty-but-present "Context:\n\n" section (with the
+  // "cite sources as [n]" instruction still attached) nudged a small model
+  // toward inventing content to fill it instead of answering conversationally
+  // — this is what let unrelated retrieved corpus chunks ("Pikachu",
+  // "Deadmau5", "Weezer") leak into a "hey, what's up?" response even after
+  // isRetrievalIrrelevant correctly gated retrieve() itself. With zero
+  // chunks, the whole context/citation section must be absent, not empty.
+  it("omits the entire context/citation section when there are no chunks", () => {
+    const prompt = assemblePrompt("hey, what's up?", []);
+    expect(prompt).not.toContain("Context:");
+    expect(prompt).not.toContain("cite sources as [n]");
   });
 
   it("falls back to the default instruction for an empty/whitespace system prompt", () => {
@@ -124,5 +138,40 @@ describe("assemblePrompt", () => {
       turns: [{ role: "user", text: "hi" }],
     });
     expect(prompt).toContain("no ability to control real-world devices or take physical actions");
+  });
+
+  // End-to-end regression mirroring ChatScreen.send()'s exact decision
+  // logic (classifyTask -> isRetrievalIrrelevant gates whether retrieve()
+  // is even called -> assemblePrompt) for the real-device report: "hey,
+  // what's up?" produced a response with unrelated retrieved corpus chunks
+  // (Pikachu, Deadmau5, Weezer) leaking in. The final prompt must contain
+  // no retrieved-context/citation section at all for a greeting — but
+  // conversation history is a SEPARATE mechanism (assemblePrompt's
+  // summary/turns params, unconditional, untouched by the retrieval gate)
+  // and must still work, so "what did I just tell you?" keeps functioning.
+  it('regression: "hey, what\'s up?" produces a prompt with no retrieved context, but conversation history survives', () => {
+    const query = "hey, what's up?";
+    expect(classifyTask(query)).toBe("greeting");
+
+    // Exactly ChatScreen.send()'s branch: retrieve() is never even called
+    // when isRetrievalIrrelevant is true — chunks is [] by construction,
+    // not because retrieve() happened to return nothing.
+    const chunksForThisQuery = isRetrievalIrrelevant(classifyTask(query)) ? [] : chunks;
+    expect(chunksForThisQuery).toEqual([]);
+
+    const prompt = assemblePrompt(query, chunksForThisQuery, undefined, {
+      turns: [
+        { role: "user", text: "My favorite color is blue." },
+        { role: "assistant", text: "Got it, blue it is." },
+      ],
+    });
+
+    expect(prompt).not.toContain("Context:");
+    expect(prompt).not.toContain("cite sources as [n]");
+    expect(prompt).not.toContain("Doc One");
+    expect(prompt).not.toContain("Body one.");
+    // Conversation history is unaffected by the retrieval gate.
+    expect(prompt).toContain("Recent conversation:");
+    expect(prompt).toContain("My favorite color is blue.");
   });
 });

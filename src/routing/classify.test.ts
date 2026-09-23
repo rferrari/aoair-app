@@ -44,6 +44,28 @@ describe("classifyTask", () => {
     expect(classifyTask("turn on the lights")).not.toBe("greeting");
   });
 
+  // Regression: "hey, what's up?" (real device report, post-ad96592) was
+  // classified as "chat" — the single-literal-phrase greeting regex never
+  // matched a COMPOUND greeting (two phrases joined by a comma) — so
+  // retrieve() still ran, and its no-relevance-floor top-K search surfaced
+  // essentially random corpus chunks (Pikachu, Deadmau5, Weezer) into the
+  // response. Fixed by classifying per-segment (split on comma/semicolon/
+  // "and") rather than the whole query as one literal phrase.
+  it('regression: compound greetings like "hey, what\'s up?" classify as greeting', () => {
+    expect(classifyTask("hey, what's up?")).toBe("greeting");
+    expect(classifyTask("hi, how are you?")).toBe("greeting");
+    expect(classifyTask("hey there, what's up?")).toBe("greeting");
+  });
+
+  it("compound-greeting segmentation does not swallow a real request tacked onto a greeting", () => {
+    // "hi, can you compare Rust and Go?" already covered above (stays
+    // "compare") — this covers the same guarantee from the segmentation
+    // helper's own angle: a non-greeting segment anywhere disqualifies the
+    // whole query from being classified as pure small talk.
+    expect(classifyTask("hey, turn on the lights")).not.toBe("greeting");
+    expect(classifyTask("hi, tell me about black holes")).not.toBe("greeting");
+  });
+
   it("detects compare", () => {
     expect(classifyTask("Compare Rust and Go for backend services")).toBe("compare");
     expect(classifyTask("What's the difference between TCP and UDP?")).toBe("compare");

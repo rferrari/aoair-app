@@ -17,19 +17,36 @@ const PATTERNS: Array<{ type: TaskType; test: RegExp }> = [
   { type: "extract", test: /\b(extract|list all|pull out|find every)\b/i },
 ];
 
-// Anchored to the whole (trimmed) query, not just "contains" — "hi, can you
-// compare X and Y" must NOT match this; only pure social small talk with
-// nothing else in the message should. Checked before PATTERNS would ever
-// matter here (none of them overlap with these phrases), but kept as its
-// own pass for clarity.
-const GREETING_RE =
-  /^(hi|hello|hey|hey there|yo|sup|wake up|good (morning|afternoon|evening|night)|how(?:'s| is| are) it going|how are you\??|what'?s up\??|thanks?( you)?|thank you|bye|goodbye|see ya|see you|ok(ay)?|cool|nice)[!.?~\s]*$/i;
+// Matches ONE greeting phrase, trailing punctuation only — not the whole
+// query. Anchored per-segment (see isGreeting below), not per-query: "hi,
+// can you compare X and Y" must NOT classify as greeting overall, but a
+// literal single phrase like "hi" must.
+const GREETING_PHRASE_RE =
+  /^(hi|hello|hey|hey there|yo|sup|wake up|good (morning|afternoon|evening|night)|how(?:'s| is| are) it going|how are you|what'?s up|thanks?( you)?|thank you|bye|goodbye|see ya|see you|ok(ay)?|cool|nice)[!.?~]*$/i;
+
+/**
+ * A query counts as a pure greeting if it's made up ENTIRELY of greeting
+ * phrases — including a compound one like "hey, what's up?" (two phrases
+ * joined by a comma), not just a single literal match. Splitting on common
+ * connectors (comma/semicolon/"and") and requiring every resulting segment
+ * to independently match GREETING_PHRASE_RE generalizes to any combination
+ * of the known phrases without hardcoding each combination as its own
+ * literal string — "hi, can you compare X and Y" still correctly fails,
+ * since "can you compare X" isn't a greeting segment.
+ */
+function isGreeting(trimmed: string): boolean {
+  const segments = trimmed
+    .split(/[,;]|\band\b/i)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+  return segments.length > 0 && segments.every((seg) => GREETING_PHRASE_RE.test(seg));
+}
 
 export function classifyTask(query: string): TaskType {
   const trimmed = query.trim();
   if (!trimmed) return "unknown";
 
-  if (GREETING_RE.test(trimmed)) return "greeting";
+  if (isGreeting(trimmed)) return "greeting";
 
   for (const { type, test } of PATTERNS) {
     if (test.test(trimmed)) return type;

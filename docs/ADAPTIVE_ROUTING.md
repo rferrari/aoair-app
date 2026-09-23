@@ -500,3 +500,53 @@ request, not small talk, and must keep going through the normal path where
 the grounding instruction — not classification — is what stops a false
 success claim; "tell me about black holes" remains "chat", not
 "greeting"). 78 tests total, up from 73.
+
+**Follow-up: retrieval skip was insufficient for compound greetings, and
+an empty-but-present context section leaked framing even when it wasn't:
+done.**
+
+Real-device testing of "hey, what's up?" surfaced two compounding gaps:
+
+1. `classifyTask`'s greeting detection was a single anchored regex matching
+   ONE literal phrase end-to-end — "hey, what's up?" (two phrases joined by
+   a comma) never matched any single alternative, so it classified as
+   `"chat"`, not `"greeting"`. `retrieve()` therefore still ran, and since
+   it has no relevance floor (always returns its top-K hybrid matches,
+   never zero), it surfaced essentially random corpus chunks (Pikachu,
+   Deadmau5, Weezer — Wikipedia-padding topics) that ended up quoted in
+   the response.
+2. Separately, even with `chunks = []`, `assemblePrompt` still emitted an
+   empty-but-present `"Context:\n\n"` section plus the "cite sources as
+   [n]" instruction — dangling framing that tells a small model there's
+   supposed to be something there.
+
+Fixes, both in `src/routing/classify.ts` / `src/rag/pure.ts`:
+
+- `classifyTask` now splits the query on comma/semicolon/`"and"` and
+  requires every resulting segment to independently match a known greeting
+  phrase (`isGreeting`, not exported — an implementation detail of
+  `classifyTask`) — generalizes to any combination of the known phrases
+  ("hey, what's up?", "hi, how are you?") without hardcoding each
+  combination as its own literal string, and still correctly rejects a
+  greeting with a real request tacked on ("hi, can you compare X and Y?",
+  "hey, turn on the lights").
+- `assemblePrompt` now omits the entire context/citation section (not just
+  the chunk list) when `chunks` is empty, for any task type — not
+  greeting-specific, so it also cleans up prompts for
+  calculate/translate/code and any `"chat"`-classified query `retrieve()`
+  genuinely found nothing relevant for.
+- Confirmed (and grepped for) there is no separate/unconditional
+  memory-context pipeline anywhere in `ChatScreen.tsx` — `retrieve()` is
+  the only call site, already gated. Conversation history
+  (`assemblePrompt`'s `summary`/`turns` params) is a completely separate,
+  unconditional mechanism, untouched by any of this — "what did I just
+  tell you?" still works exactly as before.
+
+Regression tests: `classify.test.ts` (compound greetings classify
+correctly; a real request tacked onto a greeting still disqualifies it) and
+`rag/pure.test.ts` (an end-to-end test mirroring `ChatScreen.send()`'s
+exact decision logic for "hey, what's up?" — asserts the final prompt has
+no `"Context:"` section, no citation instruction, and no leaked chunk
+content, while conversation history passed alongside it still appears).
+82 tests total, up from 78. Deep Research Mode (`orchestrator.ts`) was not
+touched.
