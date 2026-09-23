@@ -20,7 +20,7 @@
  */
 import { llamaEngine } from "../inference/LlamaEngine";
 import { retrieve } from "../rag/retrieve";
-import { assemblePrompt, ConversationHistory } from "../rag/pure";
+import { assemblePrompt, assembleChatMessages, ConversationHistory } from "../rag/pure";
 import type { RetrievedChunk } from "../rag/retrieve.types";
 import { RoutingPlan, RoutingStep } from "./router";
 import { VerificationStatus } from "./types";
@@ -29,6 +29,8 @@ import { VerificationStatus } from "./types";
 export interface ExecutableModel {
   id: string;
   filename: string;
+  /** See ModelCapabilities.usesChatTemplate (src/routing/types.ts) — mirrors the resolved model's own flag, injected here for the same testability reason as the rest of this interface. Absent/false means "use assemblePrompt, unchanged." */
+  usesChatTemplate?: boolean;
 }
 
 export interface PipelineInput {
@@ -116,14 +118,26 @@ export async function executeRoutingPlan(
           }
           break;
         }
-        const prompt = assemblePrompt(input.query, citations, input.systemPrompt, input.history);
-        answer = await llamaEngine.generate({
-          prompt,
-          nPredict: step.maxTokens ?? 512,
-          onToken: callbacks.onToken,
-          timeoutMs: step.timeoutMs ?? STEP_TIMEOUT_MS,
-          onTimeout: markTimedOut,
-        });
+        // resolveModel(step.modelId) is a second lookup (ensureModelLoaded
+        // already called it once) — cheap (an injected map/find, not I/O),
+        // and keeps ExecutableModel's capability data out of
+        // ensureModelLoaded's own narrower "is something loaded" concern.
+        const generateModel = resolveModel(step.modelId!);
+        answer = generateModel?.usesChatTemplate
+          ? await llamaEngine.generate({
+              messages: assembleChatMessages(input.query, citations, input.systemPrompt, input.history),
+              nPredict: step.maxTokens ?? 512,
+              onToken: callbacks.onToken,
+              timeoutMs: step.timeoutMs ?? STEP_TIMEOUT_MS,
+              onTimeout: markTimedOut,
+            })
+          : await llamaEngine.generate({
+              prompt: assemblePrompt(input.query, citations, input.systemPrompt, input.history),
+              nPredict: step.maxTokens ?? 512,
+              onToken: callbacks.onToken,
+              timeoutMs: step.timeoutMs ?? STEP_TIMEOUT_MS,
+              onTimeout: markTimedOut,
+            });
         stepsExecuted++;
         break;
       }

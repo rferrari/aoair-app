@@ -85,6 +85,28 @@ describe("planRoute", () => {
     expect(plan.reasonCodes).toContain("verify:not-applicable");
   });
 
+  it("regression: greeting caps the generate step's token budget well below the user's Max Output Tokens setting", () => {
+    // Real-device finding: "whats up?" ran all the way to the full
+    // 512-token default and produced a long, free-associated,
+    // multi-question ramble — a greeting has no substantive content to
+    // fill a large budget with. Caps, never raises above the user's own
+    // (possibly even smaller) setting.
+    const plan = planRoute(context({ taskType: "greeting", budget: { ...BUDGET, maxTokens: 512 } }));
+    const genStep = plan.steps.find((s) => s.type === "generate");
+    expect(genStep?.maxTokens).toBeLessThanOrEqual(128);
+    expect(plan.reasonCodes).toContain("budget:greeting-caps-tokens");
+  });
+
+  it("greeting token cap never raises an already-smaller user-configured budget", () => {
+    const plan = planRoute(context({ taskType: "greeting", budget: { ...BUDGET, maxTokens: 40 } }));
+    expect(plan.steps.find((s) => s.type === "generate")?.maxTokens).toBe(40);
+  });
+
+  it("non-greeting task types are unaffected by the greeting token cap", () => {
+    const plan = planRoute(context({ taskType: "chat", budget: { ...BUDGET, maxTokens: 512 } }));
+    expect(plan.steps.find((s) => s.type === "generate")?.maxTokens).toBe(512);
+  });
+
   it("prefers the fast role for a greeting even under the research preset", () => {
     const plan = planRoute(
       context({

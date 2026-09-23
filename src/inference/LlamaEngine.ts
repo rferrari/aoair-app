@@ -2,8 +2,24 @@ import * as FileSystem from "expo-file-system/legacy";
 import { initLlama, LlamaContext } from "llama.rn";
 import { getDeviceTotalRamBytes, getMemoryInfo } from "ram-monitor";
 
+export interface ChatMessageInput {
+  role: string;
+  content: string;
+}
+
 export interface GenerateOptions {
-  prompt: string;
+  /** Legacy hand-built prompt string (assemblePrompt, src/rag/pure.ts). Exactly one of `prompt`/`messages` must be given. */
+  prompt?: string;
+  /**
+   * Role-separated messages (assembleChatMessages, src/rag/pure.ts) for a
+   * model that needs its own real chat/instruction template — passed
+   * straight through to llama.rn's completion() with jinja enabled, which
+   * applies the loaded GGUF's own embedded chat_template rather than any
+   * template string this app would have to guess/hardcode. Only used for
+   * models explicitly flagged `ModelCapabilities.usesChatTemplate`
+   * (src/routing/types.ts) — everyone else keeps using `prompt`, unchanged.
+   */
+  messages?: ChatMessageInput[];
   nPredict?: number;
   temperature?: number;
   onToken?: (piece: string) => void;
@@ -167,6 +183,7 @@ export class LlamaEngine {
 
   async generate({
     prompt,
+    messages,
     nPredict = 512,
     temperature = 0.7,
     onToken,
@@ -175,6 +192,9 @@ export class LlamaEngine {
     onTimeout,
   }: GenerateOptions): Promise<string> {
     if (!this.context) throw new Error("LlamaEngine: model not loaded");
+    if (!prompt && !messages) {
+      throw new Error("LlamaEngine.generate: either prompt or messages must be provided");
+    }
 
     const timer = timeoutMs
       ? setTimeout(() => {
@@ -183,15 +203,23 @@ export class LlamaEngine {
         }, timeoutMs)
       : null;
 
+    // messages+jinja lets llama.cpp apply the loaded GGUF's own embedded
+    // chat_template — DEFAULT_STOP_SEQUENCES exist specifically because
+    // this app's hand-built "Question:/Answer:" prompt shape gives the
+    // model no other signal for where a turn ends (see that constant's own
+    // doc comment); a real chat template already has its own proper
+    // end-of-turn token the model was fine-tuned to emit, so forcing our
+    // unrelated string-based stops on top of it would be either inert or
+    // could truncate genuine content that happens to contain "User:"/
+    // "Question:". Only applied when the caller passes explicit `stop`.
+    const completionParams = messages
+      ? { messages, jinja: true, n_predict: nPredict, temperature, stop: stop ?? [] }
+      : { prompt: prompt!, n_predict: nPredict, temperature, stop: stop ?? DEFAULT_STOP_SEQUENCES };
+
     try {
       let full = "";
       const { text } = await this.context.completion(
-        {
-          prompt,
-          n_predict: nPredict,
-          temperature,
-          stop: stop ?? DEFAULT_STOP_SEQUENCES,
-        },
+        completionParams,
         (data) => {
           full += data.token;
           onToken?.(data.token);

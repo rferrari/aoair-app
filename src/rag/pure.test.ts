@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { cosineSimilarity, assemblePrompt } from "./pure";
+import { cosineSimilarity, assemblePrompt, assembleChatMessages } from "./pure";
 import { classifyTask, isRetrievalIrrelevant } from "../routing/classify";
 import type { RetrievedChunk } from "./retrieve.types";
 
@@ -173,5 +173,58 @@ describe("assemblePrompt", () => {
     // Conversation history is unaffected by the retrieval gate.
     expect(prompt).toContain("Recent conversation:");
     expect(prompt).toContain("My favorite color is blue.");
+  });
+});
+
+describe("assembleChatMessages", () => {
+  const chunks: RetrievedChunk[] = [
+    { chunkId: "1", docId: "1", title: "Doc One", body: "Body one.", score: 0.9, matchType: "hybrid" },
+  ];
+
+  it("puts the instruction and grounding boundary in a single system message, and the query as the final user message", () => {
+    const messages = assembleChatMessages("hey!", [], "You are a pirate.");
+    expect(messages[0]).toMatchObject({ role: "system" });
+    expect(messages[0].content).toContain("You are a pirate.");
+    expect(messages[0].content).toContain("no ability to control real-world devices");
+    expect(messages[messages.length - 1]).toEqual({ role: "user", content: "hey!" });
+  });
+
+  it("uses the default instruction when no system prompt is given", () => {
+    const messages = assembleChatMessages("hi", []);
+    expect(messages[0].content).toContain("You are an offline research assistant.");
+  });
+
+  it("includes retrieved context and the citation instruction in the system message when there are chunks", () => {
+    const messages = assembleChatMessages("What is X?", chunks);
+    expect(messages[0].content).toContain("cite sources as [n]");
+    expect(messages[0].content).toContain("Doc One");
+    expect(messages[0].content).toContain("Body one.");
+  });
+
+  it("omits the context/citation framing entirely when there are no chunks", () => {
+    const messages = assembleChatMessages("hey!", []);
+    expect(messages[0].content).not.toContain("cite sources as [n]");
+    expect(messages[0].content).not.toContain("Context:");
+  });
+
+  it("threads conversation history in as separate role-tagged messages, between system and the current query", () => {
+    const messages = assembleChatMessages("What did I just tell you?", [], undefined, {
+      turns: [
+        { role: "user", text: "My favorite color is blue." },
+        { role: "assistant", text: "Got it, blue it is." },
+      ],
+    });
+    expect(messages).toEqual([
+      expect.objectContaining({ role: "system" }),
+      { role: "user", content: "My favorite color is blue." },
+      { role: "assistant", content: "Got it, blue it is." },
+      { role: "user", content: "What did I just tell you?" },
+    ]);
+  });
+
+  it("includes a conversation summary in the system message when history has one", () => {
+    const messages = assembleChatMessages("hi", [], undefined, { summary: "User is planning a trip to Japan." });
+    expect(messages[0].content).toContain("Summary of earlier conversation:");
+    expect(messages[0].content).toContain("User is planning a trip to Japan.");
   });
 });

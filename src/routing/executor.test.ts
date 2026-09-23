@@ -20,7 +20,11 @@ import { RoutingPlan } from "./router";
 
 const MODELS: Record<string, ExecutableModel> = {
   phi: { id: "phi", filename: "models/primary-llm.gguf" },
-  "qwen-1.5b": { id: "qwen-1.5b", filename: "models/qwen2.5-1.5b-instruct-q4km.gguf" },
+  "qwen-1.5b": {
+    id: "qwen-1.5b",
+    filename: "models/qwen2.5-1.5b-instruct-q4km.gguf",
+    usesChatTemplate: true,
+  },
 };
 const resolveModel = (id: string) => MODELS[id];
 
@@ -72,6 +76,32 @@ describe("executeRoutingPlan", () => {
     // assemblePrompt should have received the retrieved chunk's text
     const promptArg = generateMock.mock.calls[0][0].prompt as string;
     expect(promptArg).toContain("B");
+  });
+
+  it("Phi (usesChatTemplate not set) still receives a plain prompt string, unchanged", async () => {
+    const p = plan({
+      steps: [{ id: "generate-0", type: "generate", modelId: "phi", required: true }],
+      selectedModelIds: ["phi"],
+    });
+    await executeRoutingPlan(p, { query: "hey!" }, resolveModel);
+    const call = generateMock.mock.calls[0][0];
+    expect(typeof call.prompt).toBe("string");
+    expect(call.prompt).toContain("Question: hey!");
+    expect(call.messages).toBeUndefined();
+  });
+
+  it("Qwen (usesChatTemplate: true) receives a role-separated messages array instead of a prompt string", async () => {
+    const p = plan({
+      steps: [{ id: "generate-0", type: "generate", modelId: "qwen-1.5b", required: true }],
+      selectedModelIds: ["qwen-1.5b"],
+    });
+    await executeRoutingPlan(p, { query: "hey!", systemPrompt: "Be concise." }, resolveModel);
+    const call = generateMock.mock.calls[0][0];
+    expect(call.prompt).toBeUndefined();
+    expect(Array.isArray(call.messages)).toBe(true);
+    expect(call.messages[0].role).toBe("system");
+    expect(call.messages[0].content).toContain("Be concise.");
+    expect(call.messages[call.messages.length - 1]).toEqual({ role: "user", content: "hey!" });
   });
 
   it("only switches models (and counts it) when the step's model differs from what's already loaded", async () => {

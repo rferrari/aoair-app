@@ -89,7 +89,12 @@ export async function runAdaptiveChat(
   const plan = planRoute(context);
 
   const modelById = new Map<string, ExecutableModel>(
-    available.filter((a) => a.present).map((a) => [a.model.id, { id: a.model.id, filename: a.model.filename }])
+    available
+      .filter((a) => a.present)
+      .map((a) => [
+        a.model.id,
+        { id: a.model.id, filename: a.model.filename, usesChatTemplate: a.model.capabilities?.usesChatTemplate },
+      ])
   );
   const resolveModel = (modelId: string) => modelById.get(modelId);
 

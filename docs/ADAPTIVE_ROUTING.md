@@ -664,3 +664,71 @@ summary here:
   UI display of the new telemetry fields (not touched — avoided
   `UsageStatsContent.tsx`, being concurrently edited by another session),
   a `routingPreset` picker UI, real-device verification.
+
+**Follow-up (0c19812): adaptive routing decisions now surface in Usage
+Stats** — new "LAST ADAPTIVE ROUTING DECISION" card (model used, task
+type, retrieval used, switches, latency, outcome), shown only when the
+last message actually went through `runAdaptiveChat`. The gap above is
+now closed.
+
+**Follow-up: real-device testing surfaced a generation-quality bug, fixed
+narrowly (routing decisions themselves unchanged).** First adaptive-routing
+device test — `"whats up?"` — produced a long, free-associated,
+multi-question ramble from Qwen2.5-1.5B (unrelated invented follow-up
+questions, emoji, ~4 fake "turns"). Root-caused to two compounding,
+disclosed causes, both fixed:
+
+1. **No real chat template.** `assemblePrompt` hand-builds a generic
+   `"Question: ...\n\nAnswer:"` completion shape rather than a model's
+   actual fine-tuned template — flagged as a known risk when the earlier
+   "wake up" hallucination was fixed, now confirmed as a real-device issue
+   with Qwen specifically (likely the first time Qwen-1.5B ever generated
+   a real chat response in this project — Phi was always the sole
+   generator before Phase 9). Fixed via `src/rag/pure.ts`'s new
+   `assembleChatMessages()` (role-separated messages, same content/
+   grounding as `assemblePrompt`) plus `LlamaEngine.generate()`'s new
+   `messages` param, which passes straight through to llama.rn's
+   `completion({messages, jinja: true, ...})` — llama.cpp then applies
+   the loaded GGUF's own embedded chat_template. No template string is
+   hand-typed/guessed anywhere in this app; llama.cpp's own template
+   engine decides the exact syntax from the model file itself.
+   Model-aware, not global: only `CatalogModel`s with the new
+   `ModelCapabilities.usesChatTemplate` flag (currently only
+   Qwen2.5-1.5B-Instruct — `MODEL_CATALOG`) use this path;
+   `executor.ts`'s generate step branches on it per-step. Phi (no flag)
+   is byte-for-byte unaffected — confirmed by a dedicated test asserting
+   its `generate()` call still receives a plain `prompt` string, not
+   `messages`. Qwen2.5-7B has the same underlying risk but was
+   deliberately left untouched (narrower scope than requested).
+2. **No task-appropriate token budget.** `router.ts`'s `effectiveMaxTokens`
+   only ever scaled down for low-power-mode — a greeting got the exact
+   same budget (512 by default) as a research question, with nothing
+   telling the model "this should be short." New `GREETING_MAX_TOKENS =
+   128` caps (never raises) the budget specifically for `taskType ===
+   "greeting"`, living in router.ts's own task-configuration logic per
+   explicit request, not a UI-side truncation hack. `reasonCodes` gains
+   `"budget:greeting-caps-tokens"` when it applies, same convention as the
+   existing low-power-mode reason code.
+
+Explicitly NOT touched: `classifyTask()`, model-selection/role rules,
+retrieval thresholds, the "balanced" preset's role declarations, Deep
+Research (`orchestrator.ts`) — routing *decisions* are unchanged, this was
+scoped as a generation-quality fix.
+
+12 new regression tests across `router.test.ts` (budget cap, cap never
+raises a smaller user setting, non-greeting unaffected), `executor.test.ts`
+(Phi still gets a plain prompt string; Qwen gets a role-separated messages
+array with system/history/user structure), `pure.test.ts`
+(`assembleChatMessages` unit tests: grounding instruction present, context/
+citation framing included only with chunks, history threaded as separate
+messages, summary included), and `classify.test.ts` (the exact real-device
+input `"whats up?"`, no apostrophe, classifies as `"greeting"`). 111 tests
+total, up from 99. Typecheck clean.
+
+**Not verifiable in this sandbox**: whether `getFormattedChat`/`jinja:
+true` actually applies Qwen2.5-1.5B-Instruct-GGUF's real embedded
+chat_template as expected on a real device — no native llama.cpp runtime
+exists here to execute it. Using llama.rn's own public, documented chat-
+formatting API (rather than hand-typing a guessed ChatML string) is the
+most defensible approach available without that runtime, but real-device
+confirmation is the next step.

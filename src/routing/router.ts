@@ -14,6 +14,16 @@ import { ModelProfile } from "./profiles";
 import { TaskType, ModelRole, RoutingPreset, RoutingStepType } from "./types";
 import { isRetrievalIrrelevant } from "./classify";
 
+// A greeting/pure-small-talk reply has no substantive content to fill a
+// large budget with — see planRoute's own comment on where this was found
+// (a real-device "whats up?" test running to the full 512-token default
+// and free-associating into an unrelated multi-question ramble). Within
+// the 64-128 token range that's reasonable for a short conversational
+// reply, not a fixed/arbitrary pick — still a cap, not a floor: it only
+// ever lowers effectiveMaxTokens, never raises it above the user's own
+// Max Output Tokens setting.
+const GREETING_MAX_TOKENS = 128;
+
 export interface InferenceBudget {
   maxTokens: number;
   /** Soft ceiling passed through to each generate/verify step's timeoutMs. Advisory, not enforced by the router itself. */
@@ -99,8 +109,22 @@ export function planRoute(context: RoutingContext): RoutingPlan {
   const nextId = (type: RoutingStepType) => `${type}-${stepIndex++}`;
 
   const constrained = context.deviceState?.lowPowerMode === true;
-  const effectiveMaxTokens = constrained ? Math.min(context.budget.maxTokens, 256) : context.budget.maxTokens;
-  if (constrained) reasonCodes.push("budget:low-power-mode-caps-tokens-and-role");
+  let effectiveMaxTokens = context.budget.maxTokens;
+  if (constrained) {
+    effectiveMaxTokens = Math.min(effectiveMaxTokens, 256);
+    reasonCodes.push("budget:low-power-mode-caps-tokens-and-role");
+  }
+  if (context.taskType === "greeting") {
+    // A genuine conversational reply to a greeting is naturally a
+    // sentence or two — real-device testing found "whats up?" running all
+    // the way to the full user-configured Max Output Tokens budget (512 by
+    // default) produced a long, free-associated, multi-question ramble,
+    // not a longer *answer* (a greeting has no substantive content to
+    // fill more tokens with). Caps, never raises: someone who's set their
+    // own Max Output Tokens lower than this still gets the smaller value.
+    effectiveMaxTokens = Math.min(effectiveMaxTokens, GREETING_MAX_TOKENS);
+    reasonCodes.push("budget:greeting-caps-tokens");
+  }
 
   // 1. Retrieval — skipped for task types where local documents genuinely
   // aren't the relevant input (a translation, a calculation, or a pure

@@ -106,7 +106,12 @@ export const MODEL_CATALOG: CatalogModel[] = [
     license: "Apache-2.0",
     description: "1.5B dense, fast/lightweight secondary model. ~1.0GB. Downloaded at first-run setup alongside the primary model, giving adaptive routing two real models to switch between from the start.",
     required: true,
-    capabilities: { roles: ["fast"] },
+    // Real-device Phase 9 test ("whats up?" -> a long, rambling,
+    // free-associated multi-question response) traced to the app's
+    // hand-built "Question: ...\n\nAnswer:" prompt shape being outside
+    // Qwen2.5-Instruct's own fine-tuned ChatML template — see
+    // routing/types.ts's ModelCapabilities.usesChatTemplate doc comment.
+    capabilities: { roles: ["fast"], usesChatTemplate: true },
   },
   {
     id: "qwen2.5-7b-instruct-q4km",

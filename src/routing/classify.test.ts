@@ -57,6 +57,10 @@ describe("classifyTask", () => {
     expect(classifyTask("hey there, what's up?")).toBe("greeting");
   });
 
+  it('regression: "whats up?" (no apostrophe, exact real-device input) classifies as greeting', () => {
+    expect(classifyTask("whats up?")).toBe("greeting");
+  });
+
   it("compound-greeting segmentation does not swallow a real request tacked onto a greeting", () => {
     // "hi, can you compare Rust and Go?" already covered above (stays
     // "compare") — this covers the same guarantee from the segmentation

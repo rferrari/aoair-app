@@ -156,24 +156,84 @@ export function assemblePrompt(
     `Question: ${userQuery}\n\nAnswer:`;
 }
 
+export interface ChatMessage {
+  role: "system" | "user" | "assistant";
+  content: string;
+}
+
+/**
+ * Same inputs and content as assemblePrompt, structured as a role-separated
+ * messages array instead of one hand-built string — for models that need
+ * their own real chat/instruction template applied (see
+ * ModelCapabilities.usesChatTemplate, src/routing/types.ts) rather than the
+ * app's generic "Question: ...\n\nAnswer:" completion shape. The caller
+ * (executor.ts) passes this to LlamaEngine.generate()'s `messages` param,
+ * which hands it to llama.rn/llama.cpp's own jinja chat-template engine —
+ * this function never guesses at a specific template's literal syntax
+ * (ChatML, Phi's format, etc.), it only decides message content/roles.
+ *
+ * Deliberately NOT used by assemblePrompt's callers by default — see that
+ * function's own doc comment on why switching everything to a chat
+ * template is a bigger, separate change than this fix attempts.
+ */
+export function assembleChatMessages(
+  userQuery: string,
+  chunks: RetrievedChunk[],
+  systemPrompt?: string,
+  history?: ConversationHistory
+): ChatMessage[] {
+  const instruction =
+    systemPrompt && systemPrompt.trim().length > 0
+      ? systemPrompt.trim()
+      : "You are an offline research assistant.";
+
+  const hasContext = chunks.length > 0;
+  const contextInstruction = hasContext
+    ? " Use the context below when relevant, and cite sources as [n]. " +
+      "If the context doesn't cover the question, say so and answer from general knowledge."
+    : "";
+  const contextSection = hasContext
+    ? `\n\nContext:\n${chunks.map((c, i) => `[${i + 1}] ${c.title}\n${c.body}`).join("\n\n")}`
+    : "";
+  const summarySection =
+    history?.summary && history.summary.trim().length > 0
+      ? `\n\nSummary of earlier conversation:\n${history.summary.trim()}`
+      : "";
+
+  const systemMessage: ChatMessage = {
+    role: "system",
+    content: `${instruction}${contextInstruction} ${GROUNDING_INSTRUCTION}${summarySection}${contextSection}`,
+  };
+
+  const historyMessages: ChatMessage[] = (history?.turns ?? []).map((t) => ({
+    role: t.role,
+    content: t.text,
+  }));
+
+  return [systemMessage, ...historyMessages, { role: "user", content: userQuery }];
+}
+
 /**
  * Universal capability/tone boundary, appended for every request regardless
  * of persona or content — not a hardcoded response to any specific phrase.
  *
  * Root cause of the "wake up" -> "morning alarm set / room temperature
  * adjusted" hallucination: this prompt hand-builds a generic "Question: ...
- * Answer:" completion shape rather than Phi-3.5's actual fine-tuned chat
- * template (see LlamaEngine.ts's DEFAULT_STOP_SEQUENCES comment — no chat
- * template is used anywhere in this app). Off that template, a small model
- * given a short, ambiguous, command-shaped fragment with no explicit
- * "you're a chat assistant with no real-world abilities" framing tends to
- * free-associate into a narrative completion (the classic sci-fi/smart-home
- * assistant pattern) instead of a real conversational reply. Switching to
- * a proper chat template is a bigger, separate change (it's shared with
- * Deep Research's per-stage prompts too, via researchSubQuestion in
- * orchestrator.ts — not attempted here to avoid touching that path); this
- * instruction is the smallest fix that directly targets the actual failure
- * mode without it. It's a no-op for genuine questions (Deep Research's
+ * Answer:" completion shape rather than a model's actual fine-tuned chat
+ * template. Off that template, a small model given a short, ambiguous,
+ * command-shaped fragment with no explicit "you're a chat assistant with
+ * no real-world abilities" framing tends to free-associate into a
+ * narrative completion (the classic sci-fi/smart-home assistant pattern,
+ * or — as later real-device testing found with Qwen specifically — a
+ * rambling multi-question FAQ ramble) instead of a real conversational
+ * reply. `assembleChatMessages` (below) now gives models flagged
+ * `usesChatTemplate` (currently just Qwen2.5-1.5B-Instruct) their own real
+ * template via llama.rn's jinja support — but switching every model
+ * (including Phi) and every caller (including Deep Research's per-stage
+ * prompts, researchSubQuestion in orchestrator.ts) over is a bigger,
+ * separate, deliberately not-yet-made decision. This instruction stays as
+ * the universal, always-applied floor regardless of which prompt-building
+ * path is used. It's a no-op for genuine questions (Deep Research's
  * decomposed sub-questions are always real questions, never action
  * requests), so it doesn't change that path's behavior in practice.
  */

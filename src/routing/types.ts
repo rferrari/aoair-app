@@ -75,6 +75,18 @@ export interface ModelCapabilities {
   supportsStructuredOutput?: boolean;
   supportsLongContext?: boolean;
   supportsToolLikeTasks?: boolean;
+  /**
+   * Set true only for models confirmed to need (and whose GGUF embeds) a
+   * real chat/instruction template — the executor then builds a proper
+   * role-separated messages array (assembleChatMessages, src/rag/pure.ts)
+   * and lets llama.rn/llama.cpp apply the model's own jinja chat_template,
+   * instead of the app's hand-built "Question: ...\n\nAnswer:" completion
+   * shape (assemblePrompt). Absent/false is the safe default — it means
+   * "use the existing, long-standing prompt shape," so nothing changes for
+   * a model unless this is explicitly set. Never set for a model whose
+   * actual behavior under this hasn't been checked.
+   */
+  usesChatTemplate?: boolean;
   /** Rough working-set estimate, same approximation basis as LlamaEngine's own pre-flight RAM check. */
   estimatedMemoryMb?: number;
   /**
