@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { StatusBar } from "expo-status-bar";
 import { StyleSheet, ActivityIndicator, View } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
+import "./src/i18n";
+import { LanguageProvider } from "./src/i18n/LanguageContext";
 import { ChatScreen } from "./src/ui/ChatScreen";
 import { ModelSetupScreen } from "./src/ui/ModelSetupScreen";
 import { ModelManager } from "./src/models/ModelManager";
@@ -53,9 +55,11 @@ function AppContent() {
 export default function App() {
   return (
     <SafeAreaProvider>
-      <ThemeProvider>
-        <AppContent />
-      </ThemeProvider>
+      <LanguageProvider>
+        <ThemeProvider>
+          <AppContent />
+        </ThemeProvider>
+      </LanguageProvider>
     </SafeAreaProvider>
   );
 }

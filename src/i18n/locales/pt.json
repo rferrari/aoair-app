@@ -1,0 +1,20 @@
+{
+  "common": {
+    "done": "PRONTO",
+    "cancel": "Cancelar",
+    "close": "Fechar",
+    "remove": "Remover",
+    "retry": "Tentar novamente"
+  },
+  "time": {
+    "justNow": "agora mesmo",
+    "minutesAgo": "há {{count}}min",
+    "hoursAgo": "há {{count}}h",
+    "daysAgo": "há {{count}}d"
+  },
+  "drawer": {
+    "subtitle": "Melhor Pesquisador de IA Offline",
+    "newChat": "Nova Sessão de Pesquisa",
+    "recentSessions": "SESSÕES RECENTES"
+  }
+}

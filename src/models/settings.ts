@@ -4,6 +4,7 @@ import { PersonalityId, DEFAULT_PERSONALITY_ID } from "../constants/personalitie
 
 export type ThemeId = "midnight" | "amber" | "frontier";
 export type FontScale = "compact" | "standard" | "large";
+export type LanguageId = "en" | "pt";
 
 interface Settings {
   activeModelId: Partial<Record<AssetKind, string>>;
@@ -19,6 +20,7 @@ interface Settings {
   deepResearchMode?: boolean;
   themeId?: ThemeId;
   fontScale?: FontScale;
+  languageId?: LanguageId;
 }
 
 export interface MemorySettings {
@@ -178,5 +180,16 @@ export async function getFontScale(): Promise<FontScale> {
 export async function setFontScale(scale: FontScale): Promise<void> {
   const s = await readSettings();
   s.fontScale = scale;
+  await writeSettings(s);
+}
+
+export async function getLanguageId(): Promise<LanguageId> {
+  const s = await readSettings();
+  return s.languageId ?? "en";
+}
+
+export async function setLanguageId(language: LanguageId): Promise<void> {
+  const s = await readSettings();
+  s.languageId = language;
   await writeSettings(s);
 }

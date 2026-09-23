@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { View, Text, StyleSheet, Pressable, Animated, Dimensions, ScrollView, Image } from "react-native";
 import * as Haptics from "expo-haptics";
+import { useTranslation } from "react-i18next";
 import { ChatSession } from "../services/chatHistory";
 import { DrawerFooterStats } from "./DrawerFooterStats";
 import { colors } from "./theme/colors";
@@ -28,13 +29,13 @@ interface Props {
   onDeleteSession?: (id: string) => void;
 }
 
-function formatTimestamp(ms: number): string {
+function formatTimestamp(ms: number, t: (key: string, opts?: Record<string, unknown>) => string): string {
   const diffMin = (Date.now() - ms) / 60000;
-  if (diffMin < 1) return "just now";
-  if (diffMin < 60) return `${Math.floor(diffMin)}m ago`;
+  if (diffMin < 1) return t("time.justNow");
+  if (diffMin < 60) return t("time.minutesAgo", { count: Math.floor(diffMin) });
   const diffHr = diffMin / 60;
-  if (diffHr < 24) return `${Math.floor(diffHr)}h ago`;
-  return `${Math.floor(diffHr / 24)}d ago`;
+  if (diffHr < 24) return t("time.hoursAgo", { count: Math.floor(diffHr) });
+  return t("time.daysAgo", { count: Math.floor(diffHr / 24) });
 }
 
 export function Drawer({
@@ -47,6 +48,7 @@ export function Drawer({
   onSelectSession,
   onDeleteSession,
 }: Props) {
+  const { t } = useTranslation();
   const translateX = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
 
@@ -83,7 +85,7 @@ export function Drawer({
             <Image source={require("../../assets/boar.png")} style={styles.brandMascot} />
             <View>
               <Text style={styles.title}>BOAR</Text>
-              <Text style={styles.subtitle}>Best Offline AI Researcher</Text>
+              <Text style={styles.subtitle}>{t("drawer.subtitle")}</Text>
             </View>
           </View>
 
@@ -99,14 +101,14 @@ export function Drawer({
               }}
             >
               <Text style={styles.newChatIcon}>＋</Text>
-              <Text style={styles.newChatLabel}>New Research Session</Text>
+              <Text style={styles.newChatLabel}>{t("drawer.newChat")}</Text>
             </Pressable>
           )}
 
           {/* Recent Sessions */}
           {sessions && sessions.length > 0 && (
             <>
-              <Text style={styles.sectionHeading}>RECENT SESSIONS</Text>
+              <Text style={styles.sectionHeading}>{t("drawer.recentSessions")}</Text>
               <ScrollView style={styles.sessionList}>
                 {sessions.map((s) => {
                   const active = s.id === activeSessionId;
@@ -125,7 +127,7 @@ export function Drawer({
                         <Text style={styles.sessionTitle} numberOfLines={1}>
                           {s.title}
                         </Text>
-                        <Text style={styles.sessionTime}>{formatTimestamp(s.updatedAt)}</Text>
+                        <Text style={styles.sessionTime}>{formatTimestamp(s.updatedAt, t)}</Text>
                       </View>
                       <Pressable
                         hitSlop={8}

@@ -18,9 +18,11 @@
     "expo-sharing": "~57.0.21",
     "expo-sqlite": "~57.0.3",
     "expo-status-bar": "~57.0.1",
+    "i18next": "^26.4.2",
     "llama.rn": "^0.13.0-rc.4",
     "ram-monitor": "file:./modules/ram-monitor",
     "react": "19.2.3",
+    "react-i18next": "^17.0.15",
     "react-native": "0.86.3",
     "react-native-safe-area-context": "~5.7.0",
     "voice-input": "file:./modules/voice-input"

@@ -1,0 +1,20 @@
+{
+  "common": {
+    "done": "DONE",
+    "cancel": "Cancel",
+    "close": "Close",
+    "remove": "Remove",
+    "retry": "Retry"
+  },
+  "time": {
+    "justNow": "just now",
+    "minutesAgo": "{{count}}m ago",
+    "hoursAgo": "{{count}}h ago",
+    "daysAgo": "{{count}}d ago"
+  },
+  "drawer": {
+    "subtitle": "Best Offline AI Researcher",
+    "newChat": "New Research Session",
+    "recentSessions": "RECENT SESSIONS"
+  }
+}

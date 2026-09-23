@@ -29,6 +29,7 @@ import {
 import { seedKnowledgeBaseIfEmpty } from "../rag/seedCorpus";
 import { useTheme, colors, typography } from "./theme";
 import { ThemeSelector } from "./components/ThemeSelector";
+import { LanguageSelector } from "./components/LanguageSelector";
 import { spacing, radii } from "./theme/spacing";
 
 const modelManager = new ModelManager();
@@ -203,6 +204,10 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
             <Image source={require("../../assets/boar.png")} style={styles.mascotHero} />
             <Text style={styles.heroTitle}>BOAR</Text>
             <Text style={styles.heroSubtitle}>BEST OFFLINE AI RESEARCHER</Text>
+          </View>
+
+          <View style={styles.card}>
+            <LanguageSelector compact />
           </View>
 
           <View style={styles.card}>

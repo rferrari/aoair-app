@@ -32,6 +32,7 @@ import { MemorySettings } from "./MemorySettings";
 import { AccordionSection } from "./AccordionSection";
 import { SetupWizardScreen } from "./SetupWizardScreen";
 import { ThemeSelector } from "./components/ThemeSelector";
+import { LanguageSelector } from "./components/LanguageSelector";
 import { Toast } from "./Toast";
 import { useTheme, colors, typography } from "./theme";
 import { spacing, radii } from "./theme/spacing";
@@ -236,6 +237,12 @@ export function ModelSetupScreen(props: Props) {
         <AccordionSection icon="🎨" title="Display & Theme">
           <View style={styles.themeSectionWrapper}>
             <ThemeSelector />
+          </View>
+        </AccordionSection>
+
+        <AccordionSection icon="🌐" title="Language">
+          <View style={styles.themeSectionWrapper}>
+            <LanguageSelector />
           </View>
         </AccordionSection>
 
