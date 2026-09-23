@@ -308,7 +308,7 @@
       "synthesizing": "🔬 Sintetizando descobertas offline…"
     },
     "roleYou": "VOCÊ",
-    "roleAssistant": "🐗 PESQUISADOR BOAR",
+    "roleAssistant": "🐗 BOAR PESQUISADOR",
     "stoppedByUser": "Interrompido pelo usuário",
     "deepResearchBanner": "MISTURA DE AGENTES: DECOMPOR ➔ EMBEDDINGS LOCAIS ➔ SINTETIZAR",
     "copyResponse": "Copiar resposta"
