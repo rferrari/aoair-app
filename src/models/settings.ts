@@ -31,7 +31,7 @@ export interface MemorySettings {
 export const DEFAULT_MEMORY_SETTINGS: MemorySettings = {
   autoSummarize: true,
   historyTurnThreshold: 6,
-  maxSavedSessions: 20,
+  maxSavedSessions: 10,
   autoGenerateTitles: true,
 };
 
