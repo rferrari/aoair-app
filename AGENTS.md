@@ -97,7 +97,7 @@ the in-app download matters for your scenario.
 
 ```bash
 npm run typecheck   # tsc --noEmit — must be clean
-npm test            # vitest run — currently 131 tests, native-module-dependent
+npm test            # vitest run — the full unit suite, native-module-dependent
                      # code (expo-sqlite/llama.rn/expo-file-system) is deliberately
                      # untested here; see src/rag/pure.ts and its siblings for
                      # what IS unit-tested and why
@@ -107,6 +107,42 @@ Neither of these proves the native build/install actually works — they only
 prove the JS/TS layer is internally consistent. There is no way to verify a
 real device install without a real device; don't claim success from
 typecheck/tests alone if the task was specifically about building/installing.
+
+## Benchmarking models on a connected phone
+
+With a phone on USB, an agent can run the evaluation end to end without anyone
+tapping the screen. Full guide: [docs/DEVICE_EVALUATION.md](docs/DEVICE_EVALUATION.md).
+
+```bash
+adb devices                                  # exactly one device, state "device"
+curl -s http://localhost:8081/status         # "packager-status:running" (Metro)
+npm run eval:device -- --dry-run             # see every adb command first
+npm run eval:device -- --models <name>       # run; results in eval-results/<date>/
+npm run eval:summary -- --report <jsonl>     # report from a saved run
+```
+
+Before and during a run:
+
+- **Check the phone isn't busy.** `eval:device` reloads the app. Don't run it,
+  reinstall, force-stop or reload while a model download is in progress
+  (`adb shell dumpsys power | grep BOAR:ModelDownload`, or a growing file in
+  `adb exec-out run-as team.sopa.aoair ls -l files/models`); downloads can't
+  resume after a restart. The phone's owner may be using it: ask first.
+- **Don't edit app source files while a run is going.** Metro hot-reloads them
+  into the running app, which can interrupt the evaluation. Docs and scripts are
+  fine.
+- **Keep the screen on.** Locking the phone backgrounds the app. If the phone
+  won't accept `settings put global stay_on_while_plugged_in`, send
+  `adb shell input keyevent KEYCODE_WAKEUP` every 30 seconds for the length of
+  the run, then stop.
+- **Use `--queries greeting-1` for a quick probe** of a new model (does it load,
+  what prompt format does it get) before a full 17-question run.
+- **Report only what the phone measured.** The JSONL is the source of truth;
+  a model that fails to load is recorded as failures, not skipped.
+
+To check a Hugging Face GGUF before anyone downloads it, read its header (the
+first few MB) for `general.architecture` and `tokenizer.chat_template`: the
+architecture must be supported by the llama.rn build in `node_modules`.
 
 ## Common pitfalls
 

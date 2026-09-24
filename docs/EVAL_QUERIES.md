@@ -81,6 +81,9 @@ reloaded, so chat carries on as before.
 
 ## Running it from the computer (recommended)
 
+A walkthrough with example output, how it works and tips is in
+[DEVICE_EVALUATION.md](DEVICE_EVALUATION.md).
+
 `npm run eval:device` runs the evaluation on a USB-connected phone and brings
 the results back, with no tapping. It's transport only: it writes a request
 into the app's private storage over adb, the app runs it through the same
