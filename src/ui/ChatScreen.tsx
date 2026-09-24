@@ -71,6 +71,7 @@ import { ModelLoadErrorCard } from "./components/ModelLoadErrorCard";
 import { MarkdownMessage } from "./components/MarkdownMessage";
 import { ReasoningPeek } from "./components/ReasoningPeek";
 import { splitThinking, stripThinking } from "../services/thinking";
+import { cleanCitations } from "../services/citations";
 import { SourceFootnotes } from "./components/SourceFootnotes";
 import { recordQueryStats, trackPeakRss, startAppMemoryTracking, QueryStats } from "../services/telemetry";
 import { recordExecution } from "../services/executionTelemetry";
@@ -901,7 +902,12 @@ export function ChatScreen({
               item.text === "" && processing?.messageId === item.id && processing.status !== "generating";
             const isStreamingThis = generating && item.role === "assistant" && processing?.messageId === item.id;
             const split = item.role === "assistant" ? splitThinking(item.text) : null;
-            const shownText = split ? split.answer : item.text;
+            // Sources are attached when the reply finishes, so clean invented citations only then.
+            const shownText = split
+              ? isStreamingThis
+                ? split.answer
+                : cleanCitations(split.answer, item.citations?.length)
+              : item.text;
             const reasoningShown = shownReasoning.has(item.id);
 
             return (
