@@ -62,6 +62,22 @@ When in doubt, `--clean`.
 should use the explicit commands above instead. It reads answers from stdin, so it
 can be scripted if needed (e.g. `printf '2\n1\n' | node scripts/setup.mjs`).
 
+## Release APK (no Metro needed)
+
+```bash
+npx expo prebuild -p android --clean
+cd android && ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a
+# -> android/app/build/outputs/apk/release/app-release.apk
+```
+
+`plugins/withReleaseSigning.js` signs it with the key named by
+`BOAR_UPLOAD_STORE_FILE`, `BOAR_UPLOAD_KEY_ALIAS`, `BOAR_UPLOAD_STORE_PASSWORD`
+and `BOAR_UPLOAD_KEY_PASSWORD` in `~/.gradle/gradle.properties` (never in the
+repo). Without them the release build is debug-signed, which is fine for your own
+phone. An APK signed with a different key can't install over an existing BOAR:
+Android requires uninstalling first, which deletes the app's downloaded models.
+A first release build takes about 40 minutes.
+
 ## No local Android SDK: build via EAS instead
 
 ```bash

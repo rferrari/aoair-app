@@ -25,7 +25,8 @@
     "plugins": [
       "expo-sqlite",
       "expo-dev-client",
-      "expo-sharing"
+      "expo-sharing",
+      "./plugins/withReleaseSigning"
     ],
     "extra": {
       "eas": {
