@@ -79,7 +79,79 @@ cost (`modelResidency: "cold"` or `"switched"`, `modelLoadMs` > 0) and the rest
 are `"resident"`. When the run ends, the model that was loaded before it is
 reloaded, so chat carries on as before.
 
-## Running it on the device
+## Running it from the computer (recommended)
+
+`npm run eval:device` runs the evaluation on a USB-connected phone and brings
+the results back, with no tapping. It's transport only: it writes a request
+into the app's private storage over adb, the app runs it through the same
+evaluation service as the Evaluation screen (which opens on the phone and shows
+progress), and the script polls for completion and pulls the result.
+
+### Prerequisites
+
+- `adb` on your `PATH` (Android SDK platform-tools), and Node/npm with
+  `npm install` done in the repo.
+- The phone connected over USB with **USB debugging** enabled and this computer
+  **authorized** (accept the "Allow USB debugging" prompt). `adb devices` must
+  list it as `device`, not `unauthorized` or `offline`.
+- A **debuggable development build** of the app (package `team.sopa.aoair`),
+  e.g. from `npx expo run:android`. Release/EAS builds don't work: reading the
+  results needs `run-as`, and the request pickup only exists in development
+  builds. With `--install` (or if the app is missing) the script builds and
+  installs one with `npx expo run:android --no-bundler`.
+- **Metro running** in another terminal: `make start` (or
+  `npx expo start --localhost`). The script sets up `adb reverse tcp:8081` and
+  reloads the app from Metro, so the phone always runs the current code.
+- First-run setup finished on the phone, and every model you want to compare
+  already downloaded. The script never downloads models.
+- Phone plugged in with the screen on (e.g. Developer options → Stay awake).
+
+### Commands
+
+```bash
+npm run eval:device                                   # every installed model + adaptive, all 17 queries
+npm run eval:device -- --models qwen2.5-1.5b,phi-3.5  # only these models (id or a fragment of it)
+npm run eval:device -- --adaptive                     # only adaptive routing
+npm run eval:device -- --models instella --adaptive   # a model and adaptive
+npm run eval:device -- --queries greeting-1,reasoning # a subset, by query id or category
+npm run eval:device -- --dry-run                      # print every adb command, run nothing
+npm run eval:device -- --help                         # all options (--serial, --timeout-min, --no-reload, …)
+```
+
+A model selector must match exactly one installed model; a typo or an
+ambiguous fragment (`qwen2.5` with both Qwen models installed) stops the run
+and lists what is installed.
+
+### What it does
+
+1. Checks `adb devices` for exactly one authorized device (or `--serial`).
+2. Checks that `team.sopa.aoair` is installed and debuggable, installing it if
+   missing.
+3. Checks Metro and runs `adb reverse tcp:8081 tcp:8081`.
+4. Writes `files/eval/requests/pending.json` through `run-as` and reloads the
+   app through the dev-client link.
+5. Once models are loaded, the app claims the request and opens the Evaluation
+   screen. It writes progress to `files/eval/requests/<requestId>.status.json`,
+   which the script polls every 5 seconds.
+6. Pulls `files/eval/<runId>.jsonl`, saves it and prints the report.
+
+### Output
+
+```
+eval-results/<YYYY-MM-DD>/
+  <runId>.jsonl        raw results, one row per answer (authoritative)
+  <runId>.answers.md   every config's answer grouped by query, for grading
+  <runId>.status.json  the final request status from the phone
+```
+
+The terminal report shows, per configuration: queries succeeded/failed,
+TTFT, model load time (over the queries that loaded a model), generation
+latency, tokens/sec (average and p50), total time per query, peak RSS,
+residency counts, model switches and retrieval use (with how many expected
+corpus articles were found). Re-print it any time with
+`npm run eval:summary -- --report eval-results/<date>/<runId>.jsonl`.
+
+## Running it on the device by hand
 
 1. Build and install the app as described in [AGENTS.md](../AGENTS.md), finish
    first-run setup, and download any extra models you want to compare
@@ -120,6 +192,7 @@ up in the Execution Telemetry screen and its exports like any other message.
 
 ```bash
 node scripts/eval-summary.mjs results/*.jsonl            # one line per run + config
+node scripts/eval-summary.mjs --report results/*.jsonl   # detailed per-config report (as printed by eval:device)
 node scripts/eval-summary.mjs --answers results/*.jsonl  # answers side by side, per query (markdown)
 ```
 

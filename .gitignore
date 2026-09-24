@@ -45,3 +45,6 @@ modules/*/android/.cxx/
 # model weights and generated indexes (fetched via scripts/setup-models.sh)
 assets/models/
 *.gguf
+
+# device evaluation results (npm run eval:device)
+eval-results/

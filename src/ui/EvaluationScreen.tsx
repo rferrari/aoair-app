@@ -8,6 +8,8 @@ import type { CatalogModel } from "../models/manifest";
 import { EVAL_SET, EVAL_SET_VERSION } from "../eval/evalSet";
 import { EvalConfig, evalConfigId, EvalResultRow } from "../eval/evalHarness.pure";
 import { exportEvalResults, listInstalledEvalModels, runEvaluation, EvalProgress, EvaluationRun } from "../eval/evalHarness";
+import { runDeviceEvalRequest } from "../eval/deviceEvalRequest";
+import type { EvalRequest } from "../eval/deviceEvalRequest.pure";
 import { colors } from "./theme/colors";
 import { typography } from "./theme/typography";
 import { spacing, radii } from "./theme/spacing";
@@ -16,6 +18,8 @@ interface Props {
   onClose?: () => void;
   /** A chat reply is still generating — running an evaluation now would fight it for the model. */
   chatBusy?: boolean;
+  /** Sent from a development machine (scripts/eval-device.mjs): runs immediately with its own selection. */
+  deviceRequest?: EvalRequest;
 }
 
 function formatMs(ms: number | undefined): string {
@@ -34,7 +38,7 @@ function outcomeColor(outcome: EvalResultRow["outcome"]): string {
  * configurations and exports the structured results. See
  * docs/EVAL_QUERIES.md for the workflow.
  */
-export function EvaluationScreen({ onClose, chatBusy }: Props) {
+export function EvaluationScreen({ onClose, chatBusy, deviceRequest }: Props) {
   const { t } = useTranslation();
   const [models, setModels] = useState<CatalogModel[] | null>(null);
   const [preset, setPreset] = useState<string>("");
@@ -80,13 +84,15 @@ export function EvaluationScreen({ onClose, chatBusy }: Props) {
     setStopping(false);
     setRows([]);
     setRun(null);
+    const callbacks = {
+      onProgress: setProgress,
+      onRow: (row: EvalResultRow) => setRows((prev) => [...prev, row]),
+      shouldStop: () => stopRef.current,
+    };
     try {
-      const result = await runEvaluation({
-        configs: chosen,
-        onProgress: setProgress,
-        onRow: (row) => setRows((prev) => [...prev, row]),
-        shouldStop: () => stopRef.current,
-      });
+      const result = deviceRequest
+        ? await runDeviceEvalRequest(deviceRequest, (p) => t("evaluation.adaptiveConfig", { preset: p }), callbacks)
+        : await runEvaluation({ configs: chosen, ...callbacks });
       setRun(result);
     } catch (e: any) {
       Alert.alert(t("evaluation.runFailedTitle"), e?.message ?? String(e));
@@ -116,6 +122,15 @@ export function EvaluationScreen({ onClose, chatBusy }: Props) {
 
   const canRun = !running && !chatBusy && chosen.length > 0 && models !== null;
 
+  const autoStarted = useRef(false);
+  useEffect(() => {
+    if (deviceRequest && models !== null && !autoStarted.current) {
+      autoStarted.current = true;
+      handleRun();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deviceRequest, models]);
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -136,8 +151,11 @@ export function EvaluationScreen({ onClose, chatBusy }: Props) {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
+        {deviceRequest && (
+          <Text style={styles.note}>{t("evaluation.deviceRequest", { id: deviceRequest.requestId })}</Text>
+        )}
         <Text style={styles.sectionTitle}>{t("evaluation.configsTitle")}</Text>
-        {models === null ? (
+        {deviceRequest ? null : models === null ? (
           <ActivityIndicator color={colors.emerald[400]} />
         ) : (
           <>
@@ -157,9 +175,11 @@ export function EvaluationScreen({ onClose, chatBusy }: Props) {
           </>
         )}
 
-        <Text style={styles.note}>
-          {t("evaluation.summary", { queries: EVAL_SET.length, configs: chosen.length, total: EVAL_SET.length * chosen.length })}
-        </Text>
+        {!deviceRequest && (
+          <Text style={styles.note}>
+            {t("evaluation.summary", { queries: EVAL_SET.length, configs: chosen.length, total: EVAL_SET.length * chosen.length })}
+          </Text>
+        )}
         <Text style={styles.note}>{chatBusy ? t("evaluation.chatBusy") : t("evaluation.keepScreenOn")}</Text>
 
         <View style={styles.actionsRow}>

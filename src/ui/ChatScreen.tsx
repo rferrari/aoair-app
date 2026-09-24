@@ -61,6 +61,9 @@ import { AboutScreen } from "./AboutScreen";
 import { KnowledgeBaseScreen } from "./KnowledgeBaseScreen";
 import { ExecutionTelemetryScreen } from "./ExecutionTelemetryScreen";
 import { ModelSetupScreen } from "./ModelSetupScreen";
+import { EvaluationScreen } from "./EvaluationScreen";
+import { takePendingEvalRequest } from "../eval/deviceEvalRequest";
+import type { EvalRequest } from "../eval/deviceEvalRequest.pure";
 import { ChatHeader } from "./ChatHeader";
 import { Toast } from "./Toast";
 import { ModelLoadErrorCard } from "./components/ModelLoadErrorCard";
@@ -122,6 +125,7 @@ export function ChatScreen({
   const [showKnowledgeBase, setShowKnowledgeBase] = useState(false);
   const [showExecutionTelemetry, setShowExecutionTelemetry] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [deviceEvalRequest, setDeviceEvalRequest] = useState<EvalRequest | null>(null);
   const [personalityId, setPersonalityIdState] = useState<PersonalityId>("succinct");
   const [processing, setProcessing] = useState<{ messageId: string; status: ProcessingStatus; label?: string } | null>(null);
   const [deepResearchActive, setDeepResearchActive] = useState(false);
@@ -286,6 +290,35 @@ export function ChatScreen({
   useEffect(() => {
     initModels();
   }, [initModels]);
+
+  const generatingRef = useRef(false);
+  useEffect(() => {
+    generatingRef.current = generating;
+  }, [generating]);
+
+  // Development builds only: pick up an evaluation request written over adb
+  // by scripts/eval-device.mjs (see src/eval/deviceEvalRequest.ts). Waits
+  // until models are loaded, and leaves the request pending while a chat
+  // reply is still generating.
+  useEffect(() => {
+    if (!__DEV__ || !ready || deviceEvalRequest) return;
+    let cancelled = false;
+    const check = async () => {
+      if (cancelled || generatingRef.current) return;
+      try {
+        const request = await takePendingEvalRequest();
+        if (request && !cancelled) setDeviceEvalRequest(request);
+      } catch (e: any) {
+        console.warn("[EVAL] could not read device request:", e?.message ?? e);
+      }
+    };
+    check();
+    const id = setInterval(check, 3000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [ready, deviceEvalRequest]);
 
   const stopRequestedRef = useRef(false);
 
@@ -718,6 +751,10 @@ export function ChatScreen({
     { key: "telemetry", icon: "📊", label: t("chatScreen.drawerItems.telemetry"), onPress: () => setShowExecutionTelemetry(true) },
     { key: "about", icon: "ℹ️", label: t("chatScreen.drawerItems.about"), onPress: () => setShowAbout(true) },
   ];
+
+  if (deviceEvalRequest) {
+    return <EvaluationScreen deviceRequest={deviceEvalRequest} onClose={() => setDeviceEvalRequest(null)} />;
+  }
 
   if (showSettings) {
     return (

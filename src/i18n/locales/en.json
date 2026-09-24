@@ -418,6 +418,7 @@
     "exportCsv": "⬇ CSV",
     "exportFailedTitle": "Export failed",
     "runFailedTitle": "Evaluation failed",
+    "deviceRequest": "Started from a connected computer (request {{id}}).",
     "noRetrieval": "no retrieval"
   }
 }
