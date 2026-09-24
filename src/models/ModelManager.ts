@@ -1,12 +1,12 @@
 import * as FileSystem from "expo-file-system/legacy";
 import * as Crypto from "expo-crypto";
 import { copyBundledAssetToFile } from "bundled-assets";
+import { checkStorageForDownload } from "./storageBudget";
 import {
   CatalogModel,
   MODEL_CATALOG,
   REQUIRED_MODELS,
   STORAGE_BUDGET_BYTES,
-  totalManifestBytes,
 } from "./manifest";
 
 export interface AssetStatus {
@@ -44,7 +44,26 @@ function dlog(assetId: string, message: string): void {
 // "truncated". (Deleting it doesn't stop the native writer on Android —
 // it keeps writing to the unlinked inode, resolves 200, and the path is
 // simply gone at verification time.)
-const downloadsOwningFile = new Set<string>();
+const downloadsOwningFile = new Map<string, CatalogModel>();
+
+// Everything BOAR stores that counts toward the 50GB budget.
+const STORAGE_DIRS = ["models/", "corpus/", "SQLite/"];
+
+/** Bytes used by BOAR's offline assets, not counting the partial files of the given paths. */
+async function measureUsedBytes(excludePaths: Set<string>): Promise<number> {
+  let total = 0;
+  for (const dir of STORAGE_DIRS) {
+    const dirPath = `${FileSystem.documentDirectory}${dir}`;
+    const names = await FileSystem.readDirectoryAsync(dirPath).catch(() => [] as string[]);
+    for (const name of names) {
+      const path = `${dirPath}${name}`;
+      if (excludePaths.has(path)) continue;
+      const info = await FileSystem.getInfoAsync(path).catch(() => null);
+      if (info?.exists && !info.isDirectory) total += info.size ?? 0;
+    }
+  }
+  return total;
+}
 
 function assetPath(asset: Pick<CatalogModel, "filename">): string {
   return `${FileSystem.documentDirectory}${asset.filename}`;
@@ -216,7 +235,22 @@ export class ModelManager {
     const destPath = assetPath(asset);
     const destDir = destPath.substring(0, destPath.lastIndexOf("/"));
     await FileSystem.makeDirectoryAsync(destDir, { intermediates: true }).catch(() => {});
-    downloadsOwningFile.add(asset.id);
+
+    // Refuse before any network request if it wouldn't fit.
+    const others = [...downloadsOwningFile.values()].filter((m) => m.id !== asset.id);
+    const partial = await FileSystem.getInfoAsync(destPath).catch(() => null);
+    const storage = checkStorageForDownload({
+      usedBytes: await measureUsedBytes(new Set([destPath, ...others.map(assetPath)])),
+      reservedBytes: others.reduce((sum, m) => sum + m.sizeBytes, 0),
+      downloadBytes: asset.sizeBytes,
+      alreadyDownloadedBytes: partial?.exists ? partial.size ?? 0 : 0,
+      freeDiskBytes: await FileSystem.getFreeDiskStorageAsync().catch(() => null),
+      budgetBytes: STORAGE_BUDGET_BYTES,
+    });
+    dlog(asset.id, `storage check: ${storage.ok ? "ok" : storage.reason}, projected ${storage.projectedBytes} of ${STORAGE_BUDGET_BYTES} bytes`);
+    if (!storage.ok) throw new Error(storage.message);
+
+    downloadsOwningFile.set(asset.id, asset);
 
     const freeBytesAtStart = await FileSystem.getFreeDiskStorageAsync().catch(() => -1);
     dlog(
@@ -359,10 +393,6 @@ export class ModelManager {
     return statuses.reduce((sum, s) => sum + s.sizeOnDiskBytes, 0);
   }
 
-  async withinStorageBudget(): Promise<boolean> {
-    const projected = totalManifestBytes(this.catalog);
-    return projected <= STORAGE_BUDGET_BYTES;
-  }
 
   missingAssets(statuses: AssetStatus[]): CatalogModel[] {
     return statuses.filter((s) => !s.present).map((s) => s.asset);
