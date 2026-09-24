@@ -201,9 +201,9 @@ export async function setLanguageId(language: LanguageId): Promise<void> {
 /**
  * Default preset when nothing's been explicitly set. `getRoutingPreset()`
  * has exactly one caller right now (`src/services/adaptiveChat.ts`'s
- * `runAdaptiveChat`, Phase 9) — it's read only when the separate, still
- * off-by-default `adaptiveRoutingEnabled` flag is on, so this default is
- * inert for everyone who hasn't opted into that.
+ * `runAdaptiveChat`, Phase 9) — it's read only when the separate
+ * `adaptiveRoutingEnabled` flag is on (the default), so this is the preset
+ * every user gets unless they turn adaptive routing off.
  *
  * Temporarily `"balanced"` (not `"simple"`) for real-device Phase 9
  * testing: `"simple"` only ever declares a `general` role slot (see
@@ -256,7 +256,7 @@ export async function setModelRoleAssignment(role: ModelRole, modelId: string | 
  */
 export async function getAdaptiveRoutingEnabled(): Promise<boolean> {
   const s = await readSettings();
-  return s.adaptiveRoutingEnabled ?? false;
+  return s.adaptiveRoutingEnabled ?? true;
 }
 
 export async function setAdaptiveRoutingEnabled(enabled: boolean): Promise<void> {

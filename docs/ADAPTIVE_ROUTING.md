@@ -845,3 +845,5 @@ there was no way to tell, and no way to compare runs after a reload since
   SQLite/file-system/sharing): actual insert/read round-trips,
   persistence across a real reload/restart, and the real share-sheet
   export flow — these need real-device verification.
+
+**Update 2026-09-24: adaptive routing is on by default** (`getAdaptiveRoutingEnabled()` defaults to `true`; Settings → Tone & Reasoning toggles it, no longer labelled experimental). It still routes only among `MODEL_CATALOG` models with roles, using the `balanced` preset, so a Hugging Face model chosen with "Select & Use" is only used when adaptive routing is off. Deep Research is now switched in Settings only; the chat header shows a read-only badge while it is on.

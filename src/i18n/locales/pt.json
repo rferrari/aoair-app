@@ -237,8 +237,8 @@
     "maxOutputTokensNote": "Limita o tamanho de uma única resposta — quanto menor, mais rápido e mais econômico para a bateria do celular.",
     "deepResearchTitle": "Modo Pesquisa Profunda",
     "deepResearchNote": "Divide sua pergunta em subperguntas, pesquisa cada uma separadamente e depois sintetiza uma resposta. Várias chamadas sequenciais ao mesmo modelo — visivelmente mais lento que uma resposta normal, não é o mesmo que múltiplos modelos de IA rodando ao mesmo tempo. Independente do estilo de resposta acima: isso muda o quanto de pesquisa entra na resposta, não o seu tom — os dois se combinam (ex.: Pesquisa Profunda + Sucinto ainda sintetiza uma resposta final curta).",
-    "adaptiveRoutingTitle": "Roteamento Adaptativo (Experimental)",
-    "adaptiveRoutingNote": "Classifica cada mensagem e escolhe qual modelo baixado responde a ela (ex.: um modelo leve para conversa casual, um mais forte para perguntas de pesquisa/comparação), alternando entre eles conforme necessário. Desativado por padrão e independente da Pesquisa Profunda — se falhar por qualquer motivo, o chat volta automaticamente ao seu modelo ativo normal, nunca deixando você sem resposta."
+    "adaptiveRoutingTitle": "Roteamento Adaptativo",
+    "adaptiveRoutingNote": "Classifica cada mensagem e escolhe qual modelo baixado responde a ela (ex.: um modelo leve para conversa casual, um mais forte para perguntas de pesquisa/comparação), alternando entre eles conforme necessário. Ativado por padrão e independente da Pesquisa Profunda — se falhar por qualquer motivo, o chat volta automaticamente ao seu modelo ativo normal, nunca deixando você sem resposta."
   },
   "corpusSettingsTab": {
     "downloadablePacks": "Pacotes de conhecimento para download",

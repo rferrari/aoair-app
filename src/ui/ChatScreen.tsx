@@ -36,7 +36,6 @@ import {
   MemorySettings as MemorySettingsType,
   DEFAULT_MEMORY_SETTINGS,
   getDeepResearchMode,
-  setDeepResearchMode,
   getAdaptiveRoutingEnabled,
 } from "../models/settings";
 import { runDeepResearch, ResearchProgress } from "../services/orchestrator";
@@ -282,14 +281,6 @@ export function ChatScreen({
     },
     []
   );
-
-  const toggleDeepResearch = useCallback(async () => {
-    const next = !deepResearchEnabled;
-    setDeepResearchEnabled(next);
-    deepResearchModeRef.current = next;
-    await setDeepResearchMode(next);
-    impact(ImpactFeedbackStyle.Medium);
-  }, [deepResearchEnabled]);
 
   const cycleTone = useCallback(async () => {
     const next = personalityId === "succinct" ? "detailed" : "succinct";
@@ -809,6 +800,10 @@ export function ChatScreen({
         mode="optional"
         onClose={async () => {
           setShowSettings(false);
+          // Deep Research is switched in Settings only.
+          const drMode = await getDeepResearchMode();
+          deepResearchModeRef.current = drMode;
+          setDeepResearchEnabled(drMode);
           // Settings loads a newly chosen LLM itself; only re-run the full
           // init (with its loading screen) if what's loaded doesn't match.
           const llm = await resolveActiveModel("llm");
@@ -864,7 +859,6 @@ export function ChatScreen({
           }}
           onCycleTone={cycleTone}
           onNewChat={resetToNewChat}
-          onToggleDeepResearch={toggleDeepResearch}
         />
 
         {/* Deep Research Mode Banner */}
