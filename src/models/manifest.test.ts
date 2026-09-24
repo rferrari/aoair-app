@@ -65,9 +65,10 @@ describe("TIERS", () => {
     }
   });
 
-  it("higher tiers are supersets of lower tiers' corpus packs (minimum -> standard -> full)", () => {
+  it("higher tiers are supersets of lower tiers' corpus packs (minimum -> standard -> full -> encyclopedia)", () => {
     const byId = Object.fromEntries(TIERS.map((t) => [t.id, new Set(t.corpusPackIds)]));
     for (const id of byId.minimum) expect(byId.standard.has(id)).toBe(true);
     for (const id of byId.standard) expect(byId.full.has(id)).toBe(true);
+    for (const id of byId.full) expect(byId.encyclopedia.has(id)).toBe(true);
   });
 });

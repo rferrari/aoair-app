@@ -22,7 +22,7 @@
 import type { ModelCapabilities } from "../routing/types";
 
 export type AssetKind = "llm" | "embedding" | "corpus";
-export type SetupTier = "minimum" | "standard" | "full";
+export type SetupTier = "minimum" | "standard" | "full" | "encyclopedia";
 
 export interface CatalogModel {
   id: string;
@@ -189,6 +189,21 @@ export const MODEL_CATALOG: CatalogModel[] = [
     description: "4,000 more Wikipedia-derived topics for local RAG. ~2.4MB.",
     required: false,
   },
+  {
+    // Built by scripts/build-knowledge-pack.mjs (docs/KNOWLEDGE_PACKS.md) and
+    // published as a GitHub Release asset; too large for the repository.
+    id: "wiki-vital5",
+    kind: "corpus",
+    format: "sqlite-pack",
+    label: "Wikipedia Vital Articles (+50,000 articles)",
+    filename: "corpus/wiki-vital5.sqlite",
+    sizeBytes: 163647488,
+    sha256: "d3b87d562baba3489f6878bf99783f50d504db94c347029771e53f6d1aecc666",
+    sourceUrl: "https://github.com/rferrari/boar-app/releases/download/knowledge-pack-v1/wiki-vital5.sqlite",
+    license: "CC BY-SA 4.0 (Wikipedia)",
+    description: "Introductions of Wikipedia's ~50,000 Vital Articles (level 5), searchable offline. ~164MB.",
+    required: false,
+  },
   // Add more tested candidates / corpus packs here later (each needs a
   // unique `id` and `filename`). They ship with `required: false` and
   // appear in the Settings screen as optional downloads.
@@ -223,6 +238,12 @@ export const TIERS: TierDefinition[] = [
     label: "Full",
     description: "+ 5,000 more Wikipedia-derived topics total (~3MB extra download).",
     corpusPackIds: ["corpus-standard", "corpus-full"],
+  },
+  {
+    id: "encyclopedia",
+    label: "Encyclopedia",
+    description: "Full, plus Wikipedia's ~50,000 Vital Articles (~164MB extra download).",
+    corpusPackIds: ["corpus-standard", "corpus-full", "wiki-vital5"],
   },
 ];
 
