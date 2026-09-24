@@ -939,12 +939,17 @@ export function ChatScreen({
                         {split.thinking}
                       </Text>
                     )}
-                    {split?.thinkingInProgress && !split.answer ? (
+                    {split?.thinkingInProgress && !split.answer && isStreamingThis ? (
                       <ReasoningPeek
                         thinking={split.thinking ?? ""}
                         expanded={reasoningShown}
                         onToggle={() => toggleReasoning(item.id)}
                       />
+                    ) : split?.thinkingInProgress && !split.answer ? (
+                      // Ended (stopped or out of tokens) while still reasoning.
+                      <Text style={[styles.reasoningText, { color: colors.text.dim, borderLeftColor: colors.border.default }]}>
+                        💭 {t("chatScreen.reasoningUnfinished")}
+                      </Text>
                     ) : (
                       <MarkdownMessage content={shownText} isStreaming={isStreamingThis} />
                     )}

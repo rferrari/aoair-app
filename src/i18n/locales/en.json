@@ -308,6 +308,7 @@
     "mountingWeights": "Mounting local GGUF weights…",
     "indexingKnowledgeBase": "Indexing offline knowledge base…",
     "reasoningElapsed": "💭 Reasoning… {{seconds}}s",
+    "reasoningUnfinished": "Reasoning didn't finish before the reply ended (stopped or out of tokens). Tap 💭 to read it.",
     "showReasoning": "Show reasoning",
     "hideReasoning": "Hide reasoning",
     "modelDownloadComplete": "✅ \"{{label}}\" download complete",

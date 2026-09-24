@@ -308,6 +308,7 @@
     "mountingWeights": "Carregando pesos GGUF locais…",
     "indexingKnowledgeBase": "Indexando base de conhecimento offline…",
     "reasoningElapsed": "💭 Raciocinando… {{seconds}}s",
+    "reasoningUnfinished": "O raciocínio não terminou antes do fim da resposta (interrompido ou sem tokens). Toque em 💭 para ler.",
     "showReasoning": "Mostrar raciocínio",
     "hideReasoning": "Ocultar raciocínio",
     "modelDownloadComplete": "✅ Download de \"{{label}}\" concluído",
