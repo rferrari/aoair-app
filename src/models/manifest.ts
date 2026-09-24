@@ -76,8 +76,8 @@ export const MODEL_CATALOG: CatalogModel[] = [
     sourceUrl:
       "https://huggingface.co/bartowski/Phi-3.5-mini-instruct-GGUF/resolve/main/Phi-3.5-mini-instruct-Q4_K_M.gguf",
     license: "MIT",
-    description: "3.8B dense, primary generation model. ~2.2GB. Default.",
-    required: true,
+    description: "3.8B dense. Most complete comparisons and syntheses in our device benchmark, but slow (~4 tok/s). ~2.4GB.",
+    required: false,
     capabilities: { roles: ["general", "reasoning"] },
   },
   {
@@ -104,7 +104,7 @@ export const MODEL_CATALOG: CatalogModel[] = [
     sourceUrl:
       "https://huggingface.co/bartowski/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf",
     license: "Apache-2.0",
-    description: "1.5B dense, fast/lightweight secondary model. ~1.0GB. Downloaded at first-run setup alongside the primary model, giving adaptive routing two real models to switch between from the start.",
+    description: "1.5B dense, fast (~11-18 tok/s) and light. ~1.0GB. Default: downloaded at first-run setup.",
     required: true,
     // Real-device Phase 9 test ("whats up?" -> a long, rambling,
     // free-associated multi-question response) traced to the app's
@@ -126,6 +126,35 @@ export const MODEL_CATALOG: CatalogModel[] = [
     description: "7B dense, stronger reasoning, more RAM/storage/time. ~4.7GB.",
     required: false,
     capabilities: { roles: ["reasoning", "verifier"] },
+  },
+  // Tested on a real phone (docs/DEVICE_EVALUATION.md) and offered as suggestions so users
+  // don't have to search for them. No routing roles yet: they're used when picked with
+  // "Select & Use" (adaptive routing off). Filenames match what the Hugging Face browser
+  // saves for the same file, so a copy downloaded through search counts as installed.
+  {
+    id: "lfm2.5-8b-a1b-q4km",
+    kind: "llm",
+    label: "LFM2.5-8B-A1B (Q4_K_M)",
+    filename: "models/hf-liquidai-lfm2-5-8b-a1b-gguf-lfm2-5-8b-a1b-q4-k-m-gguf.gguf",
+    sizeBytes: 5155564768,
+    sha256: "4923ec14f06b968b74d663e5949867d2d9c3bf13a20b8be1a9f9af39989b2bb0",
+    sourceUrl: "https://huggingface.co/LiquidAI/LFM2.5-8B-A1B-GGUF/resolve/main/LFM2.5-8B-A1B-Q4_K_M.gguf",
+    license: "LFM Open License v1.0",
+    description:
+      "Mixture of experts: 8B total, ~1.5B active per token. Fastest in our benchmark (~15 tok/s) and the best reasoning, but it thinks before answering, so give it a bigger answer budget. ~5.2GB.",
+    required: false,
+  },
+  {
+    id: "gemma-4-e4b-it-q4_0",
+    kind: "llm",
+    label: "Gemma 4 E4B (QAT Q4_0)",
+    filename: "models/hf-google-gemma-4-e4b-it-qat-q4-0-gguf-gemma-4-e4b-q4-0-it-gguf.gguf",
+    sizeBytes: 5154941280,
+    sha256: "676c35070db6dbe52f93e9c864ee0fba4eddea94b9c875d9cb10daff453fbaee",
+    sourceUrl: "https://huggingface.co/google/gemma-4-E4B-it-qat-q4_0-gguf/resolve/main/gemma-4-E4B_q4_0-it.gguf",
+    license: "Apache-2.0",
+    description: "Google's on-device model, ~4B effective parameters, quantization-aware Q4_0. ~5.2GB.",
+    required: false,
   },
   {
     id: "corpus-standard",

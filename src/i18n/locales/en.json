@@ -196,7 +196,7 @@
       "subtitle": "Weights are downloaded once to local storage and executed via mmap.",
       "recommended": "RECOMMENDED",
       "runsGreat": "🟢 Runs Great",
-      "ramFootprint": "RAM: ~2.5 GB Working Set",
+      "ramFootprint": "RAM: ~1.7 GB Working Set",
       "installButton": "Install Weights & Index ➔",
       "backButton": "‹ Back to Diagnostics"
     },

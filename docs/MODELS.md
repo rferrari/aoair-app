@@ -4,7 +4,7 @@ This file documents every offline asset the app ships with or depends on, per th
 bounty's "clearly document the models, datasets, indexes, and other resources used"
 requirement.
 
-## Primary generation model — chosen
+## Phi-3.5-mini — optional (the default until 2026-09-24)
 
 **[Phi-3.5-mini-instruct](https://huggingface.co/microsoft/Phi-3.5-mini-instruct)**
 (Microsoft, **MIT license**), quantized GGUF from
@@ -75,7 +75,7 @@ to match. Worth revisiting (e.g. a multilingual embedding model matched to the
 device's locale, paired with a multilingual LLM candidate and corpus) as future
 work, not in this version.
 
-## Secondary generation model — chosen (required, downloaded at first-run setup)
+## Default generation model: Qwen2.5-1.5B (required, downloaded at first-run setup)
 
 **[Qwen2.5-1.5B-Instruct](https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct)**
 (Alibaba, **Apache-2.0 license**), quantized GGUF from
@@ -94,15 +94,18 @@ three catalog LLMs.
 
 ## Optional LLM catalog (choose your model)
 
-Beyond the two required generation models, the in-app Settings screen offers
-one further Apache-2.0-licensed LLM candidate a user can download and switch to:
+Beyond the required default, Settings offers these models, each tested on a real
+phone (Xiaomi 2311DRK48G, Dimensity 8300, 11.6 GB RAM; see
+[DEVICE_EVALUATION.md](DEVICE_EVALUATION.md)):
 
-| Candidate | Params | Quant | Approx. size | Notes |
-|---|---|---|---|---|
-| Qwen2.5-7B-Instruct | 7B | Q4_K_M | ~4.36GB | Stronger reasoning, more RAM/storage, slower tokens/sec |
+| Candidate | Params | Quant | Size | License | Measured on the phone |
+|---|---|---|---|---|---|
+| Phi-3.5-mini-instruct | 3.8B dense | Q4_K_M | 2.39GB | MIT | ~4 tok/s; most complete comparisons and syntheses |
+| Qwen2.5-7B-Instruct | 7B dense | Q4_K_M | 4.68GB | Apache-2.0 | ~2.7 tok/s; accurate, often too slow for the 120s step limit |
+| LFM2.5-8B-A1B | 8B MoE, ~1.5B active | Q4_K_M | 5.16GB | LFM Open License v1.0 | ~15 tok/s; best reasoning, but it thinks first and needs a larger answer budget |
+| Gemma 4 E4B | ~4B effective | QAT Q4_0 | 5.15GB | Apache-2.0 | loads and answers; not benchmarked yet |
 
-From `bartowski`'s GGUF quantizations, sha256-verified the same way as the
-required models (see `src/models/manifest.ts`). Switching models re-loads the
+Sizes and SHA-256 checksums are in `src/models/manifest.ts`. Switching models re-loads the
 inference engine (`LlamaEngine`/`EmbeddingEngine` now release their previous
 context before loading a new one, avoiding a native memory leak on switch).
 
@@ -209,8 +212,10 @@ not attempted in this version. Typing always works everywhere regardless.
 
 ## Delivery: one-time first-run download
 
-All three required assets (Phi-3.5-mini, Qwen2.5-1.5B, the embedding model) are
-declared with `required: true` in `src/models/manifest.ts` (~3.2GB total). The
+The two required assets (Qwen2.5-1.5B and the embedding model) are declared with
+`required: true` in `src/models/manifest.ts` (about 1 GB total). Phi-3.5-mini,
+Qwen2.5-7B, LFM2.5-8B-A1B and Gemma 4 E4B are optional suggestions in the same
+catalog. The
 app itself ships small (no multi-GB assets baked in, for fast builds/installs);
 on first launch it shows a mandatory setup screen that downloads them — see
 `ARCHITECTURE.md` "First-run model setup". Once done, the app works completely

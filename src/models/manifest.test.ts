@@ -21,12 +21,12 @@ describe("totalManifestBytes", () => {
 });
 
 describe("REQUIRED_MODELS", () => {
-  it("includes exactly two llms (primary + fast/secondary) and one embedding model", () => {
-    // Two required LLMs deliberately, not one: the adaptive-routing layer
-    // (src/routing/) needs a real 'fast' role model available from first
-    // launch, not only after an optional later download.
-    expect(REQUIRED_MODELS.filter((m) => m.kind === "llm")).toHaveLength(2);
+  it("is one small llm (Qwen2.5-1.5B) and one embedding model, so first-run setup is ~1GB", () => {
+    // One required LLM keeps the first download short; adaptive routing falls
+    // back to it for every role until the user adds more models.
+    expect(REQUIRED_MODELS.filter((m) => m.kind === "llm").map((m) => m.id)).toEqual(["qwen2.5-1.5b-instruct-q4km"]);
     expect(REQUIRED_MODELS.filter((m) => m.kind === "embedding")).toHaveLength(1);
+    expect(REQUIRED_MODELS.reduce((sum, m) => sum + m.sizeBytes, 0)).toBeLessThan(1.1 * 1024 ** 3);
   });
 
   it("every required model has a non-empty checksum and filename", () => {

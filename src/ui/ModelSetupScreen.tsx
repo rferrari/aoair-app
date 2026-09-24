@@ -244,7 +244,8 @@ export function ModelSetupScreen(props: Props) {
           <FlatList
             data={[
               ...MODEL_CATALOG.filter((m) => m.kind === "llm" || m.kind === "embedding"),
-              ...discoveredModels,
+              // A search result for a file that's now in the curated catalog would be listed twice.
+              ...discoveredModels.filter((d) => !MODEL_CATALOG.some((c) => c.filename === d.filename)),
             ]}
             keyExtractor={(m) => m.id}
             scrollEnabled={false}

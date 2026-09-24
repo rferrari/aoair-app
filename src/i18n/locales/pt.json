@@ -196,7 +196,7 @@
       "subtitle": "Os pesos são baixados uma vez para o armazenamento local e executados via mmap.",
       "recommended": "RECOMENDADO",
       "runsGreat": "🟢 Funciona Muito Bem",
-      "ramFootprint": "RAM: ~2,5 GB em Uso",
+      "ramFootprint": "RAM: ~1,7 GB em Uso",
       "installButton": "Instalar Pesos & Indexar ➔",
       "backButton": "‹ Voltar ao Diagnóstico"
     },

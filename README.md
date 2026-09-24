@@ -74,8 +74,8 @@ make run-android   # local build — needs the Android SDK (make setup told you 
 ```
 
 On first launch, the app shows a one-time setup screen that downloads the
-default models — Phi-3.5-mini (primary) and Qwen2.5-1.5B (secondary, ~3.2GB
-total, see `docs/MODELS.md`) — the only time it needs network access. From
+default model, Qwen2.5-1.5B, plus a small embedding model (about 1 GB total, see
+`docs/MODELS.md`) — the only time it needs network access. From
 then on it works fully offline, airplane mode included.
 An in-app "Models" screen lets you optionally download additional/alternate
 models later when you do have connectivity — see

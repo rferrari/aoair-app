@@ -47,7 +47,8 @@ export const EVAL_RESULTS_DIR = `${FileSystem.documentDirectory}eval/`;
 
 /** Every LLM actually on disk: curated catalog entries plus Hugging Face-discovered ones. */
 export async function listInstalledEvalModels(): Promise<CatalogModel[]> {
-  const candidates = [...MODEL_CATALOG.filter((m) => m.kind === "llm"), ...(await listDiscoveredModels())];
+  const discovered = (await listDiscoveredModels()).filter((d) => !MODEL_CATALOG.some((c) => c.filename === d.filename));
+  const candidates = [...MODEL_CATALOG.filter((m) => m.kind === "llm"), ...discovered];
   const statuses = await Promise.all(candidates.map((m) => modelManager.statusOf(m)));
   return statuses.filter((s) => s.present).map((s) => s.asset);
 }

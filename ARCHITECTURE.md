@@ -20,13 +20,12 @@ constraints this design targets:
   we need native modules Expo Go can't load).
 - **Inference engine**: [`llama.rn`](https://github.com/mybigday/llama.rn) — React Native
   bindings to llama.cpp, supports GGUF, mmap weight streaming, Android NDK build, no GMS.
-- **Primary model**: Phi-3.5-mini-instruct (MIT, 3.8B, Q4_K_M, ~2.2GB). **Secondary
-  model**: Qwen2.5-1.5B-Instruct (Apache-2.0, 1.5B, Q4_K_M, ~0.9GB) — curated as the
-  routing layer's `fast` role (`src/routing/`), so two real, differently-sized models
-  are available from the start, not only after a manual later download. Both
-  downloaded once on first launch (see "First-run model setup" below), ~3.2GB total
-  with the embedding model. Additional/alternate models (documented in
-  `docs/MODELS.md`) can be fetched later through the same in-app catalog.
+- **Default model**: Qwen2.5-1.5B-Instruct (Apache-2.0, 1.5B, Q4_K_M, ~0.99GB), the
+  routing layer's `fast` role (`src/routing/`). Downloaded once on first launch with
+  the embedding model (see "First-run model setup" below), about 1 GB total, so setup
+  takes minutes. Suggested models in the same in-app catalog, all tested on a real
+  phone: Phi-3.5-mini-instruct (MIT, 3.8B), Qwen2.5-7B-Instruct, LFM2.5-8B-A1B
+  (mixture of experts, ~1.5B active) and Gemma 4 E4B (see `docs/MODELS.md`).
 - **Retrieval**: `expo-sqlite` with FTS5 for lexical search over a local offline knowledge
   base, plus bge-small-en-v1.5 (MIT, 33M) for a local vector index (brute-force cosine) —
   hybrid BM25 + vector RAG, fully local at query time.

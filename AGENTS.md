@@ -73,8 +73,7 @@ to the device directly.
 ## After install: the app is not immediately usable — one more step
 
 First launch shows a **mandatory, one-time setup screen** that downloads the
-default models (Phi-3.5-mini + Qwen2.5-1.5B + an embedding model, ~3.2GB
-total) — this is the app's only required network access, and the app is
+default model (Qwen2.5-1.5B + an embedding model, about 1 GB total) — this is the app's only required network access, and the app is
 gated behind it (`ModelManager.requiredModelsPresent()` in
 `src/models/ModelManager.ts` decides whether the chat screen or the setup
 wizard shows). If you're scripting an unattended install-and-verify flow,
