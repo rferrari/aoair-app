@@ -345,11 +345,15 @@
   "aboutScreen": {
     "title": "SOBRE O BOAR",
     "heroSubtitle": "INTELIGÊNCIA LOCAL ADAPTATIVA",
-    "versionBadge": "v0.1.0 • BUILD DE PRODUÇÃO",
+    "versionBadge": "v{{version}} • {{build}}",
+    "buildDevelopment": "BUILD DE DESENVOLVIMENTO",
+    "buildRelease": "BUILD DE RELEASE",
     "airGappedTitle": "IA SOBERANA E ISOLADA DA REDE",
-    "airGappedBody": "O BOAR é um sistema de IA móvel offline-first que explora roteamento adaptativo de modelos, recuperação local, verificação seletiva e inferência sensível a recursos. Ele realiza inferência local de LLM via llama.rn / llama.cpp e busca híbrida local (SQLite FTS5 + embeddings no dispositivo) sem nenhuma dependência de nuvem.",
+    "airGappedBody": "O BOAR é um sistema de IA móvel offline-first que explora roteamento adaptativo de modelos, recuperação local e inferência sensível a recursos. Ele realiza inferência local de LLM via llama.rn / llama.cpp e busca híbrida local (SQLite FTS5 + embeddings no dispositivo) sem nenhuma dependência de nuvem.",
     "hardwareTitle": "ARQUITETURA DE HARDWARE E ORÇAMENTO",
     "hardwareBody": "Atende a restrições rígidas de uso em campo: a memória residente permanece limitada a 12GB de RAM usando pesos mapeados em memória (mmap), e o armazenamento total é auditado contra um limite de 50GB.",
+    "benchmarkTitle": "TESTE VOCÊ MESMO",
+    "benchmarkBody": "O BOAR mede cada resposta no seu próprio celular: tempo de carregamento do modelo, tempo até o primeiro token, tokens/s, pico de memória e quais fontes foram usadas. Rode a avaliação embutida em Telemetria de Execução → 🧪 Avaliar para comparar qualquer modelo instalado nas mesmas perguntas, ou comande pelo computador com npm run eval:device.",
     "repoTitle": "REPOSITÓRIO DE CÓDIGO ABERTO",
     "repoBody": "O código-fonte, os manifestos de modelos quantizados e os scripts de indexação offline estão disponíveis em:"
   },

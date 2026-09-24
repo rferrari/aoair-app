@@ -345,11 +345,15 @@
   "aboutScreen": {
     "title": "ABOUT BOAR",
     "heroSubtitle": "ADAPTIVE LOCAL INTELLIGENCE",
-    "versionBadge": "v0.1.0 • PRODUCTION BUILD",
+    "versionBadge": "v{{version}} • {{build}}",
+    "buildDevelopment": "DEVELOPMENT BUILD",
+    "buildRelease": "RELEASE BUILD",
     "airGappedTitle": "AIR-GAPPED SOVEREIGN AI",
-    "airGappedBody": "BOAR is an offline-first mobile AI system exploring adaptive model routing, local retrieval, selective verification, and resource-aware inference. It performs local LLM inference via llama.rn / llama.cpp and local hybrid retrieval (SQLite FTS5 + on-device embeddings) with zero cloud dependencies.",
+    "airGappedBody": "BOAR is an offline-first mobile AI system exploring adaptive model routing, local retrieval, and resource-aware inference. It performs local LLM inference via llama.rn / llama.cpp and local hybrid retrieval (SQLite FTS5 + on-device embeddings) with zero cloud dependencies.",
     "hardwareTitle": "HARDWARE ARCHITECTURE & BUDGET",
     "hardwareBody": "Complies with strict mobile field constraints: resident memory remains capped under 12GB RAM using memory-mapped weights (mmap), and total storage is audited against a 50GB storage envelope.",
+    "benchmarkTitle": "BENCHMARK IT YOURSELF",
+    "benchmarkBody": "BOAR measures every answer on your own phone: model load time, time to first token, tokens/sec, peak memory and which sources were used. Run the built-in evaluation from Execution Telemetry → 🧪 Evaluate to compare any installed model on the same questions, or drive it from a computer with npm run eval:device.",
     "repoTitle": "OPEN SOURCE REPOSITORY",
     "repoBody": "Source code, quantized model manifests, and offline indexing scripts are available at:"
   },
