@@ -60,6 +60,7 @@ import { Drawer, DrawerItem } from "./Drawer";
 import { AboutScreen } from "./AboutScreen";
 import { KnowledgeBaseScreen } from "./KnowledgeBaseScreen";
 import { ExecutionTelemetryScreen } from "./ExecutionTelemetryScreen";
+import { ModelSetupScreen } from "./ModelSetupScreen";
 import { ChatHeader } from "./ChatHeader";
 import { Toast } from "./Toast";
 import { ModelLoadErrorCard } from "./components/ModelLoadErrorCard";
@@ -103,10 +104,8 @@ async function resolveActiveModel(kind: "llm" | "embedding"): Promise<CatalogMod
 }
 
 export function ChatScreen({
-  onOpenSettings,
   onRelaunchWizard,
 }: {
-  onOpenSettings?: () => void;
   onRelaunchWizard?: () => void;
 }) {
   const { colors, typography } = useTheme();
@@ -122,6 +121,7 @@ export function ChatScreen({
   const [showAbout, setShowAbout] = useState(false);
   const [showKnowledgeBase, setShowKnowledgeBase] = useState(false);
   const [showExecutionTelemetry, setShowExecutionTelemetry] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [personalityId, setPersonalityIdState] = useState<PersonalityId>("succinct");
   const [processing, setProcessing] = useState<{ messageId: string; status: ProcessingStatus; label?: string } | null>(null);
   const [deepResearchActive, setDeepResearchActive] = useState(false);
@@ -714,12 +714,20 @@ export function ChatScreen({
   const drawerItems: DrawerItem[] = [
     { key: "prompts", icon: "💡", label: t("chatScreen.drawerItems.prompts"), onPress: () => setShowPromptIdeas(true) },
     { key: "knowledge", icon: "📚", label: t("chatScreen.drawerItems.myDocuments"), onPress: () => setShowKnowledgeBase(true) },
-    ...(onOpenSettings
-      ? [{ key: "settings", icon: "⚙️", label: t("chatScreen.drawerItems.settings"), onPress: onOpenSettings }]
-      : []),
+    { key: "settings", icon: "⚙️", label: t("chatScreen.drawerItems.settings"), onPress: () => setShowSettings(true) },
     { key: "telemetry", icon: "📊", label: t("chatScreen.drawerItems.telemetry"), onPress: () => setShowExecutionTelemetry(true) },
     { key: "about", icon: "ℹ️", label: t("chatScreen.drawerItems.about"), onPress: () => setShowAbout(true) },
   ];
+
+  if (showSettings) {
+    return (
+      <ModelSetupScreen
+        mode="optional"
+        onClose={() => setShowSettings(false)}
+        onRelaunchWizard={onRelaunchWizard}
+      />
+    );
+  }
 
   if (showExecutionTelemetry) {
     return <ExecutionTelemetryScreen onClose={() => setShowExecutionTelemetry(false)} />;
@@ -780,7 +788,7 @@ export function ChatScreen({
         {loadError && (
           <ModelLoadErrorCard
             error={loadError}
-            onOpenSettings={onOpenSettings}
+            onOpenSettings={() => setShowSettings(true)}
             onRelaunchWizard={onRelaunchWizard}
             onRetry={initModels}
           />

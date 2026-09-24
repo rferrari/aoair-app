@@ -12,7 +12,7 @@ import { initHaptics } from "./src/services/haptics";
 
 const modelManager = new ModelManager();
 
-type Screen = "checking" | "required-setup" | "chat" | "models";
+type Screen = "checking" | "required-setup" | "chat";
 
 function AppContent() {
   const [screen, setScreen] = useState<Screen>("checking");
@@ -41,17 +41,7 @@ function AppContent() {
         <ModelSetupScreen mode="required" onReady={() => setScreen("chat")} />
       )}
       {screen === "chat" && (
-        <ChatScreen
-          onOpenSettings={() => setScreen("models")}
-          onRelaunchWizard={() => setScreen("required-setup")}
-        />
-      )}
-      {screen === "models" && (
-        <ModelSetupScreen
-          mode="optional"
-          onClose={() => setScreen("chat")}
-          onRelaunchWizard={() => setScreen("required-setup")}
-        />
+        <ChatScreen onRelaunchWizard={() => setScreen("required-setup")} />
       )}
     </SafeAreaView>
   );
