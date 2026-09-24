@@ -82,6 +82,38 @@ models later when you do have connectivity — see
 `src/ui/ModelSetupScreen.tsx`, the only place in the app that touches the
 network.
 
+## Mixture of experts on a phone, measured
+
+Vitalik's suggestion for phones is extreme mixture of experts: a large model
+whose parameters mostly sit on disk, with only a small part active for each
+token. BOAR runs that kind of model today, at a smaller scale, and measures it
+on a real phone rather than quoting model cards.
+
+[LFM2.5-8B-A1B](https://huggingface.co/LiquidAI/LFM2.5-8B-A1B-GGUF) has 8B
+parameters in total, 32 experts with 4 active, so about 1.5B parameters work on
+each token. On a Xiaomi 2311DRK48G (MediaTek Dimensity 8300, 11.6 GB RAM), over
+the 17-question evaluation set:
+
+| Model | Architecture | Median tokens/sec | Peak memory |
+|---|---|---|---|
+| **LFM2.5-8B-A1B** | MoE, 8B total, ~1.5B active | **14.8** | 5.2 GB |
+| Qwen2.5-1.5B | dense, 1.5B | 11.4 | 3.1 GB |
+| Phi-3.5-mini | dense, 3.8B | 4.0 | 4.8 GB |
+| Qwen2.5-7B | dense, 7B | 2.7 | 5.1 GB |
+
+The mixture-of-experts model generated as fast as the 1.5B dense model while
+carrying 8B parameters of knowledge (speeds vary with phone temperature: Qwen2.5-1.5B
+reached 16-20 tok/s when the phone was cool). It was also the only model to get the
+multi-step RAM-budget question right. Its weak spot is that it
+reasons before answering, and with a 512-token answer budget 4 of 17 answers ran
+out before the final answer, so it needs a larger budget.
+
+Not every MoE model runs yet: Instella-MoE-16B-A3B failed to load because this
+llama.cpp build doesn't support its architecture, and the evaluation records that
+as a result rather than skipping it. Anyone can repeat or extend these runs on
+their own phone with one command, see
+[docs/DEVICE_EVALUATION.md](docs/DEVICE_EVALUATION.md).
+
 ## Custom knowledge base
 
 Settings > Knowledge Base has an "Import" card alongside the built-in
