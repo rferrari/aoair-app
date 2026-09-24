@@ -125,6 +125,8 @@ export function ChatScreen({
   const [showKnowledgeBase, setShowKnowledgeBase] = useState(false);
   const [showExecutionTelemetry, setShowExecutionTelemetry] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const showSettingsRef = useRef(false);
+  showSettingsRef.current = showSettings;
   const [deviceEvalRequest, setDeviceEvalRequest] = useState<EvalRequest | null>(null);
   const [personalityId, setPersonalityIdState] = useState<PersonalityId>("succinct");
   const [processing, setProcessing] = useState<{ messageId: string; status: ProcessingStatus; label?: string } | null>(null);
@@ -188,10 +190,11 @@ export function ChatScreen({
   }, []);
 
   // downloadManager is a module-level singleton (see its own comment) —
-  // a download started from the Models screen keeps running after that
-  // screen unmounts, so this fires here too once the user's back in chat.
-  // Only toasts a transition we actually watched happen (downloading ->
-  // done, no error), not anything already finished/failed before mount.
+  // a download started from the Models screen keeps running after the user
+  // leaves Settings, so this toasts its completion in chat. Only toasts a
+  // transition we actually watched happen (downloading -> done, no error),
+  // and not one that finished while Settings was open: the user already saw
+  // it there, and the toast would only appear later, on returning to chat.
   useEffect(() => {
     return subscribeDownloads(() => {
       for (const { assetId, state: dl } of listDownloadStates()) {
@@ -199,9 +202,18 @@ export function ChatScreen({
           seenDownloadingRef.current.add(assetId);
         } else if (seenDownloadingRef.current.has(assetId)) {
           seenDownloadingRef.current.delete(assetId);
-          if (!dl.error) {
-            const label = assetLabelsRef.current[assetId] ?? assetId;
-            setDownloadToast(t("chatScreen.modelDownloadComplete", { label }));
+          if (!dl.error && !showSettingsRef.current) {
+            const known = assetLabelsRef.current[assetId];
+            if (known) {
+              setDownloadToast(t("chatScreen.modelDownloadComplete", { label: known }));
+            } else {
+              // Added from the Hugging Face browser after this screen mounted.
+              listDiscoveredModels().then((models) => {
+                for (const m of models) assetLabelsRef.current[m.id] = m.label;
+                const label = assetLabelsRef.current[assetId] ?? assetId;
+                setDownloadToast(t("chatScreen.modelDownloadComplete", { label }));
+              });
+            }
           }
         }
       }
