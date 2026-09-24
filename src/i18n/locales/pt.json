@@ -315,6 +315,7 @@
     "reasoningUnfinished": "O raciocínio não terminou antes do fim da resposta (interrompido ou sem tokens). Toque em 💭 para ler.",
     "showReasoning": "Mostrar raciocínio",
     "hideReasoning": "Ocultar raciocínio",
+    "messageReused": "Mensagem copiada para a caixa de texto",
     "toneChanged": "Tom: {{tone}}",
     "modelDownloadComplete": "✅ Download de \"{{label}}\" concluído",
     "drawerItems": {

@@ -315,6 +315,7 @@
     "reasoningUnfinished": "Reasoning didn't finish before the reply ended (stopped or out of tokens). Tap 💭 to read it.",
     "showReasoning": "Show reasoning",
     "hideReasoning": "Hide reasoning",
+    "messageReused": "Message copied to the input",
     "toneChanged": "Tone: {{tone}}",
     "modelDownloadComplete": "✅ \"{{label}}\" download complete",
     "drawerItems": {

@@ -286,6 +286,17 @@ export function ChatScreen({
   );
 
   // Cycles every tone; Custom only when a custom prompt is written (an empty one acts like the default).
+  // Long-press a sent message to put it back in the input and send it again.
+  const reuseMessage = useCallback(
+    (text: string) => {
+      setInput(text);
+      inputRef.current?.focus();
+      impact(ImpactFeedbackStyle.Medium);
+      setToast(t("chatScreen.messageReused"));
+    },
+    [t]
+  );
+
   const cycleTone = useCallback(async () => {
     const customPrompt = (await getCustomSystemPrompt()) ?? "";
     const order = PERSONALITIES.map((p) => p.id).filter((id) => id !== "custom" || customPrompt.trim().length > 0);
@@ -924,7 +935,9 @@ export function ChatScreen({
             const reasoningShown = shownReasoning.has(item.id);
 
             return (
-              <View
+              <Pressable
+                onLongPress={item.role === "user" ? () => reuseMessage(item.text) : undefined}
+                delayLongPress={350}
                 style={[
                   styles.bubble,
                   item.role === "user"
@@ -1132,7 +1145,7 @@ export function ChatScreen({
                     </Pressable>
                   </View>
                 )}
-              </View>
+              </Pressable>
             );
           }}
         />
