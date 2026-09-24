@@ -41,6 +41,10 @@ What the builder does:
 5. Writes one SQLite file with the chunks, an FTS5 keyword index and the
    embeddings (8-bit), plus metadata.
 
+During embedding, `node-llama-cpp` may warn that tokenizing and detokenizing the
+model "resulted in a different text". That's expected for this model (its
+tokenizer lowercases text) and doesn't affect the embeddings.
+
 Every step is cached in `build/knowledge-pack/<id>/`, so if the build stops you
 can run the same command again and it continues where it left off.
 
