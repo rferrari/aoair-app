@@ -75,8 +75,23 @@ const MODEL_RAM_OVERHEAD_FACTOR = 1.15;
 export class LlamaEngine {
   private context: LlamaContext | null = null;
   private modelInfo: LoadedModelInfo | null = null;
+  // load()/unload() run one at a time. Concurrent loads (e.g. switching
+  // models and closing Settings quickly) used to both release, both create a
+  // context, and the one overwritten in this.context was never released,
+  // leaking a whole model's memory.
+  private queue: Promise<void> = Promise.resolve();
 
-  async load(modelFilename: string, opts?: { nCtx?: number; nThreads?: number }) {
+  private enqueue(task: () => Promise<void>): Promise<void> {
+    const run = this.queue.then(task);
+    this.queue = run.catch(() => {});
+    return run;
+  }
+
+  load(modelFilename: string, opts?: { nCtx?: number; nThreads?: number }): Promise<void> {
+    return this.enqueue(() => this.loadNow(modelFilename, opts));
+  }
+
+  private async loadNow(modelFilename: string, opts?: { nCtx?: number; nThreads?: number }) {
     const nCtx = opts?.nCtx ?? 4096;
     const nThreads = opts?.nThreads ?? 4;
 
@@ -104,7 +119,7 @@ export class LlamaEngine {
 
     // Release any previously loaded model first (e.g. actually switching
     // models from Settings) so we don't leak the old context's native memory.
-    await this.unload();
+    await this.unloadNow();
 
     // Pre-flight check: a clear "this probably won't fit" message beats a
     // cryptic native failure or an outright OOM crash. Best-effort — if the
@@ -167,10 +182,15 @@ export class LlamaEngine {
     };
   }
 
-  async unload() {
-    await this.context?.release();
+  unload(): Promise<void> {
+    return this.enqueue(() => this.unloadNow());
+  }
+
+  private async unloadNow() {
+    const context = this.context;
     this.context = null;
     this.modelInfo = null;
+    await context?.release();
   }
 
   getModelInfo(): LoadedModelInfo | null {
