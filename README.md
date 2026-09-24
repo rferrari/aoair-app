@@ -176,11 +176,6 @@ npx expo start --localhost
 Then reopen the app; if it still shows the old server list, use its "Enter URL
 manually" field with `http://127.0.0.1:8081`.
 
-## Open items
-
-See [SUBMISSION_CHECKLIST.md](./SUBMISSION_CHECKLIST.md) for what's left before
-this can be submitted.
-
 ## License
 
 See [LICENSE](./LICENSE).
