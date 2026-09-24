@@ -18,7 +18,7 @@ import { useTranslation } from "react-i18next";
 import { llamaEngine } from "../inference/LlamaEngine";
 import { embeddingEngine } from "../rag/embed";
 import { retrieve, assemblePrompt, RetrievedChunk, ConversationTurn } from "../rag/retrieve";
-import { assembleChatMessages } from "../rag/pure";
+import { assembleChatMessages, ANSWER_CONTEXT_CHUNKS } from "../rag/pure";
 import { classifyTask, isRetrievalIrrelevant } from "../routing/classify";
 import type { TaskType } from "../routing/types";
 import { seedKnowledgeBaseIfEmpty } from "../rag/seedCorpus";
@@ -558,7 +558,7 @@ export function ChatScreen({
             c = [];
           } else {
             setProcessing({ messageId: assistantId, status: "retrieving" });
-            c = await retrieve(query);
+            c = await retrieve(query, ANSWER_CONTEXT_CHUNKS);
           }
           setProcessing({ messageId: assistantId, status: "thinking" });
           // Use the model's own chat template when its file ships one; the

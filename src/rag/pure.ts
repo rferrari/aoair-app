@@ -33,6 +33,15 @@ export function cosineSimilarity(a: Float32Array, b: Float32Array): number {
 export const MIN_SEMANTIC_SIMILARITY = 0.45;
 
 /**
+ * Chunks given to the model for a chat answer. Each chunk adds prompt
+ * processing before the first token (the main wait on a phone). In the
+ * 2026-09-24 device benchmark every expected article was retrieved at rank
+ * 1 or 2, and ranks 3-6 were mostly unrelated, so 4 keeps a margin for
+ * three-topic questions. Deep Research keeps the default 6 per sub-question.
+ */
+export const ANSWER_CONTEXT_CHUNKS = 4;
+
+/**
  * Excludes chunks whose raw score is below a minimum confidence floor.
  * Applied to a SINGLE source's raw scores, before fuseRetrievalResults's
  * max-relative normalization — normalizing first would make a floor

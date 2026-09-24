@@ -20,7 +20,7 @@
  */
 import { llamaEngine } from "../inference/LlamaEngine";
 import { retrieve } from "../rag/retrieve";
-import { assemblePrompt, assembleChatMessages, ConversationHistory } from "../rag/pure";
+import { assemblePrompt, assembleChatMessages, ConversationHistory, ANSWER_CONTEXT_CHUNKS } from "../rag/pure";
 import type { RetrievedChunk } from "../rag/retrieve.types";
 import { RoutingPlan, RoutingStep } from "./router";
 import { VerificationStatus } from "./types";
@@ -210,7 +210,7 @@ export async function executeRoutingPlan(
 
     switch (step.type) {
       case "retrieve": {
-        citations = await retrieve(input.query);
+        citations = await retrieve(input.query, ANSWER_CONTEXT_CHUNKS);
         stepsExecuted++;
         break;
       }
