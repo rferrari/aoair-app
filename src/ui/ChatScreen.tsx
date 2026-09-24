@@ -41,7 +41,7 @@ import {
 } from "../models/settings";
 import { runDeepResearch, ResearchProgress } from "../services/orchestrator";
 import { runAdaptiveChat } from "../services/adaptiveChat";
-import { getPersonality, PersonalityId } from "../constants/personalities";
+import { getPersonality, PersonalityId, PERSONALITIES } from "../constants/personalities";
 import {
   createSession,
   addMessage as persistMessage,
@@ -161,7 +161,7 @@ export function ChatScreen({
       return next;
     });
   }, []);
-  const [downloadToast, setDownloadToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
 
   const listRef = useRef<FlatList<Message>>(null);
   const inputRef = useRef<TextInput>(null);
@@ -228,13 +228,13 @@ export function ChatScreen({
           if (!dl.error && !showSettingsRef.current) {
             const known = assetLabelsRef.current[assetId];
             if (known) {
-              setDownloadToast(t("chatScreen.modelDownloadComplete", { label: known }));
+              setToast(t("chatScreen.modelDownloadComplete", { label: known }));
             } else {
               // Added from the Hugging Face browser after this screen mounted.
               listDiscoveredModels().then((models) => {
                 for (const m of models) assetLabelsRef.current[m.id] = m.label;
                 const label = assetLabelsRef.current[assetId] ?? assetId;
-                setDownloadToast(t("chatScreen.modelDownloadComplete", { label }));
+                setToast(t("chatScreen.modelDownloadComplete", { label }));
               });
             }
           }
@@ -285,12 +285,16 @@ export function ChatScreen({
     []
   );
 
+  // Cycles every tone; Custom only when a custom prompt is written (an empty one acts like the default).
   const cycleTone = useCallback(async () => {
-    const next = personalityId === "succinct" ? "detailed" : "succinct";
+    const customPrompt = (await getCustomSystemPrompt()) ?? "";
+    const order = PERSONALITIES.map((p) => p.id).filter((id) => id !== "custom" || customPrompt.trim().length > 0);
+    const next = order[(order.indexOf(personalityId) + 1) % order.length];
     setPersonalityIdState(next);
     await setPersonalityId(next);
     impact(ImpactFeedbackStyle.Light);
-  }, [personalityId]);
+    setToast(t("chatScreen.toneChanged", { tone: `${getPersonality(next).icon} ${t(`personalities.${next}.label`)}` }));
+  }, [personalityId, t]);
 
   const initModels = useCallback(async () => {
     try {
@@ -1200,7 +1204,7 @@ export function ChatScreen({
         onDeleteSession={removeSession}
       />
 
-      {downloadToast && <Toast message={downloadToast} onHide={() => setDownloadToast(null)} />}
+      {toast && <Toast message={toast} onHide={() => setToast(null)} />}
     </LinearGradient>
   );
 }

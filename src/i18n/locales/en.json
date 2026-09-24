@@ -313,6 +313,7 @@
     "reasoningUnfinished": "Reasoning didn't finish before the reply ended (stopped or out of tokens). Tap 💭 to read it.",
     "showReasoning": "Show reasoning",
     "hideReasoning": "Hide reasoning",
+    "toneChanged": "Tone: {{tone}}",
     "modelDownloadComplete": "✅ \"{{label}}\" download complete",
     "drawerItems": {
       "prompts": "Prompt Ideas",

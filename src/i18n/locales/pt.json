@@ -313,6 +313,7 @@
     "reasoningUnfinished": "O raciocínio não terminou antes do fim da resposta (interrompido ou sem tokens). Toque em 💭 para ler.",
     "showReasoning": "Mostrar raciocínio",
     "hideReasoning": "Ocultar raciocínio",
+    "toneChanged": "Tom: {{tone}}",
     "modelDownloadComplete": "✅ Download de \"{{label}}\" concluído",
     "drawerItems": {
       "prompts": "Ideias de Prompts",
