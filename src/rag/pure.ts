@@ -44,6 +44,113 @@ export function filterByMinScore<T extends { score: number }>(chunks: T[], minSc
   return chunks.filter((c) => c.score >= minScore);
 }
 
+// Question framing and instruction words: they say what kind of answer is
+// wanted, not what it's about, so matching on them only pulls in noise.
+// Includes "work"/"mean"/"happen" because of "how does X work", "what
+// does X mean", "why did X happen". English only, matching the corpus.
+const LEXICAL_STOPWORDS = new Set([
+  "a", "about", "after", "all", "also", "am", "an", "and", "any", "are", "as", "at",
+  "be", "because", "been", "before", "being", "best", "better", "between", "both", "but", "by",
+  "can", "could", "compare", "comparison", "describe", "detail", "details", "did",
+  "difference", "differences", "do", "does", "doing", "during", "each", "explain",
+  "for", "from", "give", "had", "has", "have", "having", "he", "her", "here", "him",
+  "his", "how", "i", "if", "in", "into", "is", "it", "its", "just", "know", "like",
+  "me", "mean", "means", "meant", "more", "most", "much", "my", "no", "not", "of",
+  "on", "or", "other", "our", "overview", "please", "same", "she", "should", "show",
+  "so", "some", "something", "such", "summarize", "summary", "tell", "than", "that",
+  "the", "their", "them", "then", "there", "these", "they", "thing", "things", "this",
+  "those", "through", "to", "too", "under", "up", "us", "very", "versus", "vs", "want",
+  "was", "we", "were", "what", "when", "where", "which", "while", "who", "whom", "whose",
+  "why", "will", "with", "work", "works", "would", "you", "your", "happen", "happened",
+  "happens", "cause", "caused", "causes",
+]);
+
+const MAX_LEXICAL_TERMS = 12;
+
+export interface LexicalTerm {
+  /**
+   * Exact word forms that count as this term: the query word, plus its
+   * singular when it looks plural ("vaccines" → "vaccine"), because the FTS
+   * index has no stemmer.
+   */
+  forms: string[];
+}
+
+export interface LexicalQuery {
+  /** FTS5 MATCH expression: every quoted form OR-ed together, BM25-ranked by FTS5 itself. */
+  match: string;
+  terms: LexicalTerm[];
+}
+
+// "-es" is ambiguous ("viruses" → "virus" but "cases" → "case"), so both
+// candidates are kept; a form that isn't a real word simply never matches.
+function singularsOf(token: string): string[] {
+  if (token.length < 4 || !token.endsWith("s") || /(ss|is|us)$/.test(token)) return [];
+  if (token.endsWith("ies")) return [`${token.slice(0, -3)}y`];
+  if (/(s|x|z|o|ch|sh)es$/.test(token)) return [token.slice(0, -1), token.slice(0, -2)];
+  return [token.slice(0, -1)];
+}
+
+function tokenize(text: string): string[] {
+  return text
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((t) => t.length > 0);
+}
+
+/**
+ * Turns a natural-language question into an FTS5 query of its content
+ * words, OR-ed so a document doesn't have to contain the question verbatim.
+ * Returns null when nothing meaningful is left ("tell me something"), so
+ * the caller skips lexical search instead of matching on filler words.
+ * Every term is double-quoted, so FTS5 operators typed by the user are
+ * treated as plain text.
+ */
+export function buildLexicalQuery(query: string): LexicalQuery | null {
+  const seen = new Set<string>();
+  const terms: LexicalTerm[] = [];
+  for (const token of tokenize(query)) {
+    if (token.length < 2 || LEXICAL_STOPWORDS.has(token)) continue;
+    const forms = [token, ...singularsOf(token)];
+    if (forms.some((f) => seen.has(f))) continue;
+    forms.forEach((f) => seen.add(f));
+    terms.push({ forms });
+    if (terms.length >= MAX_LEXICAL_TERMS) break;
+  }
+  if (terms.length === 0) return null;
+  const match = terms.flatMap((t) => t.forms.map((f) => `"${f}"`)).join(" OR ");
+  return { match, terms };
+}
+
+/**
+ * How many content terms a lexical hit must contain. OR-matching alone
+ * would accept a document that shares one incidental word with the
+ * question ("black" → "Black Sea" for "black holes"), so short queries
+ * need every term and longer ones at least half.
+ */
+export function requiredTermMatches(termCount: number): number {
+  return termCount <= 2 ? termCount : Math.ceil(termCount / 2);
+}
+
+export function countMatchedTerms(text: string, terms: LexicalTerm[]): number {
+  const tokens = new Set(tokenize(text));
+  return terms.filter((term) => term.forms.some((f) => tokens.has(f))).length;
+}
+
+/**
+ * The lexical relevance gate: keeps only BM25 hits covering enough of the
+ * query's content terms, in their original BM25 order.
+ */
+export function filterByTermCoverage<T extends { title: string; body: string }>(
+  hits: T[],
+  terms: LexicalTerm[]
+): T[] {
+  const required = requiredTermMatches(terms.length);
+  return hits.filter((h) => countMatchedTerms(`${h.title} ${h.body}`, terms) >= required);
+}
+
 /**
  * Weighted-sum fusion of two already-scored, already-relevance-filtered
  * result sets into one ranked list. Each source is normalized to its own
@@ -55,8 +162,8 @@ export function filterByMinScore<T extends { score: number }>(chunks: T[], minSc
  * no way to tell a genuinely strong match from "the best of a bad lot",
  * since normalizing to each set's own max erases that distinction by
  * construction. Absolute relevance must be decided by filterByMinScore
- * (or an equivalent gate, like lexicalSearch's exact-phrase MATCH
- * requirement) on the INPUTS, before this runs — see retrieve.ts.
+ * (or an equivalent gate, like lexicalSearch's filterByTermCoverage) on
+ * the INPUTS, before this runs — see retrieve.ts.
  */
 export function fuseRetrievalResults(
   lexical: RetrievedChunk[],

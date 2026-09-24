@@ -1,26 +1,32 @@
 import { getDb } from "./db";
 import { embeddingEngine } from "./embed";
-import { cosineSimilarity, filterByMinScore, fuseRetrievalResults, MIN_SEMANTIC_SIMILARITY } from "./pure";
+import {
+  buildLexicalQuery,
+  cosineSimilarity,
+  filterByMinScore,
+  filterByTermCoverage,
+  fuseRetrievalResults,
+  MIN_SEMANTIC_SIMILARITY,
+} from "./pure";
 import type { RetrievedChunk } from "./retrieve.types";
 
 export type { RetrievedChunk } from "./retrieve.types";
 
+// Extra BM25 candidates fetched so the term-coverage gate has something to
+// choose from; the result is still capped at `limit`.
+const LEXICAL_CANDIDATE_MULTIPLIER = 4;
+
 /**
  * BM25-ranked FTS5 lexical search over the local knowledge base. The query
- * is wrapped in double quotes, which FTS5 treats as a PHRASE match (the
- * query's words must appear consecutively, in order, in the indexed text)
- * — this is already this search's relevance gate, not just a ranking
- * detail: gibberish or a query with no matching phrasing anywhere in the
- * corpus returns zero rows, not a weak match. No additional numeric score
- * floor is applied on top of it — every row bm25() ranks here already
- * passed that gate, and layering an unvalidated magnitude threshold on top
- * (bm25's raw scale is corpus/query-dependent, and there's no real FTS5
- * runtime available in this sandbox to measure it) risks discarding
- * genuine exact-phrase matches for no evidenced benefit.
+ * is reduced to its content words, OR-ed (buildLexicalQuery), and hits
+ * must cover enough of those words to count (filterByTermCoverage). That
+ * coverage rule is this search's relevance gate. No numeric bm25 floor is
+ * applied: bm25's scale depends on the corpus and query.
  */
 async function lexicalSearch(query: string, limit: number): Promise<RetrievedChunk[]> {
+  const lexicalQuery = buildLexicalQuery(query);
+  if (!lexicalQuery) return [];
   const db = await getDb();
-  const escaped = query.replace(/"/g, '""');
   const rows = await db.getAllAsync<{
     chunk_id: string;
     doc_id: string;
@@ -34,9 +40,9 @@ async function lexicalSearch(query: string, limit: number): Promise<RetrievedChu
      LEFT JOIN custom_collections cc ON cc.id = c.collection_id
      WHERE chunks_fts MATCH ? AND (c.collection_id IS NULL OR cc.active = 1)
      ORDER BY rank LIMIT ?`,
-    [`"${escaped}"`, limit]
+    [lexicalQuery.match, limit * LEXICAL_CANDIDATE_MULTIPLIER]
   );
-  return rows.map((r) => ({
+  return filterByTermCoverage(rows, lexicalQuery.terms).slice(0, limit).map((r) => ({
     chunkId: r.chunk_id,
     docId: r.doc_id,
     title: r.title,

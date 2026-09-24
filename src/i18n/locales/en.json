@@ -124,7 +124,7 @@
   },
   "modelSetupScreen": {
     "header": {
-      "title": "SETTINGS & CONFIGURATION",
+      "title": "SETTINGS",
       "subtitle": "BOAR — Adaptive Local Intelligence"
     },
     "sections": {
