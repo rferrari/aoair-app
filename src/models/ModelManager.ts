@@ -37,6 +37,15 @@ function dlog(assetId: string, message: string): void {
   console.log(`[ModelManager:download:${assetId}] ${message}`);
 }
 
+// Module-level, not per-instance: many screens each construct their own
+// ModelManager, and any of them calling statusOf() mid-download must see
+// this. Holds ids of downloads that are running OR paused-for-resume —
+// their on-disk file is legitimately partial and must not be deleted as
+// "truncated". (Deleting it doesn't stop the native writer on Android —
+// it keeps writing to the unlinked inode, resolves 200, and the path is
+// simply gone at verification time.)
+const downloadsOwningFile = new Set<string>();
+
 function assetPath(asset: Pick<CatalogModel, "filename">): string {
   return `${FileSystem.documentDirectory}${asset.filename}`;
 }
@@ -89,6 +98,10 @@ export class ModelManager {
     }
     const sizeOnDisk = info.size ?? 0;
     if (sizeOnDisk !== asset.sizeBytes) {
+      if (downloadsOwningFile.has(asset.id)) {
+        return { asset, present: false, sizeOnDiskBytes: 0, checksumOk: null };
+      }
+      dlog(asset.id, `statusOf(): deleting size-mismatched file (${sizeOnDisk} != ${asset.sizeBytes})`);
       await FileSystem.deleteAsync(path, { idempotent: true }).catch(() => {});
       return { asset, present: false, sizeOnDiskBytes: 0, checksumOk: null };
     }
@@ -185,6 +198,7 @@ export class ModelManager {
 
   async deletePartialDownload(asset: CatalogModel): Promise<void> {
     dlog(asset.id, "deletePartialDownload() called");
+    downloadsOwningFile.delete(asset.id);
     await FileSystem.deleteAsync(assetPath(asset), { idempotent: true }).catch(() => {});
   }
 
@@ -202,6 +216,7 @@ export class ModelManager {
     const destPath = assetPath(asset);
     const destDir = destPath.substring(0, destPath.lastIndexOf("/"));
     await FileSystem.makeDirectoryAsync(destDir, { intermediates: true }).catch(() => {});
+    downloadsOwningFile.add(asset.id);
 
     const freeBytesAtStart = await FileSystem.getFreeDiskStorageAsync().catch(() => -1);
     dlog(
@@ -280,6 +295,7 @@ export class ModelManager {
         );
       }
       this.pausedDownloads.delete(asset.id);
+      downloadsOwningFile.delete(asset.id);
       await FileSystem.deleteAsync(destPath, { idempotent: true }).catch(() => {});
       throw e;
     } finally {
@@ -297,6 +313,7 @@ export class ModelManager {
     }
 
     this.pausedDownloads.delete(asset.id);
+    downloadsOwningFile.delete(asset.id);
 
     const info = await FileSystem.getInfoAsync(destPath);
     const freeBytesAtEnd = await FileSystem.getFreeDiskStorageAsync().catch(() => -1);
