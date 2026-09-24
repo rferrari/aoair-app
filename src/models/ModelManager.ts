@@ -25,6 +25,18 @@ export interface DownloadProgress {
 // treated as stalled and cancelled — see downloadCatalogModel's doc comment.
 const DOWNLOAD_INACTIVITY_TIMEOUT_MS = 60_000;
 
+// console.log shows up in the Metro/dev-client terminal (not just on-device
+// LogBox) — this is the debug trail for diagnosing the "0 bytes despite a
+// clean-looking completion" reports without needing device log access.
+// Progress is throttled (not one line per native callback, which would be
+// thousands of lines for a multi-GB file) but every state TRANSITION
+// (start, resume, timeout/pause, completion, verification result) is
+// always logged, since those are the rare, high-signal moments.
+const DOWNLOAD_PROGRESS_LOG_INTERVAL_MS = 5_000;
+function dlog(assetId: string, message: string): void {
+  console.log(`[ModelManager:download:${assetId}] ${message}`);
+}
+
 function assetPath(asset: Pick<CatalogModel, "filename">): string {
   return `${FileSystem.documentDirectory}${asset.filename}`;
 }
@@ -189,6 +201,12 @@ export class ModelManager {
     const destDir = destPath.substring(0, destPath.lastIndexOf("/"));
     await FileSystem.makeDirectoryAsync(destDir, { intermediates: true }).catch(() => {});
 
+    dlog(
+      asset.id,
+      `start — expected ${asset.sizeBytes} bytes, destPath=${destPath}, ` +
+        `alreadyHasPausedResumable=${this.pausedDownloads.has(asset.id)}, sourceUrl=${asset.sourceUrl}`
+    );
+
     // Inactivity timeout, not a flat deadline: a large model on a slow-but-
     // working connection can legitimately take many minutes, but zero
     // progress callbacks for this long means something stopped it —
@@ -203,19 +221,32 @@ export class ModelManager {
     let timedOut = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let downloadResumable: FileSystem.DownloadResumable;
+    let lastProgressLogAt = 0;
+    let progressCallbackCount = 0;
     const resetInactivityTimer = () => {
       clearTimeout(timer);
       timer = setTimeout(() => {
         timedOut = true;
+        dlog(asset.id, `INACTIVITY TIMEOUT after ${DOWNLOAD_INACTIVITY_TIMEOUT_MS}ms with no progress callback — pausing`);
         downloadResumable.pauseAsync().catch(() => {});
       }, DOWNLOAD_INACTIVITY_TIMEOUT_MS);
     };
 
     const resuming = this.pausedDownloads.get(asset.id);
+    dlog(asset.id, resuming ? "resuming from a previously paused DownloadResumable" : "starting a fresh downloadAsync()");
     downloadResumable =
       resuming ??
       FileSystem.createDownloadResumable(asset.sourceUrl, destPath, {}, (data) => {
         resetInactivityTimer();
+        progressCallbackCount++;
+        const now = Date.now();
+        if (now - lastProgressLogAt >= DOWNLOAD_PROGRESS_LOG_INTERVAL_MS) {
+          lastProgressLogAt = now;
+          const pct = data.totalBytesExpectedToWrite > 0
+            ? ((data.totalBytesWritten / data.totalBytesExpectedToWrite) * 100).toFixed(1)
+            : "?";
+          dlog(asset.id, `progress: ${data.totalBytesWritten}/${data.totalBytesExpectedToWrite} bytes (${pct}%), callback #${progressCallbackCount}`);
+        }
         onProgress?.({
           totalBytesWritten: data.totalBytesWritten,
           totalBytesExpectedToWrite: data.totalBytesExpectedToWrite,
@@ -227,8 +258,15 @@ export class ModelManager {
     let result: FileSystem.FileSystemDownloadResult | undefined;
     try {
       result = await (resuming ? downloadResumable.resumeAsync() : downloadResumable.downloadAsync());
+      dlog(
+        asset.id,
+        `${resuming ? "resumeAsync" : "downloadAsync"}() resolved — ` +
+          `result=${result ? `{uri: ${result.uri}, status: ${result.status}}` : "undefined"}, ` +
+          `total progress callbacks received: ${progressCallbackCount}`
+      );
     } catch (e: any) {
       clearTimeout(timer);
+      dlog(asset.id, `${resuming ? "resumeAsync" : "downloadAsync"}() THREW: ${e?.message ?? e} (timedOut=${timedOut})`);
       if (timedOut) {
         // Paused, not deleted — stays in pausedDownloads for the next call
         // to pick up. Only genuinely-failed (non-timeout) downloads below
@@ -248,6 +286,7 @@ export class ModelManager {
       // resolves to undefined on pause too, not just cancel — same
       // stalled/paused case as the throw path above, just via the resolve
       // side of the promise instead of a rejection.
+      dlog(asset.id, "result was undefined (pause/cancel) — leaving paused for next attempt to resume");
       throw new Error(
         `Download of ${asset.label} paused (no progress for ${DOWNLOAD_INACTIVITY_TIMEOUT_MS / 1000}s) — tap Retry to resume, or check your connection.`
       );
@@ -256,6 +295,7 @@ export class ModelManager {
     this.pausedDownloads.delete(asset.id);
 
     const info = await FileSystem.getInfoAsync(destPath);
+    dlog(asset.id, `post-download verification: info.exists=${info.exists}, info.size=${info.exists ? info.size : "n/a"}, expected=${asset.sizeBytes}`);
     if (!info.exists || info.size !== asset.sizeBytes) {
       const actualSize = info.exists ? info.size ?? 0 : 0;
       // A multi-hundred-MB+ GGUF landing at a few KB almost always means the
