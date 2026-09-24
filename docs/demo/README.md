@@ -5,6 +5,10 @@ the default model, Qwen2.5-1.5B-Instruct (about 1 GB). Nothing leaves the phone.
 
 ## Videos
 
+<video src="https://github.com/rferrari/boar-app/raw/refs/heads/adaptive-offline-ai/docs/demo/boar_demo_small.mp4" controls width="360">
+  <a href="https://github.com/rferrari/boar-app/raw/refs/heads/adaptive-offline-ai/docs/demo/boar_demo_small.mp4">Play the BOAR demo (4:01)</a>
+</video>
+
 Tap a preview to play the full clip.
 
 <table>
