@@ -281,6 +281,8 @@
   },
   "voiceSettings": {
     "title": "Entrada de Voz",
+    "enabledLabel": "Entrada por voz",
+    "enabledValue": "Mostra o botão de microfone no chat para ditar mensagens.",
     "speechEngineLabel": "Mecanismo de reconhecimento de voz",
     "checking": "Verificando…",
     "available": "Android SpeechRecognizer (offline)",

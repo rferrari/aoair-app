@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, StyleSheet, Switch } from "react-native";
 import { useTranslation } from "react-i18next";
 import { isVoiceInputAvailable } from "../voice/VoiceInput";
+import { getVoiceInputEnabled, setVoiceInputEnabled } from "../models/settings";
 
 // Haptic feedback is an app-wide setting (src/services/haptics.ts), not
 // voice-specific — its toggle lives in the Display & Theme section now
@@ -10,14 +11,29 @@ import { isVoiceInputAvailable } from "../voice/VoiceInput";
 export function VoiceSettings() {
   const { t } = useTranslation();
   const [voiceAvailable, setVoiceAvailable] = useState<boolean | null>(null);
+  const [enabled, setEnabled] = useState(true);
 
   useEffect(() => {
     isVoiceInputAvailable().then(setVoiceAvailable).catch(() => setVoiceAvailable(false));
+    getVoiceInputEnabled().then(setEnabled);
   }, []);
+
+  const toggle = async (value: boolean) => {
+    setEnabled(value);
+    await setVoiceInputEnabled(value);
+  };
 
   return (
     <View style={styles.card}>
       <Text style={styles.title}>🎙️ {t("voiceSettings.title")}</Text>
+
+      <View style={styles.row}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.rowLabel}>{t("voiceSettings.enabledLabel")}</Text>
+          <Text style={styles.rowValue}>{t("voiceSettings.enabledValue")}</Text>
+        </View>
+        <Switch value={enabled} onValueChange={toggle} trackColor={{ false: "#333", true: "#3a7a4a" }} />
+      </View>
 
       <View style={styles.row}>
         <View style={{ flex: 1 }}>

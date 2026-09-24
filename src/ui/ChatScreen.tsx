@@ -36,6 +36,7 @@ import {
   MemorySettings as MemorySettingsType,
   DEFAULT_MEMORY_SETTINGS,
   getDeepResearchMode,
+  getVoiceInputEnabled,
   getAdaptiveRoutingEnabled,
 } from "../models/settings";
 import { runDeepResearch, ResearchProgress } from "../services/orchestrator";
@@ -133,6 +134,7 @@ export function ChatScreen({
   const [showKnowledgeBase, setShowKnowledgeBase] = useState(false);
   const [showExecutionTelemetry, setShowExecutionTelemetry] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [voiceInputEnabled, setVoiceInputEnabledState] = useState(true);
   const showSettingsRef = useRef(false);
   showSettingsRef.current = showSettings;
   const [deviceEvalRequest, setDeviceEvalRequest] = useState<EvalRequest | null>(null);
@@ -253,6 +255,7 @@ export function ChatScreen({
       memorySettingsRef.current = await getMemorySettings();
       const drMode = await getDeepResearchMode();
       deepResearchModeRef.current = drMode;
+      setVoiceInputEnabledState(await getVoiceInputEnabled());
       setDeepResearchEnabled(drMode);
       await refreshSessions();
     })();
@@ -800,6 +803,7 @@ export function ChatScreen({
         mode="optional"
         onClose={async () => {
           setShowSettings(false);
+          getVoiceInputEnabled().then(setVoiceInputEnabledState);
           // Deep Research is switched in Settings only.
           const drMode = await getDeepResearchMode();
           deepResearchModeRef.current = drMode;
@@ -1132,10 +1136,12 @@ export function ChatScreen({
         {/* Input Bar */}
         <View style={[styles.inputContainer, { backgroundColor: colors.bg.cardElevated, borderTopColor: colors.border.default }]}>
           <View style={styles.inputRow}>
-            <VoiceInputButton
-              disabled={!ready || generating}
-              onTranscript={(text) => setInput((prev) => (prev ? `${prev} ${text}` : text))}
-            />
+            {voiceInputEnabled && (
+              <VoiceInputButton
+                disabled={!ready || generating}
+                onTranscript={(text) => setInput((prev) => (prev ? `${prev} ${text}` : text))}
+              />
+            )}
             <TextInput
               ref={inputRef}
               style={[styles.input, { backgroundColor: colors.bg.input, color: colors.text.primary, borderColor: colors.border.default }]}

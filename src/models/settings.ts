@@ -14,6 +14,7 @@ interface Settings {
   customSystemPrompt?: string;
   maxTokens?: number;
   hapticsEnabled?: boolean;
+  voiceInputEnabled?: boolean;
   autoSummarize?: boolean;
   historyTurnThreshold?: number;
   maxSavedSessions?: number;
@@ -130,6 +131,18 @@ export async function getHapticsEnabled(): Promise<boolean> {
 export async function setHapticsEnabled(enabled: boolean): Promise<void> {
   const s = await readSettings();
   s.hapticsEnabled = enabled;
+  await writeSettings(s);
+}
+
+/** Whether the chat shows the microphone button. */
+export async function getVoiceInputEnabled(): Promise<boolean> {
+  const s = await readSettings();
+  return s.voiceInputEnabled ?? true;
+}
+
+export async function setVoiceInputEnabled(enabled: boolean): Promise<void> {
+  const s = await readSettings();
+  s.voiceInputEnabled = enabled;
   await writeSettings(s);
 }
 

@@ -281,6 +281,8 @@
   },
   "voiceSettings": {
     "title": "Voice Input",
+    "enabledLabel": "Voice input",
+    "enabledValue": "Show the microphone button in the chat to dictate messages.",
     "speechEngineLabel": "Speech-to-text engine",
     "checking": "Checking…",
     "available": "Android SpeechRecognizer (offline)",
