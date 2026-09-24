@@ -19,6 +19,10 @@ community bounty.
 **Demo**: videos and screenshots from a real phone in airplane mode:
 [docs/demo](docs/demo/README.md).
 
+**Why and how**: [MANIFESTO.md](MANIFESTO.md). Requirement-by-requirement status,
+with the raw benchmark files: [docs/COMPLIANCE.md](docs/COMPLIANCE.md) and
+[docs/evidence](docs/evidence/).
+
 **Bounty**: [poidh.xyz/mainnet/bounty/31](https://poidh.xyz/mainnet/bounty/31)
 — submission wallet: `0x32d1C8A4d133241a710d780f1198992A015Ea5Ed`
 
