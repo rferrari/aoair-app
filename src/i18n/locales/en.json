@@ -307,6 +307,9 @@
     "initializingCore": "Initializing local offline core…",
     "mountingWeights": "Mounting local GGUF weights…",
     "indexingKnowledgeBase": "Indexing offline knowledge base…",
+    "thinking": "Thinking…",
+    "showReasoning": "Show reasoning",
+    "hideReasoning": "Hide reasoning",
     "modelDownloadComplete": "✅ \"{{label}}\" download complete",
     "drawerItems": {
       "prompts": "Prompt Ideas",

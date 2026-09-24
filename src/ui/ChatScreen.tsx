@@ -68,6 +68,7 @@ import { ChatHeader } from "./ChatHeader";
 import { Toast } from "./Toast";
 import { ModelLoadErrorCard } from "./components/ModelLoadErrorCard";
 import { MarkdownMessage } from "./components/MarkdownMessage";
+import { splitThinking, stripThinking } from "../services/thinking";
 import { SourceFootnotes } from "./components/SourceFootnotes";
 import { recordQueryStats, trackPeakRss, startAppMemoryTracking, QueryStats } from "../services/telemetry";
 import { recordExecution } from "../services/executionTelemetry";
@@ -142,6 +143,8 @@ export function ChatScreen({
   const [activeModel, setActiveModel] = useState<CatalogModel | null>(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  // Assistant messages whose model reasoning (<think>…</think>) is expanded.
+  const [shownReasoning, setShownReasoning] = useState<Set<string>>(new Set());
   const [downloadToast, setDownloadToast] = useState<string | null>(null);
 
   const listRef = useRef<FlatList<Message>>(null);
@@ -479,7 +482,7 @@ export function ChatScreen({
       const priorMessages = messagesRef.current.filter((m) => m.text.length > 0);
       const verbatimTurns: ConversationTurn[] = priorMessages
         .slice(-VERBATIM_MESSAGE_COUNT)
-        .map((m) => ({ role: m.role, text: m.text }));
+        .map((m) => ({ role: m.role, text: m.role === "assistant" ? stripThinking(m.text) : m.text }));
       const history = { summary: sessionSummaryRef.current, turns: verbatimTurns };
 
       let firstToken = true;
@@ -707,7 +710,7 @@ export function ChatScreen({
             const sid = sessionId;
             const turnsToSummarize: ConversationTurn[] = olderMessages.map((m) => ({
               role: m.role,
-              text: m.text,
+              text: m.role === "assistant" ? stripThinking(m.text) : m.text,
             }));
             const previousSummary = sessionSummaryRef.current;
             backgroundTaskRef.current = summarizeConversation(turnsToSummarize, previousSummary)
@@ -881,6 +884,9 @@ export function ChatScreen({
             const showProcessing =
               item.text === "" && processing?.messageId === item.id && processing.status !== "generating";
             const isStreamingThis = generating && item.role === "assistant" && processing?.messageId === item.id;
+            const split = item.role === "assistant" ? splitThinking(item.text) : null;
+            const shownText = split ? split.answer : item.text;
+            const reasoningShown = shownReasoning.has(item.id);
 
             return (
               <View
@@ -911,7 +917,20 @@ export function ChatScreen({
                     label={processing!.label}
                   />
                 ) : (
-                  <MarkdownMessage content={item.text} isStreaming={isStreamingThis} />
+                  <>
+                    {split?.thinking && reasoningShown && (
+                      <Text style={[styles.reasoningText, { color: colors.text.dim, borderLeftColor: colors.border.default }]}>
+                        {split.thinking}
+                      </Text>
+                    )}
+                    {split?.thinkingInProgress && !split.answer ? (
+                      <Text style={[styles.reasoningText, { color: colors.text.dim, borderLeftColor: colors.border.default }]}>
+                        💭 {t("chatScreen.thinking")}
+                      </Text>
+                    ) : (
+                      <MarkdownMessage content={shownText} isStreaming={isStreamingThis} />
+                    )}
+                  </>
                 )}
 
                 {item.citations && item.citations.length > 0 && (
@@ -1014,8 +1033,32 @@ export function ChatScreen({
 
                     <View style={styles.footerSpacer} />
 
+                    {split?.thinking && (
+                      <Pressable
+                        onPress={() =>
+                          setShownReasoning((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(item.id)) next.delete(item.id);
+                            else next.add(item.id);
+                            return next;
+                          })
+                        }
+                        hitSlop={6}
+                        accessibilityLabel={reasoningShown ? t("chatScreen.hideReasoning") : t("chatScreen.showReasoning")}
+                        style={[
+                          styles.footerBtn,
+                          {
+                            backgroundColor: reasoningShown ? colors.emerald.bgSubtle : colors.bg.subtle,
+                            borderColor: reasoningShown ? colors.emerald.border : colors.border.subtle,
+                          },
+                        ]}
+                      >
+                        <Text style={styles.footerGlyph}>💭</Text>
+                      </Pressable>
+                    )}
+
                     <Pressable
-                      onPress={() => copyMessage(item.id, item.text)}
+                      onPress={() => copyMessage(item.id, shownText)}
                       hitSlop={6}
                       accessibilityLabel={t("chatScreen.copyResponse")}
                       style={[
@@ -1275,6 +1318,14 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "600",
     letterSpacing: 0.2,
+  },
+  reasoningText: {
+    fontSize: 12,
+    fontStyle: "italic",
+    lineHeight: 17,
+    borderLeftWidth: 2,
+    paddingLeft: 8,
+    marginBottom: 8,
   },
   footerSpacer: {
     flex: 1,
