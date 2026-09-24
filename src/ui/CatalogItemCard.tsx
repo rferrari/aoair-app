@@ -50,9 +50,13 @@ interface Props {
   onDownload: (item: CatalogModel) => void;
   onUse: (item: CatalogModel) => void;
   onRemove: (item: CatalogModel) => void;
+  /** This model is being loaded after "Use" was tapped. */
+  activating?: boolean;
+  /** Some model is being loaded: Use and delete are unavailable until it finishes. */
+  busy?: boolean;
 }
 
-export function CatalogItemCard({ item, row, isActive, onDownload, onUse, onRemove }: Props) {
+export function CatalogItemCard({ item, row, isActive, onDownload, onUse, onRemove, activating, busy }: Props) {
   const { t } = useTranslation();
   const isCorpus = item.kind === "corpus";
   const present = row?.present ?? false;
@@ -212,10 +216,18 @@ export function CatalogItemCard({ item, row, isActive, onDownload, onUse, onRemo
             </Pressable>
           )}
 
-          {present && !isCorpus && !isActive && (
+          {present && !isCorpus && !isActive && activating && (
+            <View style={styles.activeCheckRow}>
+              <ActivityIndicator size="small" color={colors.emerald[400]} />
+              <Text style={styles.activeNote}>{t("catalogItemCard.loadingModel")}</Text>
+            </View>
+          )}
+
+          {present && !isCorpus && !isActive && !activating && (
             <Pressable
-              style={styles.useBtn}
+              style={[styles.useBtn, busy && styles.disabled]}
               onPress={() => handleAction(() => onUse(item))}
+              disabled={busy}
             >
               <Text style={styles.useBtnText}>{t("catalogItemCard.selectUse")}</Text>
             </Pressable>
@@ -239,7 +251,8 @@ export function CatalogItemCard({ item, row, isActive, onDownload, onUse, onRemo
             <Pressable
               onPress={confirmRemove}
               hitSlop={8}
-              style={styles.trashBtn}
+              disabled={busy}
+              style={[styles.trashBtn, busy && styles.disabled]}
               accessibilityLabel={t("catalogItemCard.deleteAccessibility")}
             >
               <Text style={styles.trashIcon}>🗑️</Text>
@@ -504,6 +517,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.text.accentEmerald,
   },
+  disabled: { opacity: 0.4 },
   useBtn: {
     backgroundColor: colors.cyan.bgSubtle,
     borderColor: colors.cyan.border,

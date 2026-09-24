@@ -12,7 +12,8 @@ import {
 } from "react-native";
 import { impact, notification, ImpactFeedbackStyle, NotificationFeedbackType, setHapticsEnabledCache } from "../services/haptics";
 import { useTranslation } from "react-i18next";
-import { MODEL_CATALOG, CatalogModel, AssetKind, CORPUS_CATALOG } from "../models/manifest";
+import { MODEL_CATALOG, CatalogModel, AssetKind, CORPUS_CATALOG, REQUIRED_MODELS } from "../models/manifest";
+import { llamaEngine } from "../inference/LlamaEngine";
 import { ModelManager } from "../models/ModelManager";
 import { getActiveModelId, setActiveModelId, getHapticsEnabled, setHapticsEnabled } from "../models/settings";
 import { seedKnowledgeBaseIfEmpty } from "../rag/seedCorpus";
@@ -155,14 +156,38 @@ export function ModelSetupScreen(props: Props) {
     [refreshStatus, t]
   );
 
+  // Id of the LLM being loaded after "Use"; blocks other Use/delete/Done until it's ready.
+  const [activatingId, setActivatingId] = useState<string | null>(null);
+
   const useModel = useCallback(
     async (model: CatalogModel) => {
+      if (activatingId) return;
       impact(ImpactFeedbackStyle.Light);
-      await setActiveModelId(model.kind, model.id);
-      await refreshStatus();
-      setToast(t("modelSetupScreen.toasts.activeSet", { kind: model.kind, name: model.label }));
+      if (model.kind !== "llm") {
+        await setActiveModelId(model.kind, model.id);
+        await refreshStatus();
+        setToast(t("modelSetupScreen.toasts.activeSet", { kind: model.kind, name: model.label }));
+        return;
+      }
+      // Load it here, so the chat is ready on return and a failure shows
+      // next to the model that caused it.
+      const previousId =
+        (await getActiveModelId("llm")) ?? REQUIRED_MODELS.find((m) => m.kind === "llm")!.id;
+      setActivatingId(model.id);
+      await setActiveModelId("llm", model.id);
+      try {
+        await llamaEngine.load(model.filename);
+        setToast(t("modelSetupScreen.toasts.activeSet", { kind: model.kind, name: model.label }));
+      } catch (e: any) {
+        // Keep the previous model active; the chat reloads it on return.
+        await setActiveModelId("llm", previousId);
+        setToast(t("modelSetupScreen.toasts.loadFailed", { name: model.label, error: e?.message ?? String(e) }));
+      } finally {
+        setActivatingId(null);
+        await refreshStatus();
+      }
     },
-    [refreshStatus, t]
+    [activatingId, refreshStatus, t]
   );
 
   const onRelaunchWizard = !requiredMode
@@ -200,8 +225,9 @@ export function ModelSetupScreen(props: Props) {
           </View>
         </View>
         <Pressable
-          style={styles.closeBtn}
+          style={[styles.closeBtn, activatingId !== null && { opacity: 0.4 }]}
           onPress={(props as { onClose: () => void }).onClose}
+          disabled={activatingId !== null}
           hitSlop={8}
         >
           <Text style={styles.closeBtnText}>{t("common.done")}</Text>
@@ -231,6 +257,8 @@ export function ModelSetupScreen(props: Props) {
                 onDownload={download}
                 onUse={useModel}
                 onRemove={remove}
+                activating={activatingId === item.id}
+                busy={activatingId !== null}
               />
             )}
           />

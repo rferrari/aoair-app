@@ -68,6 +68,7 @@
     "eta": "Tempo restante: {{eta}}",
     "retryDownload": "🔄 Repetir Download",
     "downloadAsset": "📥 Baixar Recurso",
+    "loadingModel": "Carregando modelo…",
     "selectUse": "🔘 Selecionar e Usar",
     "indexedNote": "Indexado na base de conhecimento offline",
     "activeNote": "Modelo de inferência ativo",
@@ -144,6 +145,7 @@
       "indexed": "\"{{name}}\" indexado na base de conhecimento offline",
       "removed": "\"{{name}}\" removido",
       "activeSet": "Modelo {{kind}} ativo definido como \"{{name}}\"",
+      "loadFailed": "Não foi possível carregar \"{{name}}\": {{error}}",
       "resetFailed": "Falha ao redefinir: {{error}}"
     },
     "recovery": {

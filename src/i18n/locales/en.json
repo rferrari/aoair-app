@@ -68,6 +68,7 @@
     "eta": "ETA: {{eta}}",
     "retryDownload": "🔄 Retry Download",
     "downloadAsset": "📥 Download Asset",
+    "loadingModel": "Loading model…",
     "selectUse": "🔘 Select & Use",
     "indexedNote": "Indexed in offline knowledge base",
     "activeNote": "Active inference model",
@@ -144,6 +145,7 @@
       "indexed": "Indexed \"{{name}}\" in offline knowledge base",
       "removed": "Removed \"{{name}}\"",
       "activeSet": "Active {{kind}} model set to \"{{name}}\"",
+      "loadFailed": "Couldn't load \"{{name}}\": {{error}}",
       "resetFailed": "Reset failed: {{error}}"
     },
     "recovery": {

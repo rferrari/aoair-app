@@ -776,12 +776,16 @@ export function ChatScreen({
     return (
       <ModelSetupScreen
         mode="optional"
-        onClose={() => {
+        onClose={async () => {
           setShowSettings(false);
-          // Settings may have changed the active LLM/embedding model —
-          // re-resolve and reload. LlamaEngine.load() no-ops when the
-          // filename is unchanged, so this is cheap in the common case.
-          initModels();
+          // Settings loads a newly chosen LLM itself; only re-run the full
+          // init (with its loading screen) if what's loaded doesn't match.
+          const llm = await resolveActiveModel("llm");
+          if (ready && llamaEngine.getModelInfo()?.filename === llm.filename) {
+            setActiveModel(llm);
+          } else {
+            initModels();
+          }
         }}
         onRelaunchWizard={onRelaunchWizard}
       />
