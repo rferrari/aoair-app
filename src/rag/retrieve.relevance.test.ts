@@ -98,4 +98,10 @@ describe("fuseRetrievalResults", () => {
     const semantic = [chunk("b", 0.7, "semantic"), chunk("c", 0.5, "semantic")];
     expect(fuseRetrievalResults(lexical, semantic, 6)).toEqual(fuseRetrievalResults(lexical, semantic, 6));
   });
+
+  it("keeps at most two chunks per article, so a second topic isn't crowded out", () => {
+    const c = (id: string, title: string, score: number) => ({ chunkId: id, docId: id, title, body: "", score, matchType: "lexical" as const });
+    const lexical = [c("n1", "Napoleon", 9), c("n2", "Napoleon", 8), c("n3", "Napoleon", 7), c("f1", "French Revolution", 3)];
+    expect(fuseRetrievalResults(lexical, [], 4).map((r) => r.chunkId)).toEqual(["n1", "n2", "f1"]);
+  });
 });

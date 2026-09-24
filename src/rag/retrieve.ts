@@ -9,6 +9,7 @@ import {
   MIN_SEMANTIC_SIMILARITY,
 } from "./pure";
 import type { RetrievedChunk } from "./retrieve.types";
+import { searchPacks } from "./packs";
 
 export type { RetrievedChunk } from "./retrieve.types";
 
@@ -53,9 +54,8 @@ async function lexicalSearch(query: string, limit: number): Promise<RetrievedChu
 }
 
 /** Brute-force cosine search over stored embeddings; fine at knowledge-base scale on-device. */
-async function semanticSearch(query: string, limit: number): Promise<RetrievedChunk[]> {
+async function semanticSearch(queryVec: Float32Array, limit: number): Promise<RetrievedChunk[]> {
   const db = await getDb();
-  const queryVec = await embeddingEngine.embed(query);
 
   const rows = await db.getAllAsync<{
     chunk_id: string;
@@ -101,12 +101,15 @@ async function semanticSearch(query: string, limit: number): Promise<RetrievedCh
  * whatever happened to be least-irrelevant.
  */
 export async function retrieve(query: string, topK = 6): Promise<RetrievedChunk[]> {
-  const [lexical, semantic] = await Promise.all([
+  const queryVec = await embeddingEngine.embed(query);
+  const [lexical, semantic, packs] = await Promise.all([
     lexicalSearch(query, topK * 2),
-    semanticSearch(query, topK * 2),
+    semanticSearch(queryVec, topK * 2),
+    // Downloaded knowledge packs (src/rag/packs.ts); a failing pack is skipped, never fatal.
+    searchPacks(query, queryVec, topK * 2).catch(() => ({ lexical: [], semantic: [] })),
   ]);
 
-  return fuseRetrievalResults(lexical, semantic, topK);
+  return fuseRetrievalResults([...lexical, ...packs.lexical], [...semantic, ...packs.semantic], topK);
 }
 
 export { assemblePrompt } from "./pure";

@@ -53,6 +53,13 @@ export interface CatalogModel {
    * assume a role.
    */
   capabilities?: ModelCapabilities;
+  /**
+   * For kind "corpus": "json" (default) is a list of documents indexed on the
+   * phone after download; "sqlite-pack" is a knowledge pack built on a computer
+   * (scripts/build-knowledge-pack.mjs) with its own search index and
+   * embeddings, opened directly (src/rag/packs.ts).
+   */
+  format?: "json" | "sqlite-pack";
 }
 
 export const STORAGE_BUDGET_BYTES = 50 * 1024 * 1024 * 1024; // 50GB

@@ -48,3 +48,6 @@ assets/models/
 
 # device evaluation results (npm run eval:device)
 eval-results/
+
+# knowledge pack builds (scripts/build-knowledge-pack.mjs)
+build/knowledge-pack/

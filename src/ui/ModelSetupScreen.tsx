@@ -17,6 +17,7 @@ import { llamaEngine } from "../inference/LlamaEngine";
 import { ModelManager } from "../models/ModelManager";
 import { getActiveModelId, setActiveModelId, getHapticsEnabled, setHapticsEnabled } from "../models/settings";
 import { seedKnowledgeBaseIfEmpty } from "../rag/seedCorpus";
+import { closePack } from "../rag/packs";
 import {
   startDownload,
   getDownloadState,
@@ -146,6 +147,7 @@ export function ModelSetupScreen(props: Props) {
 
   const remove = useCallback(
     async (model: CatalogModel) => {
+      if (model.format === "sqlite-pack") await closePack(model.id);
       await modelManager.deleteModel(model);
       if (model.id.startsWith("hf-")) {
         await removeDiscoveredModel(model.id);

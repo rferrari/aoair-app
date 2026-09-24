@@ -116,6 +116,7 @@ const MINIMUM_CORPUS_DOCS: SeedDoc[] = (
 async function loadDownloadedCorpusPacks(): Promise<SeedDoc[]> {
   const docs: SeedDoc[] = [];
   for (const pack of CORPUS_CATALOG) {
+    if (pack.format === "sqlite-pack") continue;
     const path = `${FileSystem.documentDirectory}${pack.filename}`;
     const info = await FileSystem.getInfoAsync(path);
     if (!info.exists) continue;

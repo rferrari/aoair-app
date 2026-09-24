@@ -18,6 +18,25 @@ export function cosineSimilarity(a: Float32Array, b: Float32Array): number {
   return dot / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
+/**
+ * Cosine similarity against an int8-quantized vector as stored in a knowledge
+ * pack (raw bytes). The per-vector scale cancels out of the cosine, so it's
+ * not needed here.
+ */
+export function cosineSimilarityInt8(query: Float32Array, bytes: Uint8Array): number {
+  const v = new Int8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let dot = 0;
+  let normQ = 0;
+  let normV = 0;
+  for (let i = 0; i < v.length; i++) {
+    dot += query[i] * v[i];
+    normQ += query[i] * query[i];
+    normV += v[i] * v[i];
+  }
+  if (normQ === 0 || normV === 0) return 0;
+  return dot / (Math.sqrt(normQ) * Math.sqrt(normV));
+}
+
 // bge-small-en-v1.5 cosine similarity heuristic: below this, a chunk isn't
 // actually about the query, it's just whatever happened to be "closest" out
 // of everything in the knowledge base — brute-force top-K with no floor
@@ -199,10 +218,22 @@ export function fuseRetrievalResults(
   normalize(lexical, weights.lexical);
   normalize(semantic, weights.semantic);
 
-  return Array.from(byId.values())
-    .sort((a, b) => b.score - a.score)
-    .slice(0, topK);
+  // At most MAX_CHUNKS_PER_ARTICLE per title, so one article's chunks can't crowd out a
+  // second topic (knowledge packs store up to 3 chunks per article).
+  const perTitle = new Map<string, number>();
+  const out: RetrievedChunk[] = [];
+  for (const c of Array.from(byId.values()).sort((a, b) => b.score - a.score)) {
+    const key = c.title.trim().toLowerCase();
+    const n = perTitle.get(key) ?? 0;
+    if (n >= MAX_CHUNKS_PER_ARTICLE) continue;
+    perTitle.set(key, n + 1);
+    out.push(c);
+    if (out.length >= topK) break;
+  }
+  return out;
 }
+
+export const MAX_CHUNKS_PER_ARTICLE = 2;
 
 export interface ConversationTurn {
   role: "user" | "assistant";
