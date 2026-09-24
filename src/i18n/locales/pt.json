@@ -48,6 +48,8 @@
   },
   "catalogItemCard": {
     "calculating": "Calculando…",
+    "removeFromListTitle": "Remover da lista?",
+    "removeFromListMessage": "Este modelo não foi baixado. Ele será removido da sua lista; você pode adicioná-lo de novo pela busca do Hugging Face.",
     "removeCorpusTitle": "Remover pacote da base de conhecimento?",
     "removeModelTitle": "Remover pesos do modelo?",
     "removeCorpusMessage": "Isso exclui o conjunto de dados local e libera {{size}}. Os tópicos não estarão disponíveis offline até serem baixados novamente.",

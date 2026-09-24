@@ -74,13 +74,23 @@ export function CatalogItemCard({ item, row, isActive, onDownload, onUse, onRemo
   const compatibility = item.kind === "llm" ? computeCompatibility(item.sizeBytes, deviceRam) : "unknown";
   const calculating = t("catalogItemCard.calculating");
 
+  // Models added from the Hugging Face browser can be dropped from the list even if never downloaded.
+  const fromHuggingFace = item.id.startsWith("hf-");
+  const listOnly = fromHuggingFace && !present;
+
   const confirmRemove = () => {
     impact(ImpactFeedbackStyle.Medium);
     Alert.alert(
-      isCorpus ? t("catalogItemCard.removeCorpusTitle") : t("catalogItemCard.removeModelTitle"),
-      isCorpus
-        ? t("catalogItemCard.removeCorpusMessage", { size: formatMB(item.sizeBytes) })
-        : t("catalogItemCard.removeModelMessage", { size: formatMB(item.sizeBytes) }),
+      listOnly
+        ? t("catalogItemCard.removeFromListTitle")
+        : isCorpus
+          ? t("catalogItemCard.removeCorpusTitle")
+          : t("catalogItemCard.removeModelTitle"),
+      listOnly
+        ? t("catalogItemCard.removeFromListMessage")
+        : isCorpus
+          ? t("catalogItemCard.removeCorpusMessage", { size: formatMB(item.sizeBytes) })
+          : t("catalogItemCard.removeModelMessage", { size: formatMB(item.sizeBytes) }),
       [
         { text: t("common.cancel"), style: "cancel" },
         {
@@ -247,7 +257,7 @@ export function CatalogItemCard({ item, row, isActive, onDownload, onUse, onRemo
             </View>
           )}
 
-          {present && !item.required && (
+          {(present || fromHuggingFace) && !item.required && (
             <Pressable
               onPress={confirmRemove}
               hitSlop={8}

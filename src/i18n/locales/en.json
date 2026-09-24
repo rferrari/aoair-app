@@ -48,6 +48,8 @@
   },
   "catalogItemCard": {
     "calculating": "Calculating…",
+    "removeFromListTitle": "Remove from list?",
+    "removeFromListMessage": "This model isn't downloaded. It will be removed from your list; you can add it again from the Hugging Face search.",
     "removeCorpusTitle": "Remove Knowledge Base Pack?",
     "removeModelTitle": "Remove Model Weights?",
     "removeCorpusMessage": "This deletes the local dataset and frees {{size}}. Its topics will not be searchable offline until re-downloaded.",
