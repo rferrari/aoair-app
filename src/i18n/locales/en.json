@@ -316,6 +316,7 @@
     "showReasoning": "Show reasoning",
     "hideReasoning": "Hide reasoning",
     "messageReused": "Message copied to the input",
+    "stopping": "Stopping… (finishing the current step)",
     "toneChanged": "Tone: {{tone}}",
     "modelDownloadComplete": "✅ \"{{label}}\" download complete",
     "drawerItems": {

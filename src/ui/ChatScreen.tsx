@@ -365,11 +365,16 @@ export function ChatScreen({
 
   const stopRequestedRef = useRef(false);
 
+  // Stop only takes effect between generated tokens, so while the prompt is
+  // still being processed it can take a while; show that the tap registered.
+  const [stopping, setStopping] = useState(false);
   const stopGeneration = useCallback(async () => {
     stopRequestedRef.current = true;
+    setStopping(true);
+    setProcessing((prev) => (prev ? { ...prev, label: t("chatScreen.stopping") } : prev));
     impact(ImpactFeedbackStyle.Heavy);
     await llamaEngine.stop();
-  }, []);
+  }, [t]);
 
   const cancelBackgroundTask = useCallback(async () => {
     if (!backgroundTaskRef.current) return;
@@ -784,6 +789,7 @@ export function ChatScreen({
       }).catch(() => {});
     } finally {
       setGenerating(false);
+      setStopping(false);
       setProcessing(null);
       setLiveTokPerSec(null);
       setDeepResearchActive(false);
@@ -1175,10 +1181,15 @@ export function ChatScreen({
               <Pressable
                 style={styles.stopBtn}
                 onPress={stopGeneration}
+                disabled={stopping}
                 hitSlop={8}
                 accessibilityLabel={t("chatScreen.stopGeneration")}
               >
-                <Text style={styles.stopBtnText}>⏹</Text>
+                {stopping ? (
+                  <ActivityIndicator color={colors.text.primary} size="small" />
+                ) : (
+                  <Text style={styles.stopBtnText}>⏹</Text>
+                )}
               </Pressable>
             ) : (
               <Pressable
