@@ -723,7 +723,13 @@ export function ChatScreen({
     return (
       <ModelSetupScreen
         mode="optional"
-        onClose={() => setShowSettings(false)}
+        onClose={() => {
+          setShowSettings(false);
+          // Settings may have changed the active LLM/embedding model —
+          // re-resolve and reload. LlamaEngine.load() no-ops when the
+          // filename is unchanged, so this is cheap in the common case.
+          initModels();
+        }}
         onRelaunchWizard={onRelaunchWizard}
       />
     );
