@@ -62,7 +62,7 @@ if (answersMode) {
     console.log(`## ${queryId} (${first.category})\n\n> ${first.query}\n`);
     for (const r of group) {
       const retrieval = r.retrievalUsed ? r.retrievedTitles.join(", ") : "none";
-      console.log(`### ${r.configLabel} — ${r.modelId ?? "?"} · ${r.outcome} · retrieval: ${retrieval}\n`);
+      console.log(`### ${r.configLabel} — ${r.modelId ?? "?"} · ${r.promptFormat ?? "?"} · ${r.outcome} · retrieval: ${retrieval}\n`);
       console.log(`${(r.outcome === "failure" && r.errorMessage) || r.answer || "(empty)"}\n`);
     }
   }
@@ -76,11 +76,13 @@ for (const r of all) {
   byConfig.get(key).push(r);
 }
 
-const header = ["run / config", "n", "ok", "fail", "KB hit", "med TTFT", "med tok/s", "med total", "max load", "peak RSS"];
+const header = ["run / config", "format", "n", "ok", "fail", "KB hit", "med TTFT", "med tok/s", "med total", "max load", "peak RSS"];
 const table = [...byConfig].map(([key, group]) => {
   const withKb = group.filter((r) => r.expectedKbHit !== null);
+  const formats = [...new Set(group.map((r) => r.promptFormat).filter(Boolean))];
   return [
     key,
+    formats.join("+") || "—",
     String(group.length),
     String(group.filter((r) => r.outcome === "success").length),
     String(group.filter((r) => r.outcome === "failure").length),

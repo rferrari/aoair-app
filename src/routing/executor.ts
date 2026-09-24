@@ -39,9 +39,18 @@ export type ModelResidency = "cold" | "switched" | "resident";
 export interface ExecutableModel {
   id: string;
   filename: string;
-  /** See ModelCapabilities.usesChatTemplate (src/routing/types.ts) — mirrors the resolved model's own flag, injected here for the same testability reason as the rest of this interface. Absent/false means "use assemblePrompt, unchanged." */
-  usesChatTemplate?: boolean;
+  /**
+   * Prompt format for the generate step. true/false mirror
+   * ModelCapabilities.usesChatTemplate (src/routing/types.ts); absent/false
+   * means "use assemblePrompt, unchanged". "if-embedded" uses the model's own
+   * chat template whenever the loaded GGUF ships one, and assemblePrompt only
+   * when it doesn't — used by the evaluation harness so each model is
+   * measured in its own instruction format.
+   */
+  usesChatTemplate?: boolean | "if-embedded";
 }
+
+export type PromptFormat = "chat-template" | "plain";
 
 export interface PipelineInput {
   query: string;
@@ -105,6 +114,8 @@ export interface PipelineResult {
   ttftMs?: number;
   /** From the first streamed token to the generate() call resolving — i.e. the whole generate() call's duration MINUS ttftMs, matching the existing tokPerSec convention (tokensGenerated / time-after-first-token) already used elsewhere in this app. */
   generationLatencyMs?: number;
+  /** Which prompt format the generate step actually used: the model's own chat template, or assemblePrompt's plain text. */
+  promptFormat?: PromptFormat;
   timedOut: boolean;
   stopped: boolean;
 }
@@ -139,6 +150,7 @@ export async function executeRoutingPlan(
   let modelLoadMs: number | undefined;
   let ttftMs: number | undefined;
   let generationLatencyMs: number | undefined;
+  let promptFormat: PromptFormat | undefined;
   let genLoadCaptured = false;
 
   const markTimedOut = () => {
@@ -192,7 +204,7 @@ export async function executeRoutingPlan(
 
   for (const step of plan.steps) {
     if (callbacks.shouldStop?.()) {
-      return { answer, plan, citations, verification, warnings, stepsExecuted, modelSwitches, timedOut, crossMessageModelSwitch: crossMessageModelSwitch(), modelResidency, modelLoadMs, ttftMs, generationLatencyMs, stopped: true };
+      return { answer, plan, citations, verification, warnings, stepsExecuted, modelSwitches, timedOut, crossMessageModelSwitch: crossMessageModelSwitch(), modelResidency, modelLoadMs, ttftMs, generationLatencyMs, promptFormat, stopped: true };
     }
     callbacks.onStepStart?.(step);
 
@@ -208,7 +220,7 @@ export async function executeRoutingPlan(
         if (!ok) {
           if (step.required) {
             warnings.push("generate-step-failed-no-model");
-            return { answer, plan, citations, verification, warnings, stepsExecuted, modelSwitches, timedOut, crossMessageModelSwitch: crossMessageModelSwitch(), modelResidency, modelLoadMs, ttftMs, generationLatencyMs, stopped: false };
+            return { answer, plan, citations, verification, warnings, stepsExecuted, modelSwitches, timedOut, crossMessageModelSwitch: crossMessageModelSwitch(), modelResidency, modelLoadMs, ttftMs, generationLatencyMs, promptFormat, stopped: false };
           }
           break;
         }
@@ -231,7 +243,13 @@ export async function executeRoutingPlan(
           callbacks.onToken?.(piece);
         };
 
-        answer = generateModel?.usesChatTemplate
+        const useTemplate =
+          generateModel?.usesChatTemplate === "if-embedded"
+            ? llamaEngine.hasEmbeddedChatTemplate()
+            : !!generateModel?.usesChatTemplate;
+        promptFormat = useTemplate ? "chat-template" : "plain";
+
+        answer = useTemplate
           ? await llamaEngine.generate({
               messages: assembleChatMessages(input.query, citations, input.systemPrompt, input.history),
               nPredict: step.maxTokens ?? 512,
@@ -295,7 +313,7 @@ export async function executeRoutingPlan(
     }
   }
 
-  return { answer, plan, citations, verification, warnings, stepsExecuted, modelSwitches, timedOut, crossMessageModelSwitch: crossMessageModelSwitch(), modelResidency, modelLoadMs, ttftMs, generationLatencyMs, stopped: false };
+  return { answer, plan, citations, verification, warnings, stepsExecuted, modelSwitches, timedOut, crossMessageModelSwitch: crossMessageModelSwitch(), modelResidency, modelLoadMs, ttftMs, generationLatencyMs, promptFormat, stopped: false };
 }
 
 /**

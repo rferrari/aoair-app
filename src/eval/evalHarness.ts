@@ -172,6 +172,7 @@ async function runOne(
     category: q.category,
     query: q.query,
     answer,
+    promptFormat: result?.promptFormat,
     retrievedTitles,
     expectedKbTitles: q.expectedKbTitles,
     expectedKbHit: expectedKbHit(q.expectedKbTitles, retrievedTitles),
@@ -198,9 +199,13 @@ export async function runEvaluation({
   const rows: EvalResultRow[] = [];
   const residentBefore = llamaEngine.getModelInfo()?.filename ?? null;
 
+  // An explicitly selected model is always measured in its own instruction
+  // format: the chat template shipped in its GGUF, falling back to the plain
+  // prompt only if the file has none. Not the catalog's usesChatTemplate
+  // flag, which is a live-chat setting (Phi and Qwen-7B are off there).
   const installed = await listInstalledEvalModels();
   const models = new Map<string, ExecutableModel>(
-    installed.map((m) => [m.id, { id: m.id, filename: m.filename, usesChatTemplate: m.capabilities?.usesChatTemplate }])
+    installed.map((m) => [m.id, { id: m.id, filename: m.filename, usesChatTemplate: "if-embedded" }])
   );
   const routingPreset = configs.some((c) => c.kind === "adaptive") ? await getRoutingPreset() : undefined;
 

@@ -5,6 +5,7 @@
  */
 import { classifyTask, isRetrievalIrrelevant } from "../routing/classify";
 import type { RoutingPlan, RoutingStep } from "../routing/router";
+import type { PromptFormat } from "../routing/executor";
 import { csvCell, type ExecutionTelemetryRecord } from "../services/executionTelemetry.pure";
 import type { EvalCategory } from "./evalSet";
 
@@ -40,6 +41,8 @@ export interface EvalResultRow extends Omit<ExecutionTelemetryRecord, "id" | "cr
   category: EvalCategory;
   query: string;
   answer: string;
+  /** Prompt format the answer was generated with: the model's own chat template, or the plain fallback. Undefined if no generate step ran. */
+  promptFormat?: PromptFormat;
   retrievedTitles: string[];
   expectedKbTitles: string[];
   /** Whether every expected corpus article was retrieved; null when none are expected. */
@@ -103,6 +106,7 @@ export const EVAL_CSV_COLUMNS: Array<keyof EvalResultRow> = [
   "category",
   "query",
   "modelId",
+  "promptFormat",
   "taskType",
   "adaptiveRoutingUsed",
   "retrievalUsed",

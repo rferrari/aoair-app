@@ -13,12 +13,15 @@ const retrieveMock = vi.fn(async (_query: string) => [] as any[]);
 const getModelInfoMock = vi.fn(() =>
   mockResidentFilename ? { filename: mockResidentFilename, nCtx: 4096, nThreads: 4 } : null
 );
+let mockEmbeddedTemplate = false;
+const hasEmbeddedChatTemplateMock = vi.fn(() => mockEmbeddedTemplate);
 
 vi.mock("../inference/LlamaEngine", () => ({
   llamaEngine: {
     load: (filename: string) => loadMock(filename),
     generate: (opts: any) => generateMock(opts),
     getModelInfo: () => getModelInfoMock(),
+    hasEmbeddedChatTemplate: () => hasEmbeddedChatTemplateMock(),
   },
 }));
 
@@ -342,5 +345,46 @@ describe("Phase 7 timing/residency (modelResidency, modelLoadMs, ttftMs, generat
     expect(result.stopped).toBe(true);
     expect(result.modelLoadMs).toBeUndefined();
     expect(result.ttftMs).toBeUndefined();
+  });
+});
+
+describe("prompt format selection", () => {
+  const generatePlan = (modelId: string) =>
+    plan({ steps: [{ id: "generate-0", type: "generate", modelId, required: true, maxTokens: 64 }], selectedModelIds: [modelId] });
+
+  beforeEach(() => {
+    mockEmbeddedTemplate = false;
+    hasEmbeddedChatTemplateMock.mockClear();
+  });
+
+  it('"if-embedded" uses the model\'s own chat template when its GGUF ships one', async () => {
+    mockEmbeddedTemplate = true;
+    const models = { phi: { id: "phi", filename: "models/primary-llm.gguf", usesChatTemplate: "if-embedded" as const } };
+    const result = await executeRoutingPlan(generatePlan("phi"), { query: "How do vaccines work?" }, (id) => models[id as "phi"]);
+    const opts = generateMock.mock.calls[0][0];
+    expect(opts.messages).toBeDefined();
+    expect(opts.prompt).toBeUndefined();
+    expect(result.promptFormat).toBe("chat-template");
+  });
+
+  it('"if-embedded" falls back to the plain prompt when the GGUF has no template', async () => {
+    mockEmbeddedTemplate = false;
+    const models = { x: { id: "x", filename: "models/x.gguf", usesChatTemplate: "if-embedded" as const } };
+    const result = await executeRoutingPlan(generatePlan("x"), { query: "How do vaccines work?" }, (id) => models[id as "x"]);
+    expect(generateMock.mock.calls[0][0].prompt).toBeDefined();
+    expect(result.promptFormat).toBe("plain");
+  });
+
+  it("explicit flags ignore the GGUF check, so live chat formatting is unchanged", async () => {
+    mockEmbeddedTemplate = true;
+    const phiResult = await executeRoutingPlan(generatePlan("phi"), { query: "hi" }, resolveModel);
+    expect(generateMock.mock.calls[0][0].prompt).toBeDefined();
+    expect(phiResult.promptFormat).toBe("plain");
+
+    mockEmbeddedTemplate = false;
+    const qwenResult = await executeRoutingPlan(generatePlan("qwen-1.5b"), { query: "hi" }, resolveModel);
+    expect(generateMock.mock.calls[1][0].messages).toBeDefined();
+    expect(qwenResult.promptFormat).toBe("chat-template");
+    expect(hasEmbeddedChatTemplateMock).not.toHaveBeenCalled();
   });
 });

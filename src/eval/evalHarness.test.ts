@@ -15,12 +15,15 @@ const retrieveMock = vi.fn(async (_query: string) => [] as any[]);
 const presentIds = new Set<string>();
 const recordExecutionMock = vi.fn(async (_r: any) => {});
 const writeMock = vi.fn(async (_path: string, _content: string) => {});
+// Model files whose GGUF ships a chat template (all three curated models do).
+const filesWithTemplate = new Set<string>();
 
 vi.mock("../inference/LlamaEngine", () => ({
   llamaEngine: {
     load: (f: string) => loadMock(f),
     generate: (o: any) => generateMock(o),
     getModelInfo: () => (resident ? { filename: resident, nCtx: 4096, nThreads: 4 } : null),
+    hasEmbeddedChatTemplate: () => (resident ? filesWithTemplate.has(resident) : false),
   },
 }));
 vi.mock("../rag/retrieve", () => ({ retrieve: (q: string) => retrieveMock(q) }));
@@ -75,6 +78,8 @@ const QWEN = MODEL_CATALOG.find((m) => m.id === "qwen2.5-1.5b-instruct-q4km")!;
 beforeEach(() => {
   resident = null;
   presentIds.clear();
+  filesWithTemplate.clear();
+  filesWithTemplate.add(PHI.filename).add(QWEN.filename);
   loadMock.mockClear();
   generateMock.mockClear();
   retrieveMock.mockReset().mockResolvedValue([]);
@@ -182,17 +187,47 @@ describe("runEvaluation", () => {
     expect(qGreet.totalLatencyMs).toBeGreaterThanOrEqual(0);
   });
 
-  it("uses Qwen's chat template and Phi's plain prompt, as chat routing does", async () => {
+  it("measures each selected model in its own chat template, Phi included", async () => {
     presentIds.add(PHI.id).add(QWEN.id);
-    await runEvaluation({
+    const run = await runEvaluation({
       configs: [
         { kind: "model", modelId: QWEN.id, label: "Qwen" },
         { kind: "model", modelId: PHI.id, label: "Phi" },
       ],
-      queries: [queries[0]],
+      queries: [queries[1]],
     });
-    expect(generateMock.mock.calls[0][0].messages).toBeDefined();
-    expect(generateMock.mock.calls[1][0].prompt).toBeDefined();
+    for (const call of generateMock.mock.calls) {
+      expect(call[0].messages).toBeDefined();
+      expect(call[0].prompt).toBeUndefined();
+    }
+    expect(run.rows.map((r) => r.promptFormat)).toEqual(["chat-template", "chat-template"]);
+  });
+
+  it("falls back to the plain prompt only for a model file without a template, and says so", async () => {
+    presentIds.add(PHI.id);
+    filesWithTemplate.clear();
+    const run = await runEvaluation({ configs: [{ kind: "model", modelId: PHI.id, label: "Phi" }], queries: [queries[1]] });
+    expect(generateMock.mock.calls[0][0].prompt).toBeDefined();
+    expect(run.rows[0].promptFormat).toBe("plain");
+  });
+
+  it("uses the same generation settings in both formats apart from the prompt", async () => {
+    presentIds.add(PHI.id);
+    await runEvaluation({ configs: [{ kind: "model", modelId: PHI.id, label: "Phi" }], queries: [queries[1]] });
+    filesWithTemplate.clear();
+    await runEvaluation({ configs: [{ kind: "model", modelId: PHI.id, label: "Phi" }], queries: [queries[1]] });
+    const [withTemplate, plain] = generateMock.mock.calls.map((c) => c[0]);
+    expect(withTemplate.nPredict).toBe(plain.nPredict);
+    expect(withTemplate.temperature).toBe(plain.temperature);
+    expect(withTemplate.timeoutMs).toBe(plain.timeoutMs);
+  });
+
+  it("leaves the adaptive config on live-chat formatting (Phi plain), and records it", async () => {
+    presentIds.add(PHI.id).add(QWEN.id);
+    const comparison = EVAL_SET.find((q) => q.id === "comparison-1")!;
+    const run = await runEvaluation({ configs: [{ kind: "adaptive", label: "Adaptive" }], queries: [comparison] });
+    expect(run.rows[0].modelId).toBe(PHI.id);
+    expect(run.rows[0].promptFormat).toBe("plain");
   });
 
   it("records every query in the persisted execution telemetry", async () => {

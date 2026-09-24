@@ -49,13 +49,23 @@ The harness runs the whole set once per selected configuration:
   Hugging Face search. Every query goes to that model. Retrieval follows the same
   rule as the fixed-model chat path: skipped for greetings, calculation,
   translation and code, otherwise run. Generation goes through the routing
-  executor, so each model gets its own prompt format: Qwen2.5-1.5B uses its
-  chat template, Phi uses the plain prompt.
+  executor in the model's own instruction format: the chat template embedded
+  in its GGUF (`tokenizer.chat_template`, applied by llama.cpp), so Qwen gets
+  ChatML, Phi gets `<|system|>…<|end|>`, and any other model gets whatever
+  its file defines. Only a file with no embedded template falls back to the
+  app's plain `Question:/Answer:` prompt. Every row records which one was used
+  (`promptFormat`). Generation settings are otherwise identical in both cases
+  (512 tokens, temperature 0.7); a template ends on the model's own
+  end-of-turn token, the plain prompt on the app's stop strings. All three
+  curated GGUFs (Phi-3.5-mini, Qwen2.5-1.5B, Qwen2.5-7B) ship a template.
 - **Adaptive routing** (`adaptive`). Every query goes through `runAdaptiveChat`,
   exactly as in chat with Adaptive Routing on, using the routing preset
   currently stored in settings (default `balanced`; there's no picker in the UI
   yet). This runs whether or not the Adaptive Routing toggle is on.
-  `routingPreset` on each row records which preset was used.
+  `routingPreset` on each row records which preset was used. It keeps
+  live-chat prompt formatting, which today means Qwen2.5-1.5B uses its
+  template and every other model (Phi included) the plain prompt, so it
+  measures the product as users get it; `promptFormat` shows the difference.
 
 Held constant for every run and recorded on every row: the system prompt (the
 default `succinct` personality), `maxTokens` = 512, no conversation history
@@ -125,7 +135,7 @@ Each JSONL row (and CSV line) contains:
 - **Run:** `runId`, `evalSetVersion`, `configId`, `configLabel`,
   `routingPreset` (adaptive only), `personalityId`, `maxTokens`, `createdAt`.
 - **Query:** `queryId`, `category`, `query`, `expectedKbTitles`.
-- **Answer:** `answer`, `outcome` (`success`/`failure`/`cancelled`),
+- **Answer:** `answer`, `promptFormat` (`chat-template`/`plain`), `outcome` (`success`/`failure`/`cancelled`),
   `errorMessage`, `timedOut`.
 - **Routing:** `modelId` (the model that generated the answer), `taskType`,
   `adaptiveRoutingUsed`, `reasonCodes`.

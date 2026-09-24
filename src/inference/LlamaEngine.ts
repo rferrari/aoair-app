@@ -181,6 +181,15 @@ export class LlamaEngine {
     return this.context !== null;
   }
 
+  /**
+   * Whether the loaded GGUF ships its own chat template (tokenizer.chat_template
+   * metadata) that llama.cpp can parse as Jinja — i.e. whether generate({ messages })
+   * will be formatted in the model's own instruction format.
+   */
+  hasEmbeddedChatTemplate(): boolean {
+    return this.context?.isJinjaSupported() ?? false;
+  }
+
   async generate({
     prompt,
     messages,
