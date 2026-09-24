@@ -61,17 +61,31 @@ npx expo prebuild -p android --clean
 npx expo run:android
 ```
 
-### Quickstart with Make
+### Guided setup
 
-The same steps, via a `Makefile` (`make help` lists all targets):
+The easiest way: clone the repo and run the setup wizard, which asks what you
+want and walks you through it.
 
 ```bash
 git clone https://github.com/rferrari/boar-app.git
 cd boar-app
-make setup         # npm install — also checks whether you have the Android SDK
-make run-android   # local build — needs the Android SDK (make setup told you if you have it)
-# or: make build-eas   # cloud build via EAS, no local Android SDK needed
+make setup         # or: node scripts/setup.mjs
 ```
+
+It offers:
+
+1. **Install BOAR on my phone:** downloads the latest release APK (checksum
+   verified) and installs it over a USB cable, or tells you how to copy it over.
+2. **Build the app from source:** checks Node, JDK and the Android SDK and tells
+   you exactly what's missing, then builds in the cloud with EAS (no Android SDK
+   needed) or locally, and can install the APK over USB.
+3. **Developer mode (advanced):** a live-reloading development build over USB.
+4. **Build a bigger offline knowledge pack** (optional, see
+   [docs/KNOWLEDGE_PACKS.md](docs/KNOWLEDGE_PACKS.md)).
+
+The individual steps are also `make` targets (`make help` lists them):
+`make install` (npm dependencies), `make run-android` (local build, needs the
+Android SDK), `make build-eas` (cloud build).
 
 On first launch, the app shows a one-time setup screen that downloads the
 default model, Qwen2.5-1.5B, plus a small embedding model (about 1 GB total, see

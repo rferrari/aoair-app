@@ -48,7 +48,7 @@ npx expo run:android --device          # builds the native app AND installs it o
 Or via the `Makefile` (`make help` lists everything):
 
 ```bash
-make setup          # npm install (+ tells you whether you have the Android SDK)
+make install        # npm install (+ tells you whether you have the Android SDK)
 make run-android    # prebuild + run:android
 ```
 
@@ -57,6 +57,10 @@ plugins** (icon, name, any native config). Without it, `expo prebuild` can
 leave a stale `android/` project with old values baked in, and a plain
 `npm install` will never fix that — it never touches `android/` at all.
 When in doubt, `--clean`.
+
+`make setup` is the interactive wizard for humans (`scripts/setup.mjs`); an agent
+should use the explicit commands above instead. It reads answers from stdin, so it
+can be scripted if needed (e.g. `printf '2\n1\n' | node scripts/setup.mjs`).
 
 ## No local Android SDK: build via EAS instead
 

@@ -3,7 +3,8 @@
 help:
 	@echo "BOAR - Adaptive Local Intelligence"
 	@echo "-----------------------------------"
-	@echo "make setup        - Install npm dependencies (checks for the Android SDK too)"
+	@echo "make setup        - Guided setup: install the app, build it, developer mode, knowledge packs"
+	@echo "make install      - Just install npm dependencies (checks for the Android SDK too)"
 	@echo "make start        - Start Expo dev server"
 	@echo "make run-android  - Build & run on connected Android device (needs Android SDK)"
 	@echo "make build-eas    - Build APK via Expo EAS Cloud (no local Android SDK needed)"
@@ -14,10 +15,11 @@ help:
 	@echo "make knowledge-pack-small  - Build a smaller pack (Vital Articles level 4, ~10k articles)"
 
 setup:
+	@node scripts/setup.mjs
+
+install:
 	npm install
 	@$(MAKE) --no-print-directory check-android
-
-install: setup
 
 # Informational only — never fails `make setup`. npm install is all this repo
 # actually needs; the Android SDK/NDK/JDK toolchain is a separate, much
