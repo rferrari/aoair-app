@@ -143,6 +143,23 @@ To check a Hugging Face GGUF before anyone downloads it, read its header (the
 first few MB) for `general.architecture` and `tokenizer.chat_template`: the
 architecture must be supported by the llama.rn build in `node_modules`.
 
+## Building a knowledge pack
+
+Full guide: [docs/KNOWLEDGE_PACKS.md](docs/KNOWLEDGE_PACKS.md).
+
+```bash
+npm run pack:build -- --limit 200 --id test-pack   # quick check that the pipeline works
+npm run pack:build                                 # the full Vital Articles level 5 pack
+npm run pack:push -- build/knowledge-pack/<id>.sqlite  # copy onto a USB-connected dev build
+```
+
+- A full level 5 build takes hours (downloading ~50k introductions, then
+  embedding); run it in the background and let it resume if interrupted, since
+  every step is cached under `build/knowledge-pack/<id>/`.
+- Packs must be embedded with the app's model (`assets/models/embedding.gguf`,
+  checked by SHA-256); the app ignores packs built with another one.
+- Don't commit `.sqlite` packs to git; they go to a release asset (see the guide).
+
 ## Common pitfalls
 
 - **Blank/white screen, or "Failed to connect to `<LAN IP>`" after starting

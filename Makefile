@@ -1,4 +1,4 @@
-.PHONY: help setup install check-android start run-android build-eas test typecheck clean
+.PHONY: help setup install check-android start run-android build-eas test typecheck clean knowledge-pack knowledge-pack-small
 
 help:
 	@echo "BOAR - Adaptive Local Intelligence"
@@ -10,6 +10,8 @@ help:
 	@echo "make test         - Run unit tests"
 	@echo "make typecheck    - Run TypeScript type checking"
 	@echo "make clean        - Remove generated native folders & build caches"
+	@echo "make knowledge-pack        - Build the Wikipedia Vital Articles pack (~50k articles, hours)"
+	@echo "make knowledge-pack-small  - Build a smaller pack (Vital Articles level 4, ~10k articles)"
 
 setup:
 	npm install
@@ -66,3 +68,10 @@ typecheck:
 clean:
 	rm -rf android .expo node_modules
 	npm cache clean --force
+
+# Offline knowledge packs, built on this computer (docs/KNOWLEDGE_PACKS.md).
+knowledge-pack:
+	npm run pack:build
+
+knowledge-pack-small:
+	npm run pack:build -- --level 4
