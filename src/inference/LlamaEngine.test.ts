@@ -1,6 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-type FakeContext = { model: string; released: boolean; release: () => Promise<void> };
+type FakeContext = {
+  model: string;
+  released: boolean;
+  release: () => Promise<void>;
+  completion: (params: unknown, onToken: (d: { token: string }) => void) => Promise<{ text: string }>;
+  stopCompletion: () => Promise<void>;
+  releasedWhileGenerating: boolean;
+};
 const created: FakeContext[] = [];
 let inFlightInits = 0;
 let maxConcurrentInits = 0;
@@ -11,11 +18,29 @@ vi.mock("llama.rn", () => ({
     maxConcurrentInits = Math.max(maxConcurrentInits, inFlightInits);
     await new Promise((r) => setTimeout(r, 5));
     inFlightInits--;
+    let finish: (() => void) | null = null;
+    let generating = false;
     const ctx: FakeContext = {
       model,
       released: false,
+      releasedWhileGenerating: false,
       release: async () => {
+        if (generating) ctx.releasedWhileGenerating = true;
         ctx.released = true;
+      },
+      // Like llama.cpp: runs until stopped, and settles a moment after the stop (prompt still processing).
+      completion: (_params, onToken) =>
+        new Promise((resolve) => {
+          generating = true;
+          onToken({ token: "Hi" });
+          finish = () =>
+            setTimeout(() => {
+              generating = false;
+              resolve({ text: "Hi" });
+            }, 20);
+        }),
+      stopCompletion: async () => {
+        finish?.();
       },
     };
     created.push(ctx);
@@ -73,5 +98,16 @@ describe("LlamaEngine load/unload", () => {
     await engine.load("models/b.gguf");
     expect(engine.getModelInfo()?.filename).toBe("models/b.gguf");
     spy.mockRestore();
+  });
+
+  it("stops and waits for a running generation before releasing its model", async () => {
+    const engine = new LlamaEngine();
+    await engine.load("models/a.gguf");
+    const reply = engine.generate({ prompt: "say hi" });
+    await engine.load("models/b.gguf");
+    await expect(reply).resolves.toBe("Hi");
+    expect(created[0].released).toBe(true);
+    expect(created[0].releasedWhileGenerating).toBe(false);
+    expect(engine.getModelInfo()?.filename).toBe("models/b.gguf");
   });
 });

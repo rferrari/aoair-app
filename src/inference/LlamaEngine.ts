@@ -80,6 +80,10 @@ export class LlamaEngine {
   // context, and the one overwritten in this.context was never released,
   // leaking a whole model's memory.
   private queue: Promise<void> = Promise.resolve();
+  // The completion currently running, if any. Releasing a context while it
+  // runs leaves its promise unsettled forever (the chat stays "generating"),
+  // so unload stops it and waits for it first.
+  private inFlight: Promise<unknown> | null = null;
 
   private enqueue(task: () => Promise<void>): Promise<void> {
     const run = this.queue.then(task);
@@ -187,6 +191,12 @@ export class LlamaEngine {
   }
 
   private async unloadNow() {
+    // Stop takes effect between tokens, so a completion still processing its
+    // prompt can run on for a while; wait for it rather than release under it.
+    if (this.inFlight) {
+      await this.context?.stopCompletion().catch(() => {});
+      await this.inFlight.catch(() => {});
+    }
     const context = this.context;
     this.context = null;
     this.modelInfo = null;
@@ -245,17 +255,17 @@ export class LlamaEngine {
       ? { messages, jinja: true, n_predict: nPredict, temperature, stop: stop ?? [] }
       : { prompt: prompt!, n_predict: nPredict, temperature, stop: stop ?? DEFAULT_STOP_SEQUENCES };
 
+    let full = "";
+    const completion = this.context.completion(completionParams, (data) => {
+      full += data.token;
+      onToken?.(data.token);
+    });
+    this.inFlight = completion;
     try {
-      let full = "";
-      const { text } = await this.context.completion(
-        completionParams,
-        (data) => {
-          full += data.token;
-          onToken?.(data.token);
-        }
-      );
+      const { text } = await completion;
       return text ?? full;
     } finally {
+      if (this.inFlight === completion) this.inFlight = null;
       if (timer) clearTimeout(timer);
     }
   }
