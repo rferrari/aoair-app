@@ -5,12 +5,22 @@ the default model, Qwen2.5-1.5B-Instruct (about 1 GB). Nothing leaves the phone.
 
 ## Videos
 
-| Clip | What it shows | Length |
-|---|---|---|
-| [1. Offline, first question](1-offline-first-question.mp4) | Airplane mode on, a question answered with sources from the offline library | 0:35 |
-| [2. A research prompt](2-prompt-idea.mp4) | A ready-made prompt from Prompt Ideas: a synthesis question across topics | 1:17 |
-| [3. Follow-up](3-follow-up-context.mp4) | "interesting, continue": the answer picks up from the conversation so far | 1:21 |
-| [4. Facts and math](4-facts-and-math.mp4) | The capital of Australia from the Wikipedia Vital Articles pack, then 7×8 | 0:38 |
+Tap a preview to play the full clip.
+
+<table>
+<tr>
+<td width="25%"><a href="1-offline-first-question.mp4"><img src="previews/1.gif" alt="Offline, first question"></a></td>
+<td width="25%"><a href="2-prompt-idea.mp4"><img src="previews/2.gif" alt="A research prompt"></a></td>
+<td width="25%"><a href="3-follow-up-context.mp4"><img src="previews/3.gif" alt="Follow-up"></a></td>
+<td width="25%"><a href="4-facts-and-math.mp4"><img src="previews/4.gif" alt="Facts and math"></a></td>
+</tr>
+<tr>
+<td><b>1. Offline, first question</b> (0:35). Airplane mode on, a question answered with sources from the offline library.</td>
+<td><b>2. A research prompt</b> (1:17). A ready-made prompt from Prompt Ideas: a synthesis question across topics.</td>
+<td><b>3. Follow-up</b> (1:21). "interesting, continue": the answer picks up from the conversation so far.</td>
+<td><b>4. Facts and math</b> (0:38). The capital of Australia from the Wikipedia Vital Articles pack, then 7×8.</td>
+</tr>
+</table>
 
 The whole walkthrough in one file: [boar_demo_small.mp4](boar_demo_small.mp4) (4:01).
 
