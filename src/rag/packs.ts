@@ -19,8 +19,34 @@ const EMBEDDING_SHA256 = MODEL_CATALOG.find((m) => m.kind === "embedding" && m.r
 
 const openPacks = new Map<string, SQLite.SQLiteDatabase>();
 
-export function knowledgePacks(): CatalogModel[] {
-  return CORPUS_CATALOG.filter((m) => m.format === "sqlite-pack");
+const CORPUS_DIR = "corpus/";
+
+/**
+ * Catalog packs, plus any other pack file in corpus/ (e.g. one built with
+ * scripts/build-knowledge-pack.mjs and copied over with npm run pack:push).
+ * Those have no catalog size to check, only the format and model checks in openPack.
+ */
+export async function knowledgePacks(): Promise<CatalogModel[]> {
+  const catalog = CORPUS_CATALOG.filter((m) => m.format === "sqlite-pack");
+  const names = await FileSystem.readDirectoryAsync(`${FileSystem.documentDirectory}${CORPUS_DIR}`).catch(() => [] as string[]);
+  const extra = names
+    .filter((n) => n.endsWith(".sqlite") && !catalog.some((c) => c.filename === `${CORPUS_DIR}${n}`))
+    .map(
+      (n): CatalogModel => ({
+        id: `local-${n.replace(/\.sqlite$/, "")}`,
+        kind: "corpus",
+        format: "sqlite-pack",
+        label: n,
+        filename: `${CORPUS_DIR}${n}`,
+        sizeBytes: 0,
+        sha256: "",
+        sourceUrl: "",
+        license: "",
+        description: "",
+        required: false,
+      })
+    );
+  return [...catalog, ...extra];
 }
 
 export async function closePack(id: string): Promise<void> {
@@ -37,7 +63,8 @@ export async function closeAllPacks(): Promise<void> {
 async function openPack(pack: CatalogModel): Promise<SQLite.SQLiteDatabase | null> {
   const uri = `${FileSystem.documentDirectory}${pack.filename}`;
   const info = await FileSystem.getInfoAsync(uri);
-  if (!info.exists || info.size !== pack.sizeBytes) {
+  // Catalog packs must be complete; a local pack (sizeBytes 0) has nothing to compare against.
+  if (!info.exists || (pack.sizeBytes > 0 && info.size !== pack.sizeBytes)) {
     await closePack(pack.id);
     return null;
   }
@@ -47,9 +74,12 @@ async function openPack(pack: CatalogModel): Promise<SQLite.SQLiteDatabase | nul
   const path = uri.replace(/^file:\/\//, "");
   const slash = path.lastIndexOf("/");
   const db = await SQLite.openDatabaseAsync(path.slice(slash + 1), { useNewConnection: true }, path.slice(0, slash));
-  const meta = await db.getFirstAsync<{ value: string }>("SELECT value FROM meta WHERE key = 'embeddingModelSha256'");
-  if (meta?.value !== EMBEDDING_SHA256) {
-    console.warn(`[packs] ${pack.id} was built with a different embedding model; skipping it`);
+  const meta = await db
+    .getAllAsync<{ key: string; value: string }>("SELECT key, value FROM meta")
+    .then((rows) => Object.fromEntries(rows.map((r) => [r.key, r.value])))
+    .catch(() => ({} as Record<string, string>));
+  if (meta.format !== "boar-knowledge-pack" || meta.embeddingModelSha256 !== EMBEDDING_SHA256) {
+    console.warn(`[packs] ${pack.filename} isn't a knowledge pack for this app's embedding model; skipping it`);
     await db.closeAsync().catch(() => {});
     return null;
   }
@@ -70,7 +100,7 @@ export async function searchPacks(
   const semantic: RetrievedChunk[] = [];
   if (!lexicalQuery) return { lexical, semantic };
 
-  for (const pack of knowledgePacks()) {
+  for (const pack of await knowledgePacks()) {
     try {
       const db = await openPack(pack);
       if (!db) continue;
