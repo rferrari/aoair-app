@@ -176,6 +176,7 @@ export class ModelManager {
    */
   async signalCancelDownload(asset: CatalogModel): Promise<void> {
     const active = this.pausedDownloads.get(asset.id);
+    dlog(asset.id, `signalCancelDownload() called, had a tracked resumable: ${!!active}`);
     if (active) {
       await active.pauseAsync().catch(() => {});
       this.pausedDownloads.delete(asset.id);
@@ -183,6 +184,7 @@ export class ModelManager {
   }
 
   async deletePartialDownload(asset: CatalogModel): Promise<void> {
+    dlog(asset.id, "deletePartialDownload() called");
     await FileSystem.deleteAsync(assetPath(asset), { idempotent: true }).catch(() => {});
   }
 
@@ -201,10 +203,12 @@ export class ModelManager {
     const destDir = destPath.substring(0, destPath.lastIndexOf("/"));
     await FileSystem.makeDirectoryAsync(destDir, { intermediates: true }).catch(() => {});
 
+    const freeBytesAtStart = await FileSystem.getFreeDiskStorageAsync().catch(() => -1);
     dlog(
       asset.id,
       `start — expected ${asset.sizeBytes} bytes, destPath=${destPath}, ` +
-        `alreadyHasPausedResumable=${this.pausedDownloads.has(asset.id)}, sourceUrl=${asset.sourceUrl}`
+        `alreadyHasPausedResumable=${this.pausedDownloads.has(asset.id)}, sourceUrl=${asset.sourceUrl}, ` +
+        `freeDiskStorage=${freeBytesAtStart}`
     );
 
     // Inactivity timeout, not a flat deadline: a large model on a slow-but-
@@ -295,7 +299,12 @@ export class ModelManager {
     this.pausedDownloads.delete(asset.id);
 
     const info = await FileSystem.getInfoAsync(destPath);
-    dlog(asset.id, `post-download verification: info.exists=${info.exists}, info.size=${info.exists ? info.size : "n/a"}, expected=${asset.sizeBytes}`);
+    const freeBytesAtEnd = await FileSystem.getFreeDiskStorageAsync().catch(() => -1);
+    dlog(
+      asset.id,
+      `post-download verification: info.exists=${info.exists}, info.size=${info.exists ? info.size : "n/a"}, ` +
+        `expected=${asset.sizeBytes}, freeDiskStorage=${freeBytesAtEnd} (was ${freeBytesAtStart} at start)`
+    );
     if (!info.exists || info.size !== asset.sizeBytes) {
       const actualSize = info.exists ? info.size ?? 0 : 0;
       // A multi-hundred-MB+ GGUF landing at a few KB almost always means the
