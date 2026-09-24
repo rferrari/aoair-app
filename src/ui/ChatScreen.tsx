@@ -10,6 +10,8 @@ import {
   ActivityIndicator,
   Animated,
   AppState,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { impact, notification, ImpactFeedbackStyle, NotificationFeedbackType } from "../services/haptics";
@@ -164,6 +166,19 @@ export function ChatScreen({
   const [toast, setToast] = useState<string | null>(null);
 
   const listRef = useRef<FlatList<Message>>(null);
+  // Keep the newest text in view while the reply streams, unless the user
+  // scrolled up to read something; scrolling back near the bottom resumes it.
+  const followBottom = useRef(true);
+  const scrollToBottom = useCallback((animated = false) => {
+    // Deferred a frame: on Android the content size reported to
+    // onContentSizeChange can still be the previous one, leaving the end of
+    // the reply cut off at the bottom of the list.
+    requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated }));
+  }, []);
+  const onListScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+    followBottom.current = contentSize.height - layoutMeasurement.height - contentOffset.y < 120;
+  }, []);
   const inputRef = useRef<TextInput>(null);
   // Labels for whatever's downloadable — the built-in catalog (sync,
   // available immediately) plus anything the user added via the Hugging
@@ -444,6 +459,7 @@ export function ChatScreen({
     await stopAndAwaitGeneration();
     await cancelBackgroundTask();
     const records = await getSessionMessages(id);
+    followBottom.current = true;
     setMessages(records.map((r) => ({ id: r.id, role: r.role, text: r.text, feedback: r.feedback })));
     setActiveSessionId(id);
     const session = sessions.find((s) => s.id === id);
@@ -801,10 +817,12 @@ export function ChatScreen({
   // session switch can wait for it to actually finish. Only the entry point
   // sets sendTaskRef; send() doesn't need to know about it.
   const handleSend = useCallback(() => {
+    followBottom.current = true;
+    scrollToBottom(true);
     sendTaskRef.current = send().finally(() => {
       sendTaskRef.current = null;
     });
-  }, [send]);
+  }, [send, scrollToBottom]);
 
   const drawerItems: DrawerItem[] = [
     { key: "prompts", icon: "💡", label: t("chatScreen.drawerItems.prompts"), onPress: () => setShowPromptIdeas(true) },
@@ -926,7 +944,15 @@ export function ChatScreen({
           // lags behind the growing text until generation stops and the
           // final call actually completes. Snap instantly while generating;
           // animate only for the normal (new message / not streaming) case.
-          onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: !generating })}
+          onContentSizeChange={() => {
+            if (followBottom.current) scrollToBottom(!generating);
+          }}
+          // The list gets shorter when the keyboard opens; keep the end in view.
+          onLayout={() => {
+            if (followBottom.current) scrollToBottom();
+          }}
+          onScroll={onListScroll}
+          scrollEventThrottle={100}
           renderItem={({ item }) => {
             const showProcessing =
               item.text === "" && processing?.messageId === item.id && processing.status !== "generating";
@@ -1308,6 +1334,7 @@ const styles = StyleSheet.create({
   list: {
     padding: spacing.md,
     gap: spacing.md,
+    paddingBottom: spacing.lg,
   },
   bubble: {
     padding: spacing.md,
