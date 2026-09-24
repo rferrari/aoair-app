@@ -1,5 +1,6 @@
 import { ModelManager, DownloadProgress } from "../models/ModelManager";
 import { CatalogModel } from "../models/manifest";
+import { holdWakeLockForDownload } from "./downloadWakeLock";
 
 /**
  * Module-level (not component-local) download state, so it survives the
@@ -131,6 +132,7 @@ export function startDownload(asset: CatalogModel): Promise<void> {
   });
   notify();
 
+  const releaseWakeLock = holdWakeLockForDownload(asset.id);
   const promise = modelManager
     .downloadCatalogModel(asset, (p: DownloadProgress) => {
       const progress = p.totalBytesExpectedToWrite > 0 ? p.totalBytesWritten / p.totalBytesExpectedToWrite : 0;
@@ -189,6 +191,7 @@ export function startDownload(asset: CatalogModel): Promise<void> {
       downloadTimestamps.delete(asset.id);
     })
     .finally(() => {
+      releaseWakeLock();
       inFlight.delete(asset.id);
       notify();
     });
