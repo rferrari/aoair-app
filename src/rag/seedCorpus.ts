@@ -116,6 +116,7 @@ const MINIMUM_CORPUS_DOCS: SeedDoc[] = (
 async function loadDownloadedCorpusPacks(): Promise<SeedDoc[]> {
   const docs: SeedDoc[] = [];
   for (const pack of CORPUS_CATALOG) {
+    if (pack.format === "sqlite-pack") continue;
     const path = `${FileSystem.documentDirectory}${pack.filename}`;
     const info = await FileSystem.getInfoAsync(path);
     if (!info.exists) continue;
@@ -135,6 +136,26 @@ async function loadDownloadedCorpusPacks(): Promise<SeedDoc[]> {
 export async function seedKnowledgeBaseIfEmpty(): Promise<void> {
   const db = await getDb();
   const allDocs = [...APP_TOPIC_DOCS, ...MINIMUM_CORPUS_DOCS, ...(await loadDownloadedCorpusPacks())];
+
+  // This runs on every ChatScreen mount — including every time Settings
+  // closes and the user returns to chat, not just on first app launch —
+  // so the common case (nothing new to seed) needs to be cheap. Without
+  // this, the per-doc existence check below still runs in full every
+  // time: up to 5,300+ sequential SELECT queries on the "full" corpus
+  // tier, during which the chat input is disabled (see ChatScreen.tsx's
+  // `ready` state), even though almost always nothing actually changed.
+  // A single COUNT(*) lets the fully-seeded case skip straight past the
+  // loop; any mismatch (a newly downloaded corpus pack, a fresh install)
+  // falls through to the real per-doc check, same as before.
+  // collection_id IS NULL scopes this to seed-corpus-managed rows only —
+  // user-imported documents (src/ui/PersonalDocumentsManager.tsx) live in
+  // the same `chunks` table with a non-null collection_id, and counting
+  // those too would make this check permanently mismatch (always fall
+  // through to the full loop) for anyone who's imported personal docs.
+  const { count } = (await db.getFirstAsync<{ count: number }>(
+    `SELECT COUNT(*) as count FROM chunks WHERE collection_id IS NULL`
+  )) ?? { count: 0 };
+  if (count === allDocs.length) return;
 
   for (const doc of allDocs) {
     const existing = await db.getFirstAsync<{ chunk_id: string }>(

@@ -331,6 +331,77 @@ export function UsageStatsContent() {
         )}
       </View>
 
+      {/* SECTION 3B: LAST ADAPTIVE ROUTING DECISION — only present when
+          the last message actually went through runAdaptiveChat()
+          (src/services/adaptiveChat.ts, Phase 9), which is itself gated
+          behind the "Adaptive Routing (Experimental)" setting. Absent
+          entirely for a fixed-active-model reply or Deep Research, so
+          this section not appearing at all is itself informative (routing
+          wasn't used for the last message), not a bug. */}
+      {stats?.adaptiveRoutingUsed && (
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <View style={styles.cardTitleRow}>
+              <Text style={styles.cardIcon}>🧭</Text>
+              <Text style={styles.cardTitle}>LAST ADAPTIVE ROUTING DECISION</Text>
+            </View>
+            <View
+              style={[
+                styles.statusPill,
+                stats.outcome === "failure" ? styles.statusPillCrimson : styles.statusPillEmerald,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.statusPillText,
+                  stats.outcome === "failure" ? styles.statusTextCrimson : styles.statusTextEmerald,
+                ]}
+              >
+                {(stats.outcome ?? "success").toUpperCase()}
+              </Text>
+            </View>
+          </View>
+
+          {stats.outcome === "failure" ? (
+            <Text style={styles.emptyNotice}>
+              Adaptive routing failed for the last message — it fell back to the normal active
+              model automatically. See the console log for the specific reason.
+            </Text>
+          ) : (
+            <View style={styles.statsTable}>
+              <TelemetryRow
+                label="Model Used"
+                value={MODEL_CATALOG.find((m) => m.id === stats.modelId)?.label ?? stats.modelId ?? "—"}
+                highlight={colors.text.heading}
+              />
+              <TelemetryRow label="Task Type" value={stats.taskType ?? "—"} />
+              <TelemetryRow
+                label="Retrieval Used"
+                value={stats.retrievalUsed ? "Yes" : "No"}
+              />
+              <TelemetryRow
+                label="Model Switches (this plan)"
+                value={`${stats.modelSwitches ?? 0}`}
+              />
+              <TelemetryRow
+                label="Switched Since Last Message"
+                value={stats.crossMessageModelSwitch ? "Yes" : "No"}
+                highlight={stats.crossMessageModelSwitch ? colors.text.accentCyan : undefined}
+              />
+              {stats.generationLatencyMs != null && (
+                <TelemetryRow
+                  label="Generation Latency"
+                  value={formatMs(stats.generationLatencyMs)}
+                />
+              )}
+              {stats.reasonCodes && stats.reasonCodes.length > 0 && (
+                <TelemetryRow label="Reason Codes" value={stats.reasonCodes.join(", ")} />
+              )}
+            </View>
+          )}
+        </View>
+      )}
+
       {/* SECTION 4: ACTIVE MODEL ARCHITECTURE */}
       <View style={styles.card}>
         <View style={styles.cardTitleRow}>

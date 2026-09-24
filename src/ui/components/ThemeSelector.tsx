@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet, Pressable } from "react-native";
-import * as Haptics from "expo-haptics";
+import { impact, ImpactFeedbackStyle } from "../../services/haptics";
 import { useTheme, THEMES, FONT_SCALES } from "../theme";
 import { ThemeId, FontScale } from "../../models/settings";
 import { spacing, radii } from "../theme/spacing";
@@ -13,12 +13,12 @@ export function ThemeSelector({ compact = false }: Props) {
   const { themeId, fontScale, colors, typography, setTheme, setFontScale } = useTheme();
 
   const handleSelectTheme = (id: ThemeId) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    impact(ImpactFeedbackStyle.Light);
     setTheme(id);
   };
 
   const handleSelectFontScale = (scale: FontScale) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    impact(ImpactFeedbackStyle.Light);
     setFontScale(scale);
   };
 
@@ -159,7 +159,7 @@ export function ThemeSelector({ compact = false }: Props) {
             ]}
           >
             <Text style={[typography.ui.caption, { color: colors.text.accentEmerald }]}>
-              🐗 BOAR RESEARCHER
+              🐗 BOAR
             </Text>
             <Text style={[typography.ui.body, { color: colors.text.primary, marginTop: 4 }]}>
               Local inference operational. Process RSS remains strictly under 12GB limit.

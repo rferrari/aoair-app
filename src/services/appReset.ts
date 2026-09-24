@@ -1,6 +1,7 @@
 import * as FileSystem from "expo-file-system/legacy";
 import { llamaEngine } from "../inference/LlamaEngine";
 import { embeddingEngine } from "../rag/embed";
+import { closeAllPacks } from "../rag/packs";
 import { resetDatabase } from "../rag/db";
 import { resetDownloadState } from "./downloadManager";
 import { clearSettings } from "../models/settings";
@@ -24,7 +25,7 @@ const CORPUS_DIR = `${FileSystem.documentDirectory}corpus`;
  * the app should be sent back to the setup wizard.
  */
 export async function resetAllAppData(): Promise<void> {
-  await Promise.all([llamaEngine.unload(), embeddingEngine.unload()]);
+  await Promise.all([llamaEngine.unload(), embeddingEngine.unload(), closeAllPacks()]);
   resetDownloadState();
 
   await resetDatabase();

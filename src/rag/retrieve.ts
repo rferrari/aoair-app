@@ -1,14 +1,33 @@
 import { getDb } from "./db";
 import { embeddingEngine } from "./embed";
-import { cosineSimilarity } from "./pure";
+import {
+  buildLexicalQuery,
+  cosineSimilarity,
+  filterByMinScore,
+  filterByTermCoverage,
+  fuseRetrievalResults,
+  MIN_SEMANTIC_SIMILARITY,
+} from "./pure";
 import type { RetrievedChunk } from "./retrieve.types";
+import { searchPacks } from "./packs";
 
 export type { RetrievedChunk } from "./retrieve.types";
 
-/** BM25-ranked FTS5 lexical search over the local knowledge base. */
+// Extra BM25 candidates fetched so the term-coverage gate has something to
+// choose from; the result is still capped at `limit`.
+const LEXICAL_CANDIDATE_MULTIPLIER = 4;
+
+/**
+ * BM25-ranked FTS5 lexical search over the local knowledge base. The query
+ * is reduced to its content words, OR-ed (buildLexicalQuery), and hits
+ * must cover enough of those words to count (filterByTermCoverage). That
+ * coverage rule is this search's relevance gate. No numeric bm25 floor is
+ * applied: bm25's scale depends on the corpus and query.
+ */
 async function lexicalSearch(query: string, limit: number): Promise<RetrievedChunk[]> {
+  const lexicalQuery = buildLexicalQuery(query);
+  if (!lexicalQuery) return [];
   const db = await getDb();
-  const escaped = query.replace(/"/g, '""');
   const rows = await db.getAllAsync<{
     chunk_id: string;
     doc_id: string;
@@ -22,9 +41,9 @@ async function lexicalSearch(query: string, limit: number): Promise<RetrievedChu
      LEFT JOIN custom_collections cc ON cc.id = c.collection_id
      WHERE chunks_fts MATCH ? AND (c.collection_id IS NULL OR cc.active = 1)
      ORDER BY rank LIMIT ?`,
-    [`"${escaped}"`, limit]
+    [lexicalQuery.match, limit * LEXICAL_CANDIDATE_MULTIPLIER]
   );
-  return rows.map((r) => ({
+  return filterByTermCoverage(rows, lexicalQuery.terms).slice(0, limit).map((r) => ({
     chunkId: r.chunk_id,
     docId: r.doc_id,
     title: r.title,
@@ -34,19 +53,9 @@ async function lexicalSearch(query: string, limit: number): Promise<RetrievedChu
   }));
 }
 
-// bge-small-en-v1.5 cosine similarity heuristic: below this, a chunk isn't
-// actually about the query, it's just whatever happened to be "closest" out
-// of everything in the knowledge base — brute-force top-K with no floor
-// means even a query with nothing relevant on-device (e.g. "say hi") always
-// gets K chunks back, which then get force-fed into the prompt as "Context"
-// the model is told to answer from. Not a precise cutoff, just cheap
-// insurance against near-random matches being presented as relevant.
-const MIN_SEMANTIC_SIMILARITY = 0.45;
-
 /** Brute-force cosine search over stored embeddings; fine at knowledge-base scale on-device. */
-async function semanticSearch(query: string, limit: number): Promise<RetrievedChunk[]> {
+async function semanticSearch(queryVec: Float32Array, limit: number): Promise<RetrievedChunk[]> {
   const db = await getDb();
-  const queryVec = await embeddingEngine.embed(query);
 
   const rows = await db.getAllAsync<{
     chunk_id: string;
@@ -79,41 +88,28 @@ async function semanticSearch(query: string, limit: number): Promise<RetrievedCh
   });
 
   scored.sort((a, b) => b.score - a.score);
-  return scored.filter((c) => c.score >= MIN_SEMANTIC_SIMILARITY).slice(0, limit);
+  return filterByMinScore(scored, MIN_SEMANTIC_SIMILARITY).slice(0, limit);
 }
 
 /**
- * Hybrid retrieval: union lexical (BM25) + semantic (cosine) results,
- * re-ranked by a simple weighted-sum fusion. No network calls.
+ * Hybrid retrieval: union lexical (BM25, exact-phrase-gated) + semantic
+ * (cosine, MIN_SEMANTIC_SIMILARITY-gated) results, re-ranked by a simple
+ * weighted-sum fusion (fuseRetrievalResults, src/rag/pure.ts — extracted
+ * there so the fusion/threshold mechanics are unit-testable without a real
+ * device; see retrieve.relevance.test.ts). No network calls. If neither
+ * source has anything relevant, this returns [] — never a forced top-K of
+ * whatever happened to be least-irrelevant.
  */
 export async function retrieve(query: string, topK = 6): Promise<RetrievedChunk[]> {
-  const [lexical, semantic] = await Promise.all([
+  const queryVec = await embeddingEngine.embed(query);
+  const [lexical, semantic, packs] = await Promise.all([
     lexicalSearch(query, topK * 2),
-    semanticSearch(query, topK * 2),
+    semanticSearch(queryVec, topK * 2),
+    // Downloaded knowledge packs (src/rag/packs.ts); a failing pack is skipped, never fatal.
+    searchPacks(query, queryVec, topK * 2).catch(() => ({ lexical: [], semantic: [] })),
   ]);
 
-  const byId = new Map<string, RetrievedChunk>();
-  const normalize = (chunks: RetrievedChunk[], weight: number) => {
-    if (chunks.length === 0) return;
-    const max = Math.max(...chunks.map((c) => c.score), 1e-9);
-    for (const c of chunks) {
-      const norm = (c.score / max) * weight;
-      const existing = byId.get(c.chunkId);
-      if (existing) {
-        existing.score += norm;
-        existing.matchType = "hybrid";
-      } else {
-        byId.set(c.chunkId, { ...c, score: norm });
-      }
-    }
-  };
-
-  normalize(lexical, 0.5);
-  normalize(semantic, 0.5);
-
-  return Array.from(byId.values())
-    .sort((a, b) => b.score - a.score)
-    .slice(0, topK);
+  return fuseRetrievalResults([...lexical, ...packs.lexical], [...semantic, ...packs.semantic], topK);
 }
 
 export { assemblePrompt } from "./pure";

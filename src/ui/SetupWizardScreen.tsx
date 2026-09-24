@@ -7,9 +7,10 @@ import {
   ScrollView,
   Image,
   ActivityIndicator,
+  AppState,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import * as Haptics from "expo-haptics";
+import { impact, notification, ImpactFeedbackStyle, NotificationFeedbackType } from "../services/haptics";
 import { useTranslation } from "react-i18next";
 import * as FileSystem from "expo-file-system/legacy";
 import { getDeviceTotalRamBytes } from "ram-monitor";
@@ -23,6 +24,7 @@ import {
 import { ModelManager } from "../models/ModelManager";
 import {
   startDownload,
+  restartDownload,
   getDownloadState,
   isDownloading,
   subscribeDownloads,
@@ -32,6 +34,7 @@ import { useTheme, colors, typography } from "./theme";
 import { ThemeSelector } from "./components/ThemeSelector";
 import { LanguageSelector } from "./components/LanguageSelector";
 import { spacing, radii } from "./theme/spacing";
+import { AccordionSection } from "./AccordionSection";
 
 const modelManager = new ModelManager();
 
@@ -130,7 +133,7 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
   const allAssetsPresent = tierAssets.every((m) => presence[m.id]);
 
   const handleStartDownloads = useCallback(async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    impact(ImpactFeedbackStyle.Medium);
     setStep(3);
     const presMap = await refreshPresence();
 
@@ -154,7 +157,7 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
           setIndexingPhase("building");
           await seedKnowledgeBaseIfEmpty();
           setIndexingPhase("ready");
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+          notification(NotificationFeedbackType.Success);
         } catch (e: any) {
           setIndexingError(e?.message ?? String(e));
           setIndexingPhase("error");
@@ -169,21 +172,84 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
   let activeSpeed = 0;
   let maxEta = 0;
   let isAnyDownloading = false;
+  let completedCount = 0;
+  let currentAssetLabel: string | null = null;
+  // Before this, a stalled/failed download just silently reverted to
+  // "PENDING" with no way to know why or to retry — the mandatory first-run
+  // wizard had no escape hatch at all (see docs/ADAPTIVE_ROUTING.md's
+  // timeout/backgrounding findings; downloads had the exact same gap
+  // generation timeouts did). failedAssets makes the error visible and
+  // retriable instead.
+  const failedAssets: { asset: CatalogModel; error: string }[] = [];
 
   for (const asset of tierAssets) {
     const dl = getDownloadState(asset.id);
     totalBytesExpected += asset.sizeBytes;
     if (presence[asset.id]) {
       totalBytesWritten += asset.sizeBytes;
+      completedCount++;
     } else if (dl) {
       totalBytesWritten += dl.bytesWritten ?? 0;
       if (dl.downloading) {
         isAnyDownloading = true;
+        // Assets download concurrently, but on a typical connection only
+        // one actually makes visible progress at a time — surfacing which
+        // one, plus a "2/3" count, is what stops a finished asset handing
+        // off to the next one from reading as the whole thing restarting.
+        if (!currentAssetLabel) currentAssetLabel = asset.label;
         if (dl.speedBytesPerSec) activeSpeed += dl.speedBytesPerSec;
         if (dl.etaSeconds && dl.etaSeconds > maxEta) maxEta = dl.etaSeconds;
+      } else if (dl.error) {
+        failedAssets.push({ asset, error: dl.error });
       }
     }
   }
+
+  const retryFailedDownloads = useCallback(() => {
+    impact(ImpactFeedbackStyle.Medium);
+    for (const { asset } of failedAssets) {
+      startDownload(asset).finally(() => refreshPresence());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [failedAssets, refreshPresence]);
+
+  // Manual, unconditional escape hatch — distinct from retryFailedDownloads,
+  // which only acts on assets that surfaced an explicit error. A download
+  // can also go stuck with NO error at all (module-level download-tracking
+  // state surviving a dev Fast Refresh mid-transfer while the actual native
+  // task it pointed at is gone, or a real device silently dropping a
+  // network task without a callback ever firing) — that state can't be
+  // reliably auto-detected from here, so instead of guessing, this button
+  // is just always available whenever setup isn't finished, and force-clears
+  // + restarts every not-yet-present asset regardless of what the UI
+  // currently believes its state is.
+  const restartAllDownloads = useCallback(() => {
+    impact(ImpactFeedbackStyle.Medium);
+    for (const asset of tierAssets) {
+      if (!presence[asset.id]) {
+        restartDownload(asset).finally(() => refreshPresence());
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tierAssets, presence, refreshPresence]);
+
+  // Auto-resume when the user returns to the app after backgrounding it —
+  // expo-file-system pauses (not fails) a download while backgrounded, and
+  // ModelManager.downloadCatalogModel's inactivity timeout also pauses
+  // rather than cancels, so a "failed" download at this point is really
+  // just parked, waiting for the same resumable to be resumed. Without
+  // this, the only way to keep the mandatory setup screen moving forward
+  // after swapping apps was to notice the error card and tap Retry
+  // manually.
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "active" && failedAssets.length > 0) {
+        retryFailedDownloads();
+      }
+    });
+    return () => sub.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [failedAssets, retryFailedDownloads]);
 
   const aggregateProgress =
     totalBytesExpected > 0 ? Math.min(totalBytesWritten / totalBytesExpected, 1) : 0;
@@ -266,7 +332,7 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
             <Pressable
               style={styles.primaryBtn}
               onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                impact(ImpactFeedbackStyle.Light);
                 setStep(2);
               }}
             >
@@ -291,7 +357,7 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
                 key={tier.id}
                 style={[styles.tierCard, isSelected && styles.tierCardActive]}
                 onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                  impact(ImpactFeedbackStyle.Light);
                   setSelectedTier(tier.id);
                 }}
               >
@@ -363,6 +429,16 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
               </Text>
             </View>
 
+            {!allAssetsPresent && tierAssets.length > 1 && (
+              <Text style={styles.progressAssetLabel}>
+                {t("setupWizard.step3.assetCounter", {
+                  current: Math.min(completedCount + 1, tierAssets.length),
+                  total: tierAssets.length,
+                  label: currentAssetLabel ?? "",
+                })}
+              </Text>
+            )}
+
             <View style={styles.progressTrack}>
               <View
                 style={[
@@ -389,6 +465,19 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
               )}
             </View>
           </View>
+
+          {!allAssetsPresent && (
+            <Pressable style={styles.restartAllBtn} onPress={restartAllDownloads}>
+              <Text style={styles.restartAllBtnText}>{t("setupWizard.step3.restartDownloads")}</Text>
+            </Pressable>
+          )}
+
+          {isAnyDownloading && (
+            <View style={styles.tipBox}>
+              <Text style={styles.tipLabel}>{t("setupWizard.step3.keepOpenLabel")}</Text>
+              <Text style={styles.tipText}>{t("setupWizard.step3.keepOpenText")}</Text>
+            </View>
+          )}
 
           {/* Pipeline Phases */}
           <View style={styles.phasesCard}>
@@ -428,19 +517,41 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
             />
           </View>
 
-          {/* Interactive Theme & Font Legibility Customization */}
-          <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <Text style={styles.cardIcon}>🎨</Text>
-              <Text style={styles.cardTitle}>{t("setupWizard.step3.interfaceCustomization")}</Text>
-            </View>
-            <ThemeSelector />
-          </View>
-
           {/* Off-Grid Terminal Tips */}
           <View style={styles.tipBox}>
             <Text style={styles.tipLabel}>{t("setupWizard.step3.tipLabel")}</Text>
             <Text style={styles.tipText}>{t("setupWizard.step3.tipText")}</Text>
+          </View>
+
+          {/* Download failure — without this, a stalled/failed download had
+              no visible error and no retry option anywhere in this mandatory
+              screen; the user was simply stuck. Placed above Interface
+              Customization (rather than at the very bottom, past a
+              collapsed accordion) so it's impossible to miss. */}
+          {failedAssets.length > 0 && (
+            <View style={styles.errorBox}>
+              <Text style={styles.errorLabel}>{t("setupWizard.step3.downloadFailedLabel")}</Text>
+              {failedAssets.map(({ asset, error }) => (
+                <Text key={asset.id} style={styles.errorText}>
+                  {asset.label}: {error}
+                </Text>
+              ))}
+              <Pressable style={styles.retryBtn} onPress={retryFailedDownloads}>
+                <Text style={styles.retryBtnText}>{t("setupWizard.step3.retryDownloads")}</Text>
+              </Pressable>
+            </View>
+          )}
+
+          {/* Interactive Theme & Font Legibility Customization — collapsible,
+              same AccordionSection as Settings, last section on this page
+              since it's cosmetic/optional, not part of getting set up. */}
+          <View style={styles.tipBox}>
+            <Text style={styles.customizeWhileWaitingText}>
+              {t("setupWizard.step3.customizeWhileWaiting")}
+            </Text>
+            <AccordionSection icon="🎨" title={t("setupWizard.step3.interfaceCustomization")}>
+              <ThemeSelector />
+            </AccordionSection>
           </View>
 
           {/* Ready Action */}
@@ -449,7 +560,7 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
               <Pressable
                 style={[styles.primaryBtn, styles.launchBtn]}
                 onPress={() => {
-                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+                  notification(NotificationFeedbackType.Success);
                   onReady();
                 }}
               >
@@ -858,6 +969,17 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     fontVariant: ["tabular-nums"],
   },
+  progressAssetLabel: {
+    ...typography.mono.xs,
+    color: colors.text.dim,
+  },
+  customizeWhileWaitingText: {
+    ...typography.ui.caption,
+    color: colors.text.secondary,
+    lineHeight: 18,
+    paddingHorizontal: spacing.xs,
+    paddingBottom: spacing.xs,
+  },
   progressTrack: {
     height: 10,
     backgroundColor: "rgba(0, 0, 0, 0.6)",
@@ -986,6 +1108,46 @@ const styles = StyleSheet.create({
     ...typography.ui.caption,
     color: colors.text.secondary,
     lineHeight: 18,
+  },
+  errorBox: {
+    backgroundColor: colors.crimson.bgSubtle,
+    borderColor: colors.crimson.border,
+    borderWidth: 1,
+    borderRadius: radii.md,
+    padding: spacing.sm,
+    gap: 6,
+  },
+  errorLabel: {
+    ...typography.mono.xs,
+    color: colors.crimson[400],
+    fontWeight: "700",
+  },
+  errorText: {
+    ...typography.ui.caption,
+    color: colors.text.secondary,
+    lineHeight: 18,
+  },
+  retryBtn: {
+    marginTop: 4,
+    backgroundColor: colors.crimson[600],
+    borderRadius: radii.sm,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  retryBtnText: {
+    ...typography.ui.titleSm,
+    color: "#FFFFFF",
+    fontWeight: "800",
+  },
+  restartAllBtn: {
+    alignSelf: "center",
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+  },
+  restartAllBtnText: {
+    ...typography.mono.xs,
+    color: colors.text.dim,
+    textDecorationLine: "underline",
   },
   actionsBottom: {
     marginTop: spacing.md,

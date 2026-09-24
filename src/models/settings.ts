@@ -1,6 +1,7 @@
 import * as FileSystem from "expo-file-system/legacy";
 import { AssetKind } from "./manifest";
 import { PersonalityId, DEFAULT_PERSONALITY_ID } from "../constants/personalities";
+import { ModelRole, RoutingPreset } from "../routing/types";
 
 export type ThemeId = "midnight" | "amber" | "frontier";
 export type FontScale = "compact" | "standard" | "large";
@@ -13,6 +14,7 @@ interface Settings {
   customSystemPrompt?: string;
   maxTokens?: number;
   hapticsEnabled?: boolean;
+  voiceInputEnabled?: boolean;
   autoSummarize?: boolean;
   historyTurnThreshold?: number;
   maxSavedSessions?: number;
@@ -21,6 +23,9 @@ interface Settings {
   themeId?: ThemeId;
   fontScale?: FontScale;
   languageId?: LanguageId;
+  routingPreset?: RoutingPreset;
+  modelRoleAssignments?: Partial<Record<ModelRole, string>>;
+  adaptiveRoutingEnabled?: boolean;
 }
 
 export interface MemorySettings {
@@ -129,6 +134,18 @@ export async function setHapticsEnabled(enabled: boolean): Promise<void> {
   await writeSettings(s);
 }
 
+/** Whether the chat shows the microphone button. */
+export async function getVoiceInputEnabled(): Promise<boolean> {
+  const s = await readSettings();
+  return s.voiceInputEnabled ?? true;
+}
+
+export async function setVoiceInputEnabled(enabled: boolean): Promise<void> {
+  const s = await readSettings();
+  s.voiceInputEnabled = enabled;
+  await writeSettings(s);
+}
+
 export async function getMemorySettings(): Promise<MemorySettings> {
   const s = await readSettings();
   return {
@@ -191,5 +208,72 @@ export async function getLanguageId(): Promise<LanguageId> {
 export async function setLanguageId(language: LanguageId): Promise<void> {
   const s = await readSettings();
   s.languageId = language;
+  await writeSettings(s);
+}
+
+/**
+ * Default preset when nothing's been explicitly set. `getRoutingPreset()`
+ * has exactly one caller right now (`src/services/adaptiveChat.ts`'s
+ * `runAdaptiveChat`, Phase 9) — it's read only when the separate
+ * `adaptiveRoutingEnabled` flag is on (the default), so this is the preset
+ * every user gets unless they turn adaptive routing off.
+ *
+ * Temporarily `"balanced"` (not `"simple"`) for real-device Phase 9
+ * testing: `"simple"` only ever declares a `general` role slot (see
+ * routing/profiles.ts's PRESET_DEFINITIONS), so with it, turning on
+ * Adaptive Routing alone — with no preset picker UI yet to change this —
+ * would never actually exercise any model switching, just silently
+ * resolve to the same single model every time. `"balanced"` is the
+ * smallest preset that unlocks the `fast` role, without inventing a new
+ * preset or touching the routing rules themselves (router.ts/classify.ts/
+ * profiles.ts are unchanged). Revert to `"simple"` (or replace with a real
+ * picker UI) once real-device testing no longer needs this.
+ */
+export async function getRoutingPreset(): Promise<RoutingPreset> {
+  const s = await readSettings();
+  return s.routingPreset ?? "balanced";
+}
+
+export async function setRoutingPreset(preset: RoutingPreset): Promise<void> {
+  const s = await readSettings();
+  s.routingPreset = preset;
+  await writeSettings(s);
+}
+
+export async function getModelRoleAssignments(): Promise<Partial<Record<ModelRole, string>>> {
+  const s = await readSettings();
+  return s.modelRoleAssignments ?? {};
+}
+
+export async function setModelRoleAssignment(role: ModelRole, modelId: string | undefined): Promise<void> {
+  const s = await readSettings();
+  const assignments = { ...(s.modelRoleAssignments ?? {}) };
+  if (modelId) {
+    assignments[role] = modelId;
+  } else {
+    delete assignments[role];
+  }
+  s.modelRoleAssignments = assignments;
+  await writeSettings(s);
+}
+
+/**
+ * Phase 9 (docs/ADAPTIVE_ROUTING.md) — wires planRoute()/executeRoutingPlan()
+ * into ordinary chat (Deep Research Mode is unaffected either way, see
+ * src/services/orchestrator.ts). Off by default: a real, reversible
+ * feature flag, not a default-on behavior change, until real-device
+ * testing passes. ChatScreen.tsx falls back to the existing fixed-active-
+ * model path whenever this is off OR whenever the adaptive path throws for
+ * any reason — a routing failure must never leave the user without a
+ * response.
+ */
+export async function getAdaptiveRoutingEnabled(): Promise<boolean> {
+  const s = await readSettings();
+  return s.adaptiveRoutingEnabled ?? true;
+}
+
+export async function setAdaptiveRoutingEnabled(enabled: boolean): Promise<void> {
+  const s = await readSettings();
+  s.adaptiveRoutingEnabled = enabled;
   await writeSettings(s);
 }

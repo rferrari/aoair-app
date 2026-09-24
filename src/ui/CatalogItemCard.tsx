@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ActivityIndicator, Alert } from "react-native";
-import * as Haptics from "expo-haptics";
+import { impact, ImpactFeedbackStyle } from "../services/haptics";
 import { useTranslation } from "react-i18next";
 import { CatalogModel } from "../models/manifest";
+import { computeCompatibility } from "../models/compatibility";
 import { getDeviceTotalRamBytes } from "ram-monitor";
 import { colors } from "./theme/colors";
 import { typography } from "./theme/typography";
@@ -31,16 +32,6 @@ function formatEta(seconds: number | undefined, calculating: string): string {
   return `${mins}m ${secs}s`;
 }
 
-type Compatibility = "green" | "yellow" | "red" | "unknown";
-
-function computeCompatibility(sizeBytes: number, deviceRamBytes: number): Compatibility {
-  if (deviceRamBytes <= 0) return "unknown";
-  const estimatedRamBytes = sizeBytes * 1.15;
-  if (estimatedRamBytes <= deviceRamBytes * 0.65) return "green";
-  if (estimatedRamBytes <= deviceRamBytes * 0.9) return "yellow";
-  return "red";
-}
-
 export interface CatalogRowState {
   present: boolean;
   downloading: boolean;
@@ -59,9 +50,13 @@ interface Props {
   onDownload: (item: CatalogModel) => void;
   onUse: (item: CatalogModel) => void;
   onRemove: (item: CatalogModel) => void;
+  /** This model is being loaded after "Use" was tapped. */
+  activating?: boolean;
+  /** Some model is being loaded: Use and delete are unavailable until it finishes. */
+  busy?: boolean;
 }
 
-export function CatalogItemCard({ item, row, isActive, onDownload, onUse, onRemove }: Props) {
+export function CatalogItemCard({ item, row, isActive, onDownload, onUse, onRemove, activating, busy }: Props) {
   const { t } = useTranslation();
   const isCorpus = item.kind === "corpus";
   const present = row?.present ?? false;
@@ -79,13 +74,23 @@ export function CatalogItemCard({ item, row, isActive, onDownload, onUse, onRemo
   const compatibility = item.kind === "llm" ? computeCompatibility(item.sizeBytes, deviceRam) : "unknown";
   const calculating = t("catalogItemCard.calculating");
 
+  // Models added from the Hugging Face browser can be dropped from the list even if never downloaded.
+  const fromHuggingFace = item.id.startsWith("hf-");
+  const listOnly = fromHuggingFace && !present;
+
   const confirmRemove = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    impact(ImpactFeedbackStyle.Medium);
     Alert.alert(
-      isCorpus ? t("catalogItemCard.removeCorpusTitle") : t("catalogItemCard.removeModelTitle"),
-      isCorpus
-        ? t("catalogItemCard.removeCorpusMessage", { size: formatMB(item.sizeBytes) })
-        : t("catalogItemCard.removeModelMessage", { size: formatMB(item.sizeBytes) }),
+      listOnly
+        ? t("catalogItemCard.removeFromListTitle")
+        : isCorpus
+          ? t("catalogItemCard.removeCorpusTitle")
+          : t("catalogItemCard.removeModelTitle"),
+      listOnly
+        ? t("catalogItemCard.removeFromListMessage")
+        : isCorpus
+          ? t("catalogItemCard.removeCorpusMessage", { size: formatMB(item.sizeBytes) })
+          : t("catalogItemCard.removeModelMessage", { size: formatMB(item.sizeBytes) }),
       [
         { text: t("common.cancel"), style: "cancel" },
         {
@@ -98,7 +103,7 @@ export function CatalogItemCard({ item, row, isActive, onDownload, onUse, onRemo
   };
 
   const handleAction = (cb: () => void) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    impact(ImpactFeedbackStyle.Light);
     cb();
   };
 
@@ -221,10 +226,18 @@ export function CatalogItemCard({ item, row, isActive, onDownload, onUse, onRemo
             </Pressable>
           )}
 
-          {present && !isCorpus && !isActive && (
+          {present && !isCorpus && !isActive && activating && (
+            <View style={styles.activeCheckRow}>
+              <ActivityIndicator size="small" color={colors.emerald[400]} />
+              <Text style={styles.activeNote}>{t("catalogItemCard.loadingModel")}</Text>
+            </View>
+          )}
+
+          {present && !isCorpus && !isActive && !activating && (
             <Pressable
-              style={styles.useBtn}
+              style={[styles.useBtn, busy && styles.disabled]}
               onPress={() => handleAction(() => onUse(item))}
+              disabled={busy}
             >
               <Text style={styles.useBtnText}>{t("catalogItemCard.selectUse")}</Text>
             </Pressable>
@@ -244,11 +257,12 @@ export function CatalogItemCard({ item, row, isActive, onDownload, onUse, onRemo
             </View>
           )}
 
-          {present && !item.required && (
+          {(present || fromHuggingFace) && !item.required && (
             <Pressable
               onPress={confirmRemove}
               hitSlop={8}
-              style={styles.trashBtn}
+              disabled={busy}
+              style={[styles.trashBtn, busy && styles.disabled]}
               accessibilityLabel={t("catalogItemCard.deleteAccessibility")}
             >
               <Text style={styles.trashIcon}>🗑️</Text>
@@ -513,6 +527,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.text.accentEmerald,
   },
+  disabled: { opacity: 0.4 },
   useBtn: {
     backgroundColor: colors.cyan.bgSubtle,
     borderColor: colors.cyan.border,

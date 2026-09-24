@@ -15,7 +15,7 @@
     "daysAgo": "há {{count}}d"
   },
   "drawer": {
-    "subtitle": "Melhor Pesquisador de IA Offline",
+    "subtitle": "Inteligência Local Adaptativa",
     "newChat": "Nova Sessão de Pesquisa",
     "recentSessions": "SESSÕES RECENTES"
   },
@@ -48,6 +48,8 @@
   },
   "catalogItemCard": {
     "calculating": "Calculando…",
+    "removeFromListTitle": "Remover da lista?",
+    "removeFromListMessage": "Este modelo não foi baixado. Ele será removido da sua lista; você pode adicioná-lo de novo pela busca do Hugging Face.",
     "removeCorpusTitle": "Remover pacote da base de conhecimento?",
     "removeModelTitle": "Remover pesos do modelo?",
     "removeCorpusMessage": "Isso exclui o conjunto de dados local e libera {{size}}. Os tópicos não estarão disponíveis offline até serem baixados novamente.",
@@ -68,6 +70,7 @@
     "eta": "Tempo restante: {{eta}}",
     "retryDownload": "🔄 Repetir Download",
     "downloadAsset": "📥 Baixar Recurso",
+    "loadingModel": "Carregando modelo…",
     "selectUse": "🔘 Selecionar e Usar",
     "indexedNote": "Indexado na base de conhecimento offline",
     "activeNote": "Modelo de inferência ativo",
@@ -111,7 +114,7 @@
     "live": "AO VIVO"
   },
   "systemMonitor": {
-    "title": "MEDIDORES DE CONFORMIDADE DA BOUNTY",
+    "title": "MEDIDORES DE CONFORMIDADE",
     "diskLabel": "Armazenamento em Disco (Limite: 50GB)",
     "ramLabel": "Memória RSS do Processo (Limite: 12GB)",
     "exceeded": "⚠️ EXCEDIDO",
@@ -125,10 +128,11 @@
   "modelSetupScreen": {
     "header": {
       "title": "CONFIGURAÇÕES",
-      "subtitle": "BOAR Assistente de Pesquisa Offline"
+      "subtitle": "BOAR — Inteligência Local Adaptativa"
     },
     "sections": {
-      "toneModels": "Tom & Modelos de Raciocínio",
+      "tone": "Tom do Assistente & Estilo de Resposta",
+      "models": "Modelos de Raciocínio",
       "knowledgeBase": "Base de Conhecimento Offline (RAG)",
       "memory": "Configurações de Memória e Contexto",
       "telemetry": "Telemetria de Hardware e Conformidade",
@@ -143,6 +147,7 @@
       "indexed": "\"{{name}}\" indexado na base de conhecimento offline",
       "removed": "\"{{name}}\" removido",
       "activeSet": "Modelo {{kind}} ativo definido como \"{{name}}\"",
+      "loadFailed": "Não foi possível carregar \"{{name}}\": {{error}}",
       "resetFailed": "Falha ao redefinir: {{error}}"
     },
     "recovery": {
@@ -179,7 +184,7 @@
       "verified": "Verificado",
       "availableStorage": "Armazenamento Disponível",
       "sufficient": "Suficiente",
-      "ramBudget": "Orçamento de RAM da Bounty",
+      "ramBudget": "Orçamento de RAM",
       "under12gb": "Abaixo do Limite de 12GB",
       "inferenceEngine": "Motor de Inferência",
       "inferenceEngineValue": "ARM64 llama.rn (Offline)",
@@ -191,26 +196,33 @@
       "subtitle": "Os pesos são baixados uma vez para o armazenamento local e executados via mmap.",
       "recommended": "RECOMENDADO",
       "runsGreat": "🟢 Funciona Muito Bem",
-      "ramFootprint": "RAM: ~2,5 GB em Uso",
+      "ramFootprint": "RAM: ~1,7 GB em Uso",
       "installButton": "Instalar Pesos & Indexar ➔",
       "backButton": "‹ Voltar ao Diagnóstico"
     },
     "step3": {
       "title": "INICIALIZAÇÃO DO NÚCLEO OFFLINE",
-      "subtitle": "Baixando pesos abertos e preenchendo a base de conhecimento SQLite local.",
+      "subtitle": "Baixando pesos abertos e preenchendo a base de conhecimento local.",
       "assetsCached": "RECURSOS ARMAZENADOS EM DISCO",
       "downloadingWeights": "BAIXANDO PESOS",
       "eta": "Tempo restante: {{eta}}",
-      "phaseModel": "Modelo de Raciocínio GGUF",
+      "phaseModel": "Modelos de Raciocínio",
       "phaseEmbedding": "Modelo de Embedding & Vetores",
       "phaseKnowledgeBase": "Base de Conhecimento Offline & FTS",
       "interfaceCustomization": "PERSONALIZAÇÃO DA INTERFACE",
+      "customizeWhileWaiting": "Enquanto espera, deixe do seu jeito — escolha um tema e fonte abaixo.",
       "tipLabel": "💡 AVISO DO TERMINAL DE CAMPO",
       "tipText": "Após a inicialização, o BOAR é completamente autônomo. Você pode ativar o modo avião e usar o app em total isolamento, sem perda de funcionalidade.",
       "launchButton": "🐗 Iniciar Terminal BOAR",
       "indexingError": "Erro de indexação: {{error}}",
-      "buildingIndex": "Construindo base de conhecimento SQLite local & índice vetorial…",
-      "waitingForDownloads": "Aguardando downloads…"
+      "buildingIndex": "Construindo base de conhecimento local & índice vetorial…",
+      "waitingForDownloads": "Aguardando downloads…",
+      "downloadFailedLabel": "Falha no download",
+      "retryDownloads": "Repetir Download",
+      "keepOpenLabel": "⚠ MANTENHA O BOAR ABERTO",
+      "keepOpenText": "Os downloads pausam automaticamente se você trocar de app e retomam de onde pararam quando você voltar — mas não avançam em segundo plano. Mantenha o BOAR em primeiro plano para a configuração inicial mais rápida.",
+      "assetCounter": "Modelo {{current}} de {{total}} — {{label}}",
+      "restartDownloads": "⟳ Download travado? Toque para reiniciar"
     },
     "phaseStatus": {
       "complete": "COMPLETO",
@@ -226,7 +238,9 @@
     "maxOutputTokens": "Máximo de tokens de saída",
     "maxOutputTokensNote": "Limita o tamanho de uma única resposta — quanto menor, mais rápido e mais econômico para a bateria do celular.",
     "deepResearchTitle": "Modo Pesquisa Profunda",
-    "deepResearchNote": "Divide sua pergunta em subperguntas, pesquisa cada uma separadamente e depois sintetiza uma resposta. Várias chamadas sequenciais ao mesmo modelo — visivelmente mais lento que uma resposta normal, não é o mesmo que múltiplos modelos de IA rodando ao mesmo tempo. Independente do estilo de resposta acima: isso muda o quanto de pesquisa entra na resposta, não o seu tom — os dois se combinam (ex.: Pesquisa Profunda + Sucinto ainda sintetiza uma resposta final curta)."
+    "deepResearchNote": "Divide sua pergunta em subperguntas, pesquisa cada uma separadamente e depois sintetiza uma resposta. Várias chamadas sequenciais ao mesmo modelo — visivelmente mais lento que uma resposta normal, não é o mesmo que múltiplos modelos de IA rodando ao mesmo tempo. Independente do estilo de resposta acima: isso muda o quanto de pesquisa entra na resposta, não o seu tom — os dois se combinam (ex.: Pesquisa Profunda + Sucinto ainda sintetiza uma resposta final curta).",
+    "adaptiveRoutingTitle": "Roteamento Adaptativo",
+    "adaptiveRoutingNote": "Classifica cada mensagem e escolhe qual modelo baixado responde a ela (ex.: um modelo leve para conversa casual, um mais forte para perguntas de pesquisa/comparação), alternando entre eles conforme necessário. Ativado por padrão e independente da Pesquisa Profunda — se falhar por qualquer motivo, o chat volta automaticamente ao seu modelo ativo normal, nunca deixando você sem resposta."
   },
   "corpusSettingsTab": {
     "downloadablePacks": "Pacotes de conhecimento para download",
@@ -268,14 +282,18 @@
     "clearAllChatHistory": "Limpar Todo o Histórico de Conversas"
   },
   "voiceSettings": {
-    "title": "Voz e preferências",
+    "title": "Entrada de Voz",
+    "enabledLabel": "Entrada por voz",
+    "enabledValue": "Mostra o botão de microfone no chat para ditar mensagens.",
     "speechEngineLabel": "Mecanismo de reconhecimento de voz",
     "checking": "Verificando…",
     "available": "Android SpeechRecognizer (offline)",
     "unavailable": "Indisponível neste dispositivo",
-    "unavailableNote": "Nenhum serviço de reconhecimento de voz do sistema foi encontrado — comum em builds GrapheneOS / sem Google. Um modelo whisper.cpp embarcado eliminaria essa dependência, mas é um projeto separado do porte da própria integração com o llama.rn; não implementado nesta versão.",
+    "unavailableNote": "Nenhum serviço de reconhecimento de voz do sistema foi encontrado — comum em builds GrapheneOS / sem Google. Um modelo whisper.cpp embarcado eliminaria essa dependência, mas é um projeto separado do porte da própria integração com o llama.rn; não implementado nesta versão."
+  },
+  "interfaceSettings": {
     "hapticFeedbackLabel": "Feedback tátil",
-    "hapticFeedbackValue": "Vibrar ao parar / finalizar resposta"
+    "hapticFeedbackValue": "Vibrar ao tocar, enviar e ao finalizar respostas — em todo o app, não só na entrada de voz."
   },
   "knowledgeBaseScreen": {
     "title": "MEUS DOCUMENTOS"
@@ -293,10 +311,19 @@
     "initializingCore": "Inicializando núcleo offline local…",
     "mountingWeights": "Carregando pesos GGUF locais…",
     "indexingKnowledgeBase": "Indexando base de conhecimento offline…",
+    "reasoningElapsed": "💭 Raciocinando… {{seconds}}s",
+    "reasoningUnfinished": "O raciocínio não terminou antes do fim da resposta (interrompido ou sem tokens). Toque em 💭 para ler.",
+    "showReasoning": "Mostrar raciocínio",
+    "hideReasoning": "Ocultar raciocínio",
+    "messageReused": "Mensagem copiada para a caixa de texto",
+    "stopping": "Parando… (terminando a etapa atual)",
+    "toneChanged": "Tom: {{tone}}",
+    "modelDownloadComplete": "✅ Download de \"{{label}}\" concluído",
     "drawerItems": {
       "prompts": "Ideias de Prompts",
       "myDocuments": "Meus Documentos",
       "settings": "Configurações",
+      "telemetry": "Telemetria de Execução",
       "about": "Sobre & Informações"
     },
     "inputPlaceholder": "Faça uma pergunta de pesquisa offline…",
@@ -308,19 +335,30 @@
       "synthesizing": "🔬 Sintetizando descobertas offline…"
     },
     "roleYou": "VOCÊ",
-    "roleAssistant": "🐗 BOAR PESQUISADOR",
+    "roleAssistant": "🐗 BOAR",
     "stoppedByUser": "Interrompido pelo usuário",
     "deepResearchBanner": "MISTURA DE AGENTES: DECOMPOR ➔ EMBEDDINGS LOCAIS ➔ SINTETIZAR",
-    "copyResponse": "Copiar resposta"
+    "copyResponse": "Copiar resposta",
+    "copied": "Copiado",
+    "rateUp": "Boa resposta",
+    "rateDown": "Resposta ruim",
+    "rateHelpful": "Útil",
+    "rateUnhelpful": "Não útil",
+    "stageTimedOut": "Uma etapa da pesquisa demorou demais e foi interrompida",
+    "interruptedByBackground": "Pausado — o app foi para segundo plano. Pergunte novamente para continuar."
   },
   "aboutScreen": {
     "title": "SOBRE O BOAR",
-    "heroSubtitle": "MELHOR PESQUISADOR DE IA OFFLINE",
-    "versionBadge": "v0.1.0 • BUILD DE PRODUÇÃO",
+    "heroSubtitle": "INTELIGÊNCIA LOCAL ADAPTATIVA",
+    "versionBadge": "v{{version}} • {{build}}",
+    "buildDevelopment": "BUILD DE DESENVOLVIMENTO",
+    "buildRelease": "BUILD DE RELEASE",
     "airGappedTitle": "IA SOBERANA E ISOLADA DA REDE",
-    "airGappedBody": "O BOAR é um assistente de pesquisa por IA totalmente offline e isolado da rede, desenvolvido para hardware móvel Android. Ele realiza inferência local de LLM via llama.rn / llama.cpp e busca híbrida local (SQLite FTS5 + embeddings no dispositivo) sem nenhuma dependência de nuvem.",
+    "airGappedBody": "O BOAR é um sistema de IA móvel offline-first que explora roteamento adaptativo de modelos, recuperação local e inferência sensível a recursos. Ele realiza inferência local de LLM via llama.rn / llama.cpp e busca híbrida local (SQLite FTS5 + embeddings no dispositivo) sem nenhuma dependência de nuvem.",
     "hardwareTitle": "ARQUITETURA DE HARDWARE E ORÇAMENTO",
     "hardwareBody": "Atende a restrições rígidas de uso em campo: a memória residente permanece limitada a 12GB de RAM usando pesos mapeados em memória (mmap), e o armazenamento total é auditado contra um limite de 50GB.",
+    "benchmarkTitle": "TESTE VOCÊ MESMO",
+    "benchmarkBody": "O BOAR mede cada resposta no seu próprio celular: tempo de carregamento do modelo, tempo até o primeiro token, tokens/s, pico de memória e quais fontes foram usadas. Rode a avaliação embutida em Telemetria de Execução → 🧪 Avaliar para comparar qualquer modelo instalado nas mesmas perguntas, ou comande pelo computador com npm run eval:device.",
     "repoTitle": "REPOSITÓRIO DE CÓDIGO ABERTO",
     "repoBody": "O código-fonte, os manifestos de modelos quantizados e os scripts de indexação offline estão disponíveis em:"
   },
@@ -357,5 +395,47 @@
       "label": "Personalizado",
       "description": "Escreva seu próprio prompt de sistema."
     }
+  },
+  "executionTelemetry": {
+    "title": "TELEMETRIA DE EXECUÇÃO",
+    "subtitle": "{{count}} execuções recentes",
+    "exportJson": "⬇ JSON",
+    "exportCsv": "⬇ CSV",
+    "clear": "🗑 Limpar",
+    "clearTitle": "Limpar telemetria de execução?",
+    "clearMessage": "Exclui todos os registros de execução salvos neste aparelho. Isso não pode ser desfeito.",
+    "clearConfirm": "Limpar",
+    "exportFailedTitle": "Falha na exportação",
+    "empty": "Nenhuma execução registrada ainda. Envie uma mensagem para registrar sua primeira execução.",
+    "noModel": "sem modelo",
+    "tokPerSec": "Velocidade",
+    "loadTime": "Carregamento",
+    "ttft": "TTFT",
+    "totalTime": "Total",
+    "memory": "Mem. Pico",
+    "tokens": "Tokens",
+    "runEvaluation": "🧪 Avaliar"
+  },
+  "evaluation": {
+    "title": "AVALIAÇÃO",
+    "subtitle": "Conjunto v{{version}} · {{count}} perguntas",
+    "configsTitle": "Configurações",
+    "adaptiveConfig": "Roteamento adaptativo (preset: {{preset}})",
+    "noModels": "Nenhum modelo de linguagem instalado.",
+    "summary": "{{queries}} perguntas × {{configs}} configurações = {{total}} respostas",
+    "keepScreenOn": "Mantenha a tela ligada e o app aberto durante a execução. Cada resposta também aparece no terminal do Metro como uma linha [EVAL].",
+    "chatBusy": "Aguarde a resposta atual do chat terminar antes de rodar uma avaliação.",
+    "run": "▶ Rodar",
+    "stop": "■ Parar",
+    "stopping": "Parando…",
+    "progress": "Config. {{config}}/{{configs}} · Pergunta {{query}}/{{queries}}",
+    "savedTo": "Salvo em {{path}}",
+    "stoppedEarly": "Interrompido — resultados parciais salvos.",
+    "exportJsonl": "⬇ JSONL",
+    "exportCsv": "⬇ CSV",
+    "exportFailedTitle": "Falha ao exportar",
+    "runFailedTitle": "Falha na avaliação",
+    "deviceRequest": "Iniciado por um computador conectado (pedido {{id}}).",
+    "noRetrieval": "sem recuperação"
   }
 }

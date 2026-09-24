@@ -8,13 +8,16 @@ import {
   ScrollView,
   Modal,
   ActivityIndicator,
+  Switch,
 } from "react-native";
-import * as Haptics from "expo-haptics";
+import { impact, notification, ImpactFeedbackStyle, NotificationFeedbackType, setHapticsEnabledCache } from "../services/haptics";
 import { useTranslation } from "react-i18next";
-import { MODEL_CATALOG, CatalogModel, AssetKind, CORPUS_CATALOG } from "../models/manifest";
+import { MODEL_CATALOG, CatalogModel, AssetKind, CORPUS_CATALOG, REQUIRED_MODELS } from "../models/manifest";
+import { llamaEngine } from "../inference/LlamaEngine";
 import { ModelManager } from "../models/ModelManager";
-import { getActiveModelId, setActiveModelId } from "../models/settings";
+import { getActiveModelId, setActiveModelId, getHapticsEnabled, setHapticsEnabled } from "../models/settings";
 import { seedKnowledgeBaseIfEmpty } from "../rag/seedCorpus";
+import { closePack } from "../rag/packs";
 import {
   startDownload,
   getDownloadState,
@@ -61,6 +64,7 @@ export function ModelSetupScreen(props: Props) {
   const [dangerModalVisible, setDangerModalVisible] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [, forceRender] = useState(0);
+  const [hapticsEnabled, setHapticsEnabledState] = useState(true);
 
   const refreshDiscovered = useCallback(async () => {
     const models = await listDiscoveredModels();
@@ -76,7 +80,9 @@ export function ModelSetupScreen(props: Props) {
 
   const refreshStatus = useCallback(async () => {
     const statuses = await modelManager.statusAll();
-    setPresence(Object.fromEntries(statuses.map((s) => [s.asset.id, s.present])));
+    // Merge, not replace: replacing drops discovered models' presence until
+    // refreshDiscovered() below restores it, flashing their Download button.
+    setPresence((prev) => ({ ...prev, ...Object.fromEntries(statuses.map((s) => [s.asset.id, s.present])) }));
     await refreshDiscovered();
 
     const next: Partial<Record<AssetKind, string>> = {};
@@ -92,6 +98,21 @@ export function ModelSetupScreen(props: Props) {
   useEffect(() => {
     refreshStatus();
   }, [refreshStatus]);
+
+  useEffect(() => {
+    getHapticsEnabled().then(setHapticsEnabledState);
+  }, []);
+
+  const toggleHaptics = useCallback(async (value: boolean) => {
+    setHapticsEnabledState(value);
+    // Cache update happens immediately, not just after the persisted
+    // write resolves — a haptic tap could otherwise fire once more (or
+    // not fire) between flipping the switch and setHapticsEnabled()
+    // finishing, since src/services/haptics.ts reads from an in-memory
+    // cache, not settings.ts, on every tap.
+    setHapticsEnabledCache(value);
+    await setHapticsEnabled(value);
+  }, []);
 
   const getRow = useCallback(
     (item: CatalogModel): CatalogRowState => {
@@ -112,7 +133,7 @@ export function ModelSetupScreen(props: Props) {
 
   const download = useCallback(
     async (model: CatalogModel) => {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+      impact(ImpactFeedbackStyle.Medium);
       await startDownload(model);
       await refreshStatus();
 
@@ -126,6 +147,7 @@ export function ModelSetupScreen(props: Props) {
 
   const remove = useCallback(
     async (model: CatalogModel) => {
+      if (model.format === "sqlite-pack") await closePack(model.id);
       await modelManager.deleteModel(model);
       if (model.id.startsWith("hf-")) {
         await removeDiscoveredModel(model.id);
@@ -136,14 +158,38 @@ export function ModelSetupScreen(props: Props) {
     [refreshStatus, t]
   );
 
+  // Id of the LLM being loaded after "Use"; blocks other Use/delete/Done until it's ready.
+  const [activatingId, setActivatingId] = useState<string | null>(null);
+
   const useModel = useCallback(
     async (model: CatalogModel) => {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-      await setActiveModelId(model.kind, model.id);
-      await refreshStatus();
-      setToast(t("modelSetupScreen.toasts.activeSet", { kind: model.kind, name: model.label }));
+      if (activatingId) return;
+      impact(ImpactFeedbackStyle.Light);
+      if (model.kind !== "llm") {
+        await setActiveModelId(model.kind, model.id);
+        await refreshStatus();
+        setToast(t("modelSetupScreen.toasts.activeSet", { kind: model.kind, name: model.label }));
+        return;
+      }
+      // Load it here, so the chat is ready on return and a failure shows
+      // next to the model that caused it.
+      const previousId =
+        (await getActiveModelId("llm")) ?? REQUIRED_MODELS.find((m) => m.kind === "llm")!.id;
+      setActivatingId(model.id);
+      await setActiveModelId("llm", model.id);
+      try {
+        await llamaEngine.load(model.filename);
+        setToast(t("modelSetupScreen.toasts.activeSet", { kind: model.kind, name: model.label }));
+      } catch (e: any) {
+        // Keep the previous model active; the chat reloads it on return.
+        await setActiveModelId("llm", previousId);
+        setToast(t("modelSetupScreen.toasts.loadFailed", { name: model.label, error: e?.message ?? String(e) }));
+      } finally {
+        setActivatingId(null);
+        await refreshStatus();
+      }
     },
-    [refreshStatus, t]
+    [activatingId, refreshStatus, t]
   );
 
   const onRelaunchWizard = !requiredMode
@@ -151,7 +197,7 @@ export function ModelSetupScreen(props: Props) {
     : undefined;
 
   const handleExecuteReset = async () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+    notification(NotificationFeedbackType.Warning);
     setResetting(true);
     try {
       await resetAllAppData();
@@ -181,8 +227,9 @@ export function ModelSetupScreen(props: Props) {
           </View>
         </View>
         <Pressable
-          style={styles.closeBtn}
+          style={[styles.closeBtn, activatingId !== null && { opacity: 0.4 }]}
           onPress={(props as { onClose: () => void }).onClose}
+          disabled={activatingId !== null}
           hitSlop={8}
         >
           <Text style={styles.closeBtnText}>{t("common.done")}</Text>
@@ -190,13 +237,17 @@ export function ModelSetupScreen(props: Props) {
       </View>
 
       <ScrollView contentContainerStyle={styles.accordionScroll}>
-        <AccordionSection icon="🤖" title={t("modelSetupScreen.sections.toneModels")} defaultOpen>
+        <AccordionSection icon="🎭" title={t("modelSetupScreen.sections.tone")}>
           <PersonalitySettings />
+        </AccordionSection>
+
+        <AccordionSection icon="🤖" title={t("modelSetupScreen.sections.models")}>
           <Text style={styles.sectionHeading}>{t("modelSetupScreen.installedModels")}</Text>
           <FlatList
             data={[
               ...MODEL_CATALOG.filter((m) => m.kind === "llm" || m.kind === "embedding"),
-              ...discoveredModels,
+              // A search result for a file that's now in the curated catalog would be listed twice.
+              ...discoveredModels.filter((d) => !MODEL_CATALOG.some((c) => c.filename === d.filename)),
             ]}
             keyExtractor={(m) => m.id}
             scrollEnabled={false}
@@ -209,6 +260,8 @@ export function ModelSetupScreen(props: Props) {
                 onDownload={download}
                 onUse={useModel}
                 onRemove={remove}
+                activating={activatingId === item.id}
+                busy={activatingId !== null}
               />
             )}
           />
@@ -239,6 +292,17 @@ export function ModelSetupScreen(props: Props) {
         <AccordionSection icon="🎨" title={t("modelSetupScreen.sections.displayTheme")}>
           <View style={styles.themeSectionWrapper}>
             <ThemeSelector />
+          </View>
+          <View style={styles.hapticRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.hapticRowLabel}>{t("interfaceSettings.hapticFeedbackLabel")}</Text>
+              <Text style={styles.hapticRowValue}>{t("interfaceSettings.hapticFeedbackValue")}</Text>
+            </View>
+            <Switch
+              value={hapticsEnabled}
+              onValueChange={toggleHaptics}
+              trackColor={{ false: "#333", true: "#3a7a4a" }}
+            />
           </View>
         </AccordionSection>
 
@@ -282,7 +346,7 @@ export function ModelSetupScreen(props: Props) {
               <Pressable
                 style={styles.dangerActionBtn}
                 onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {});
+                  impact(ImpactFeedbackStyle.Heavy);
                   setDangerModalVisible(true);
                 }}
               >
@@ -421,6 +485,26 @@ const styles = StyleSheet.create({
   themeSectionWrapper: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
+  },
+  hapticRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border.subtle,
+  },
+  hapticRowLabel: {
+    ...typography.ui.subtext,
+    color: colors.text.heading,
+    fontWeight: "700",
+  },
+  hapticRowValue: {
+    ...typography.mono.xs,
+    fontSize: 10,
+    color: colors.text.dim,
+    marginTop: 2,
   },
   recoveryContainer: {
     padding: spacing.md,

@@ -4,7 +4,7 @@ This file documents every offline asset the app ships with or depends on, per th
 bounty's "clearly document the models, datasets, indexes, and other resources used"
 requirement.
 
-## Primary generation model — chosen
+## Phi-3.5-mini — optional (the default until 2026-09-24)
 
 **[Phi-3.5-mini-instruct](https://huggingface.co/microsoft/Phi-3.5-mini-instruct)**
 (Microsoft, **MIT license**), quantized GGUF from
@@ -75,18 +75,37 @@ to match. Worth revisiting (e.g. a multilingual embedding model matched to the
 device's locale, paired with a multilingual LLM candidate and corpus) as future
 work, not in this version.
 
+## Default generation model: Qwen2.5-1.5B (required, downloaded at first-run setup)
+
+**[Qwen2.5-1.5B-Instruct](https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct)**
+(Alibaba, **Apache-2.0 license**), quantized GGUF from
+**[bartowski/Qwen2.5-1.5B-Instruct-GGUF](https://huggingface.co/bartowski/Qwen2.5-1.5B-Instruct-GGUF)**,
+file `Qwen2.5-1.5B-Instruct-Q4_K_M.gguf` (~0.92GB, sha256 in `src/models/manifest.ts`).
+
+Downloaded alongside Phi-3.5-mini and the embedding model during mandatory
+first-run setup — `required: true`, same as the other two — rather than left
+as an optional Settings-screen download. This is deliberate: the adaptive
+routing work (`src/routing/`, see `docs/ADAPTIVE_ROUTING.md`) needs at least
+two real, actually-different-sized models to route between (a `fast` role and
+a `general`/`reasoning` role) from the moment the app is usable, not only
+after a user manually fetches a second model later. Curated as `fast` in
+`ModelCapabilities` (`src/models/manifest.ts`) — smallest/quickest of the
+three catalog LLMs.
+
 ## Optional LLM catalog (choose your model)
 
-Beyond the required default, the in-app Settings screen offers additional
-Apache-2.0-licensed LLM candidates a user can download and switch to:
+Beyond the required default, Settings offers these models, each tested on a real
+phone (Xiaomi 2311DRK48G, Dimensity 8300, 11.6 GB RAM; see
+[DEVICE_EVALUATION.md](DEVICE_EVALUATION.md)):
 
-| Candidate | Params | Quant | Approx. size | Notes |
-|---|---|---|---|---|
-| Qwen2.5-1.5B-Instruct | 1.5B | Q4_K_M | ~0.92GB | Faster/lighter alternative |
-| Qwen2.5-7B-Instruct | 7B | Q4_K_M | ~4.36GB | Stronger reasoning, more RAM/storage, slower tokens/sec |
+| Candidate | Params | Quant | Size | License | Measured on the phone |
+|---|---|---|---|---|---|
+| Phi-3.5-mini-instruct | 3.8B dense | Q4_K_M | 2.39GB | MIT | ~4 tok/s; most complete comparisons and syntheses |
+| Qwen2.5-7B-Instruct | 7B dense | Q4_K_M | 4.68GB | Apache-2.0 | ~2.7 tok/s; accurate, often too slow for the 120s step limit |
+| LFM2.5-8B-A1B | 8B MoE, ~1.5B active | Q4_K_M | 5.16GB | LFM Open License v1.0 | ~15 tok/s; best reasoning, but it thinks first and needs a larger answer budget |
+| Gemma 4 E4B | ~4B effective | QAT Q4_0 | 5.15GB | Apache-2.0 | loads and answers; not benchmarked yet |
 
-Both from `bartowski`'s GGUF quantizations, sha256-verified the same way as the
-default models (see `src/models/manifest.ts`). Switching models re-loads the
+Sizes and SHA-256 checksums are in `src/models/manifest.ts`. Switching models re-loads the
 inference engine (`LlamaEngine`/`EmbeddingEngine` now release their previous
 context before loading a new one, avoiding a native memory leak on switch).
 
@@ -193,11 +212,22 @@ not attempted in this version. Typing always works everywhere regardless.
 
 ## Delivery: one-time first-run download
 
-Both default models are declared with `required: true` in `src/models/manifest.ts`.
-The app itself ships small (no multi-GB assets baked in, for fast builds/installs);
+The two required assets (Qwen2.5-1.5B and the embedding model) are declared with
+`required: true` in `src/models/manifest.ts` (about 1 GB total). Phi-3.5-mini,
+Qwen2.5-7B, LFM2.5-8B-A1B and Gemma 4 E4B are optional suggestions in the same
+catalog. The
+app itself ships small (no multi-GB assets baked in, for fast builds/installs);
 on first launch it shows a mandatory setup screen that downloads them — see
 `ARCHITECTURE.md` "First-run model setup". Once done, the app works completely
 offline from then on, matching "work completely offline once installed."
+
+Each download has a 60-second *inactivity* timeout (`ModelManager.
+downloadCatalogModel`, not a flat deadline — a slow-but-progressing download
+isn't penalized, only zero progress for 60s is treated as stalled) and, in the
+setup wizard, a visible error + Retry button per failed asset. Before this, a
+stalled download (e.g. a host rate-limiting the connection) just sat at 0%
+forever with no error and no way to retry — the mandatory first-run screen had
+no escape hatch at all.
 
 The same screen, reached later via the chat UI's "Models" button, additionally
 lets a user fetch **optional, non-default** models over the network — only when
@@ -210,6 +240,39 @@ An alternate build path (`modules/bundled-assets` + `plugins/withBundledModels.j
 verified working but not used by default) can bake the default models directly
 into the APK instead, for a build that needs zero network ever — see
 `ARCHITECTURE.md`.
+
+### Pre-seeding models you already have locally
+
+Two different situations, two different mechanisms:
+
+- **Building your own APK** and you already have the GGUF files on your dev
+  machine: drop them into `assets/models/` with the exact filenames
+  `scripts/setup-models.sh` expects (`primary-llm.gguf`,
+  `qwen2.5-1.5b-instruct-q4km.gguf`, `embedding.gguf`) before running the
+  script — it sha256-verifies whatever's already there and skips
+  re-downloading anything that already matches, before `expo prebuild`
+  bundles them into the APK (see previous paragraph). Does nothing for an
+  app already installed on a device.
+- **An already-installed dev-client build**, skipping the in-app download
+  entirely: push the files straight into the app's private storage with
+  `adb`. The app's storage isn't directly writable by `adb push`, so stage
+  on `/sdcard` first and use `run-as` (only works on a **debuggable**
+  build, e.g. `expo-dev-client` — a signed release build will refuse this):
+
+  ```bash
+  adb push primary-llm.gguf /sdcard/Download/
+  adb shell run-as team.sopa.aoair mkdir -p files/models
+  adb shell run-as team.sopa.aoair cp /sdcard/Download/primary-llm.gguf files/models/primary-llm.gguf
+  ```
+
+  Repeat per asset. Two things must match exactly or `ModelManager.statusOf`
+  treats the file as corrupt/absent and deletes it: the **filename**
+  (`models/<name>.gguf`, per `src/models/manifest.ts`'s `filename` field)
+  and the **byte size** (`sizeBytes` in the same file — this is the only
+  check the app makes at runtime; sha256 is only checked on demand, nothing
+  calls it automatically). Worth confirming with `ls -la` against the
+  manifest before pushing, since a re-uploaded or differently-quantized
+  file from Hugging Face can silently differ in size.
 
 ## Verification
 

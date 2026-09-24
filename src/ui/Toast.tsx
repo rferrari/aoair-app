@@ -26,8 +26,11 @@ export function Toast({ message, onHide }: { message: string | null; onHide: () 
 const styles = StyleSheet.create({
   container: {
     position: "absolute",
-    bottom: 24,
+    // Just below the screen headers (the chat header is the taller one).
+    top: 96,
     alignSelf: "center",
+    zIndex: 10,
+    elevation: 10,
     backgroundColor: "rgba(20,20,30,0.95)",
     borderRadius: 20,
     paddingHorizontal: 16,

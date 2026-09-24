@@ -2,12 +2,39 @@ import * as FileSystem from "expo-file-system/legacy";
 import { initLlama, LlamaContext } from "llama.rn";
 import { getDeviceTotalRamBytes, getMemoryInfo } from "ram-monitor";
 
+export interface ChatMessageInput {
+  role: string;
+  content: string;
+}
+
 export interface GenerateOptions {
-  prompt: string;
+  /** Legacy hand-built prompt string (assemblePrompt, src/rag/pure.ts). Exactly one of `prompt`/`messages` must be given. */
+  prompt?: string;
+  /**
+   * Role-separated messages (assembleChatMessages, src/rag/pure.ts) for a
+   * model that needs its own real chat/instruction template — passed
+   * straight through to llama.rn's completion() with jinja enabled, which
+   * applies the loaded GGUF's own embedded chat_template rather than any
+   * template string this app would have to guess/hardcode. Only used for
+   * models explicitly flagged `ModelCapabilities.usesChatTemplate`
+   * (src/routing/types.ts) — everyone else keeps using `prompt`, unchanged.
+   */
+  messages?: ChatMessageInput[];
   nPredict?: number;
   temperature?: number;
   onToken?: (piece: string) => void;
   stop?: string[];
+  /**
+   * Safety-net budget, not a performance target — no per-generation timeout
+   * existed anywhere in the app before this (see docs/ADAPTIVE_ROUTING.md
+   * §14). Left unset for regular single-pass chat (already indirectly
+   * bounded by nPredict); set for orchestrator.ts's multi-stage Deep
+   * Research calls, where a stuck stage would otherwise compound silently
+   * across several sequential model calls with no ceiling at all.
+   */
+  timeoutMs?: number;
+  /** Called once, right before the timeout triggers stop() — lets the caller distinguish a timeout from a natural finish or a user-initiated stop. */
+  onTimeout?: () => void;
 }
 
 /**
@@ -48,8 +75,27 @@ const MODEL_RAM_OVERHEAD_FACTOR = 1.15;
 export class LlamaEngine {
   private context: LlamaContext | null = null;
   private modelInfo: LoadedModelInfo | null = null;
+  // load()/unload() run one at a time. Concurrent loads (e.g. switching
+  // models and closing Settings quickly) used to both release, both create a
+  // context, and the one overwritten in this.context was never released,
+  // leaking a whole model's memory.
+  private queue: Promise<void> = Promise.resolve();
+  // The completion currently running, if any. Releasing a context while it
+  // runs leaves its promise unsettled forever (the chat stays "generating"),
+  // so unload stops it and waits for it first.
+  private inFlight: Promise<unknown> | null = null;
 
-  async load(modelFilename: string, opts?: { nCtx?: number; nThreads?: number }) {
+  private enqueue(task: () => Promise<void>): Promise<void> {
+    const run = this.queue.then(task);
+    this.queue = run.catch(() => {});
+    return run;
+  }
+
+  load(modelFilename: string, opts?: { nCtx?: number; nThreads?: number }): Promise<void> {
+    return this.enqueue(() => this.loadNow(modelFilename, opts));
+  }
+
+  private async loadNow(modelFilename: string, opts?: { nCtx?: number; nThreads?: number }) {
     const nCtx = opts?.nCtx ?? 4096;
     const nThreads = opts?.nThreads ?? 4;
 
@@ -77,7 +123,7 @@ export class LlamaEngine {
 
     // Release any previously loaded model first (e.g. actually switching
     // models from Settings) so we don't leak the old context's native memory.
-    await this.unload();
+    await this.unloadNow();
 
     // Pre-flight check: a clear "this probably won't fit" message beats a
     // cryptic native failure or an outright OOM crash. Best-effort — if the
@@ -140,10 +186,21 @@ export class LlamaEngine {
     };
   }
 
-  async unload() {
-    await this.context?.release();
+  unload(): Promise<void> {
+    return this.enqueue(() => this.unloadNow());
+  }
+
+  private async unloadNow() {
+    // Stop takes effect between tokens, so a completion still processing its
+    // prompt can run on for a while; wait for it rather than release under it.
+    if (this.inFlight) {
+      await this.context?.stopCompletion().catch(() => {});
+      await this.inFlight.catch(() => {});
+    }
+    const context = this.context;
     this.context = null;
     this.modelInfo = null;
+    await context?.release();
   }
 
   getModelInfo(): LoadedModelInfo | null {
@@ -154,23 +211,63 @@ export class LlamaEngine {
     return this.context !== null;
   }
 
-  async generate({ prompt, nPredict = 512, temperature = 0.7, onToken, stop }: GenerateOptions): Promise<string> {
+  /**
+   * Whether the loaded GGUF ships its own chat template (tokenizer.chat_template
+   * metadata) that llama.cpp can parse as Jinja — i.e. whether generate({ messages })
+   * will be formatted in the model's own instruction format.
+   */
+  hasEmbeddedChatTemplate(): boolean {
+    return this.context?.isJinjaSupported() ?? false;
+  }
+
+  async generate({
+    prompt,
+    messages,
+    nPredict = 512,
+    temperature = 0.7,
+    onToken,
+    stop,
+    timeoutMs,
+    onTimeout,
+  }: GenerateOptions): Promise<string> {
     if (!this.context) throw new Error("LlamaEngine: model not loaded");
+    if (!prompt && !messages) {
+      throw new Error("LlamaEngine.generate: either prompt or messages must be provided");
+    }
+
+    const timer = timeoutMs
+      ? setTimeout(() => {
+          onTimeout?.();
+          this.context?.stopCompletion();
+        }, timeoutMs)
+      : null;
+
+    // messages+jinja lets llama.cpp apply the loaded GGUF's own embedded
+    // chat_template — DEFAULT_STOP_SEQUENCES exist specifically because
+    // this app's hand-built "Question:/Answer:" prompt shape gives the
+    // model no other signal for where a turn ends (see that constant's own
+    // doc comment); a real chat template already has its own proper
+    // end-of-turn token the model was fine-tuned to emit, so forcing our
+    // unrelated string-based stops on top of it would be either inert or
+    // could truncate genuine content that happens to contain "User:"/
+    // "Question:". Only applied when the caller passes explicit `stop`.
+    const completionParams = messages
+      ? { messages, jinja: true, n_predict: nPredict, temperature, stop: stop ?? [] }
+      : { prompt: prompt!, n_predict: nPredict, temperature, stop: stop ?? DEFAULT_STOP_SEQUENCES };
 
     let full = "";
-    const { text } = await this.context.completion(
-      {
-        prompt,
-        n_predict: nPredict,
-        temperature,
-        stop: stop ?? DEFAULT_STOP_SEQUENCES,
-      },
-      (data) => {
-        full += data.token;
-        onToken?.(data.token);
-      }
-    );
-    return text ?? full;
+    const completion = this.context.completion(completionParams, (data) => {
+      full += data.token;
+      onToken?.(data.token);
+    });
+    this.inFlight = completion;
+    try {
+      const { text } = await completion;
+      return text ?? full;
+    } finally {
+      if (this.inFlight === completion) this.inFlight = null;
+      if (timer) clearTimeout(timer);
+    }
   }
 
   /**

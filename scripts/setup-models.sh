@@ -44,6 +44,11 @@ download_and_verify \
   "e4165e3a71af97f1b4820da61079826d8752a2088e313af0c7d346796c38eff5"
 
 download_and_verify \
+  "https://huggingface.co/bartowski/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf" \
+  "assets/models/qwen2.5-1.5b-instruct-q4km.gguf" \
+  "1adf0b11065d8ad2e8123ea110d1ec956dab4ab038eab665614adba04b6c3370"
+
+download_and_verify \
   "https://huggingface.co/CompendiumLabs/bge-small-en-v1.5-gguf/resolve/main/bge-small-en-v1.5-q8_0.gguf" \
   "assets/models/embedding.gguf" \
   "ec38e8da142596baa913124ae50550de284b6916bf59577ef2f0cb9660c2f514"

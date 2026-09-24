@@ -21,9 +21,12 @@ describe("totalManifestBytes", () => {
 });
 
 describe("REQUIRED_MODELS", () => {
-  it("includes exactly one llm and one embedding model", () => {
-    expect(REQUIRED_MODELS.filter((m) => m.kind === "llm")).toHaveLength(1);
+  it("is one small llm (Qwen2.5-1.5B) and one embedding model, so first-run setup is ~1GB", () => {
+    // One required LLM keeps the first download short; adaptive routing falls
+    // back to it for every role until the user adds more models.
+    expect(REQUIRED_MODELS.filter((m) => m.kind === "llm").map((m) => m.id)).toEqual(["qwen2.5-1.5b-instruct-q4km"]);
     expect(REQUIRED_MODELS.filter((m) => m.kind === "embedding")).toHaveLength(1);
+    expect(REQUIRED_MODELS.reduce((sum, m) => sum + m.sizeBytes, 0)).toBeLessThan(1.1 * 1024 ** 3);
   });
 
   it("every required model has a non-empty checksum and filename", () => {
@@ -62,9 +65,10 @@ describe("TIERS", () => {
     }
   });
 
-  it("higher tiers are supersets of lower tiers' corpus packs (minimum -> standard -> full)", () => {
+  it("higher tiers are supersets of lower tiers' corpus packs (minimum -> standard -> full -> encyclopedia)", () => {
     const byId = Object.fromEntries(TIERS.map((t) => [t.id, new Set(t.corpusPackIds)]));
     for (const id of byId.minimum) expect(byId.standard.has(id)).toBe(true);
     for (const id of byId.standard) expect(byId.full.has(id)).toBe(true);
+    for (const id of byId.full) expect(byId.encyclopedia.has(id)).toBe(true);
   });
 });

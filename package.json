@@ -1,12 +1,13 @@
 {
   "name": "boar-app",
   "version": "0.1.0",
-  "description": "BOAR - Best Offline AI Researcher: offline AI research assistant for Android (local LLM inference + local RAG, no network required after install)",
+  "description": "BOAR - Adaptive Local Intelligence: an offline-first mobile AI system for Android exploring adaptive model routing, local retrieval, and resource-aware inference (local LLM inference + local RAG, no network required after install)",
   "license": "MIT",
   "main": "index.ts",
   "dependencies": {
     "adb": "^0.2.0",
     "bundled-assets": "file:./modules/bundled-assets",
+    "download-wake-lock": "file:./modules/download-wake-lock",
     "expo": "~57.0.24",
     "expo-clipboard": "~57.0.2",
     "expo-crypto": "~57.0.3",
@@ -30,6 +31,7 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
+    "node-llama-cpp": "^3.21.1",
     "typescript": "~6.0.3",
     "vitest": "^5.0.1"
   },
@@ -39,7 +41,11 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "eval:device": "node scripts/eval-device.mjs",
+    "eval:summary": "node scripts/eval-summary.mjs",
+    "pack:build": "node scripts/build-knowledge-pack.mjs",
+    "pack:push": "node scripts/push-knowledge-pack.mjs"
   },
   "private": true
 }

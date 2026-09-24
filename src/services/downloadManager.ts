@@ -1,5 +1,6 @@
 import { ModelManager, DownloadProgress } from "../models/ModelManager";
 import { CatalogModel } from "../models/manifest";
+import { holdWakeLockForDownload } from "./downloadWakeLock";
 
 /**
  * Module-level (not component-local) download state, so it survives the
@@ -54,6 +55,18 @@ export function isDownloading(assetId: string): boolean {
 }
 
 /**
+ * All currently-tracked download states, keyed by asset id. Used by
+ * screens that don't already know the specific set of asset ids to watch —
+ * e.g. ChatScreen surfacing a "download complete" toast for whatever
+ * optional model the user started downloading from the Models screen,
+ * without needing its own copy of the full catalog+discovered-models list
+ * just to enumerate what to check.
+ */
+export function listDownloadStates(): Array<{ assetId: string; state: DownloadState }> {
+  return Array.from(state.entries()).map(([assetId, s]) => ({ assetId, state: s }));
+}
+
+/**
  * Forgets all tracked download state without cancelling any in-flight
  * FileSystem transfer (there's no cancel handle stored here to call) — used
  * by appReset.ts right before deleting the model files those transfers
@@ -65,6 +78,39 @@ export function resetDownloadState(): void {
   inFlight.clear();
   downloadTimestamps.clear();
   notify();
+}
+
+/**
+ * Force-restarts a download that's stuck with no error surfaced at all —
+ * no progress, no failure, just inert. This can happen with no real device
+ * problem: `inFlight`/`state` are module-level singletons, so a dev Fast
+ * Refresh mid-download can leave a stale in-flight entry pointing at a
+ * promise nothing will ever resolve, which `startDownload`'s "already
+ * running" guard then treats as legitimately in progress forever. Unlike
+ * `startDownload`, this doesn't check that guard — it clears the tracked
+ * state unconditionally and cancels+deletes whatever ModelManager was
+ * actually holding, then starts clean.
+ *
+ * Ordering matters: signal cancel, then AWAIT the stale in-flight promise's
+ * settlement, and only then delete the file and start over. Deleting the
+ * file right after signalling cancel (without waiting) races the old
+ * download's writer, which doesn't stop touching the file the instant
+ * pauseAsync() resolves — if it closes its stream after the new download
+ * already finished, it silently truncates the file back down, and a fully-
+ * downloaded model comes back verified as 0 bytes.
+ */
+export async function restartDownload(asset: CatalogModel): Promise<void> {
+  const stale = inFlight.get(asset.id);
+  await modelManager.signalCancelDownload(asset);
+  if (stale) {
+    await stale.catch(() => {});
+  }
+  await modelManager.deletePartialDownload(asset);
+  inFlight.delete(asset.id);
+  state.delete(asset.id);
+  downloadTimestamps.delete(asset.id);
+  notify();
+  await startDownload(asset);
 }
 
 /** Starts a download if one isn't already running for this asset; otherwise no-ops. */
@@ -86,6 +132,7 @@ export function startDownload(asset: CatalogModel): Promise<void> {
   });
   notify();
 
+  const releaseWakeLock = holdWakeLockForDownload(asset.id);
   const promise = modelManager
     .downloadCatalogModel(asset, (p: DownloadProgress) => {
       const progress = p.totalBytesExpectedToWrite > 0 ? p.totalBytesWritten / p.totalBytesExpectedToWrite : 0;
@@ -144,6 +191,7 @@ export function startDownload(asset: CatalogModel): Promise<void> {
       downloadTimestamps.delete(asset.id);
     })
     .finally(() => {
+      releaseWakeLock();
       inFlight.delete(asset.id);
       notify();
     });

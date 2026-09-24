@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, Pressable } from "react-native";
-import * as Haptics from "expo-haptics";
+import { impact, ImpactFeedbackStyle } from "../../services/haptics";
 import { useTranslation } from "react-i18next";
 import { RetrievedChunk } from "../../rag/retrieve";
 import { colors } from "../theme/colors";
@@ -18,7 +18,7 @@ export function SourceFootnotes({ citations }: Props) {
   if (!citations || citations.length === 0) return null;
 
   const toggle = (idx: number) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    impact(ImpactFeedbackStyle.Light);
     setExpandedIndex(expandedIndex === idx ? null : idx);
   };
 

@@ -1,15 +1,16 @@
 import React from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, Image } from "react-native";
-import * as Haptics from "expo-haptics";
+import { impact, ImpactFeedbackStyle } from "../services/haptics";
 import { useTranslation } from "react-i18next";
 import { colors } from "./theme/colors";
 import { typography } from "./theme/typography";
 import { spacing, radii } from "./theme/spacing";
+import appConfig from "../../app.json";
 
 export function AboutScreen({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
   const handleClose = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    impact(ImpactFeedbackStyle.Light);
     onClose();
   };
 
@@ -34,7 +35,12 @@ export function AboutScreen({ onClose }: { onClose: () => void }) {
           <Text style={styles.heroTitle}>BOAR</Text>
           <Text style={styles.heroSubtitle}>{t("aboutScreen.heroSubtitle")}</Text>
           <View style={styles.versionBadge}>
-            <Text style={styles.versionText}>{t("aboutScreen.versionBadge")}</Text>
+            <Text style={styles.versionText}>
+              {t("aboutScreen.versionBadge", {
+                version: appConfig.expo.version,
+                build: __DEV__ ? t("aboutScreen.buildDevelopment") : t("aboutScreen.buildRelease"),
+              })}
+            </Text>
           </View>
         </View>
 
@@ -46,6 +52,11 @@ export function AboutScreen({ onClose }: { onClose: () => void }) {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>{t("aboutScreen.hardwareTitle")}</Text>
           <Text style={styles.paragraph}>{t("aboutScreen.hardwareBody")}</Text>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>{t("aboutScreen.benchmarkTitle")}</Text>
+          <Text style={styles.paragraph}>{t("aboutScreen.benchmarkBody")}</Text>
         </View>
 
         <View style={styles.card}>

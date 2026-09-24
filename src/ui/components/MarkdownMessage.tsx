@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, Pressable, Share } from "react-native";
-import * as Haptics from "expo-haptics";
+import { impact, ImpactFeedbackStyle } from "../../services/haptics";
 import { useTheme } from "../theme";
 import { spacing, radii } from "../theme/spacing";
 
@@ -61,7 +61,7 @@ function CodeBlockView({
 
   const handleCopy = async () => {
     try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+      impact(ImpactFeedbackStyle.Light);
       await Share.share({ message: code });
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);

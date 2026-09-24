@@ -1,21 +1,25 @@
-.PHONY: help setup install check-android start run-android build-eas test typecheck clean
+.PHONY: help setup install check-android start run-android build-eas test typecheck clean knowledge-pack knowledge-pack-small
 
 help:
-	@echo "BOAR - Best Offline AI Researcher"
+	@echo "BOAR - Adaptive Local Intelligence"
 	@echo "-----------------------------------"
-	@echo "make setup        - Install npm dependencies (checks for the Android SDK too)"
+	@echo "make setup        - Guided setup: install the app, build it, developer mode, knowledge packs"
+	@echo "make install      - Just install npm dependencies (checks for the Android SDK too)"
 	@echo "make start        - Start Expo dev server"
 	@echo "make run-android  - Build & run on connected Android device (needs Android SDK)"
 	@echo "make build-eas    - Build APK via Expo EAS Cloud (no local Android SDK needed)"
 	@echo "make test         - Run unit tests"
 	@echo "make typecheck    - Run TypeScript type checking"
 	@echo "make clean        - Remove generated native folders & build caches"
+	@echo "make knowledge-pack        - Build the Wikipedia Vital Articles pack (~50k articles, hours)"
+	@echo "make knowledge-pack-small  - Build a smaller pack (Vital Articles level 4, ~10k articles)"
 
 setup:
+	@node scripts/setup.mjs
+
+install:
 	npm install
 	@$(MAKE) --no-print-directory check-android
-
-install: setup
 
 # Informational only — never fails `make setup`. npm install is all this repo
 # actually needs; the Android SDK/NDK/JDK toolchain is a separate, much
@@ -66,3 +70,10 @@ typecheck:
 clean:
 	rm -rf android .expo node_modules
 	npm cache clean --force
+
+# Offline knowledge packs, built on this computer (docs/KNOWLEDGE_PACKS.md).
+knowledge-pack:
+	npm run pack:build
+
+knowledge-pack-small:
+	npm run pack:build -- --level 4

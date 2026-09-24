@@ -8,14 +8,19 @@ import { ChatScreen } from "./src/ui/ChatScreen";
 import { ModelSetupScreen } from "./src/ui/ModelSetupScreen";
 import { ModelManager } from "./src/models/ModelManager";
 import { ThemeProvider, useTheme } from "./src/ui/theme";
+import { initHaptics } from "./src/services/haptics";
 
 const modelManager = new ModelManager();
 
-type Screen = "checking" | "required-setup" | "chat" | "models";
+type Screen = "checking" | "required-setup" | "chat";
 
 function AppContent() {
   const [screen, setScreen] = useState<Screen>("checking");
   const { colors } = useTheme();
+
+  useEffect(() => {
+    initHaptics();
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -36,17 +41,7 @@ function AppContent() {
         <ModelSetupScreen mode="required" onReady={() => setScreen("chat")} />
       )}
       {screen === "chat" && (
-        <ChatScreen
-          onOpenSettings={() => setScreen("models")}
-          onRelaunchWizard={() => setScreen("required-setup")}
-        />
-      )}
-      {screen === "models" && (
-        <ModelSetupScreen
-          mode="optional"
-          onClose={() => setScreen("chat")}
-          onRelaunchWizard={() => setScreen("required-setup")}
-        />
+        <ChatScreen onRelaunchWizard={() => setScreen("required-setup")} />
       )}
     </SafeAreaView>
   );

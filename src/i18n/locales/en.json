@@ -15,7 +15,7 @@
     "daysAgo": "{{count}}d ago"
   },
   "drawer": {
-    "subtitle": "Best Offline AI Researcher",
+    "subtitle": "Adaptive Local Intelligence",
     "newChat": "New Research Session",
     "recentSessions": "RECENT SESSIONS"
   },
@@ -48,6 +48,8 @@
   },
   "catalogItemCard": {
     "calculating": "Calculating…",
+    "removeFromListTitle": "Remove from list?",
+    "removeFromListMessage": "This model isn't downloaded. It will be removed from your list; you can add it again from the Hugging Face search.",
     "removeCorpusTitle": "Remove Knowledge Base Pack?",
     "removeModelTitle": "Remove Model Weights?",
     "removeCorpusMessage": "This deletes the local dataset and frees {{size}}. Its topics will not be searchable offline until re-downloaded.",
@@ -68,6 +70,7 @@
     "eta": "ETA: {{eta}}",
     "retryDownload": "🔄 Retry Download",
     "downloadAsset": "📥 Download Asset",
+    "loadingModel": "Loading model…",
     "selectUse": "🔘 Select & Use",
     "indexedNote": "Indexed in offline knowledge base",
     "activeNote": "Active inference model",
@@ -111,7 +114,7 @@
     "live": "LIVE"
   },
   "systemMonitor": {
-    "title": "LIVE BOUNTY COMPLIANCE GAUGES",
+    "title": "LIVE COMPLIANCE GAUGES",
     "diskLabel": "Disk Storage (Cap: 50GB)",
     "ramLabel": "Process RSS Memory (Cap: 12GB)",
     "exceeded": "⚠️ EXCEEDED",
@@ -124,11 +127,12 @@
   },
   "modelSetupScreen": {
     "header": {
-      "title": "SETTINGS & CONFIGURATION",
-      "subtitle": "BOAR Offline Research Assistant"
+      "title": "SETTINGS",
+      "subtitle": "BOAR — Adaptive Local Intelligence"
     },
     "sections": {
-      "toneModels": "Tone & Reasoning Models",
+      "tone": "Assistant Tone & Response Style",
+      "models": "Reasoning Models",
       "knowledgeBase": "Offline Knowledge Base (RAG)",
       "memory": "Memory & Context Settings",
       "telemetry": "Hardware Telemetry & Compliance",
@@ -143,6 +147,7 @@
       "indexed": "Indexed \"{{name}}\" in offline knowledge base",
       "removed": "Removed \"{{name}}\"",
       "activeSet": "Active {{kind}} model set to \"{{name}}\"",
+      "loadFailed": "Couldn't load \"{{name}}\": {{error}}",
       "resetFailed": "Reset failed: {{error}}"
     },
     "recovery": {
@@ -179,7 +184,7 @@
       "verified": "Verified",
       "availableStorage": "Available Disk Storage",
       "sufficient": "Sufficient",
-      "ramBudget": "Bounty RAM Budget",
+      "ramBudget": "RAM Budget",
       "under12gb": "Under 12GB Limit",
       "inferenceEngine": "Inference Engine",
       "inferenceEngineValue": "ARM64 llama.rn (Offline)",
@@ -191,26 +196,33 @@
       "subtitle": "Weights are downloaded once to local storage and executed via mmap.",
       "recommended": "RECOMMENDED",
       "runsGreat": "🟢 Runs Great",
-      "ramFootprint": "RAM: ~2.5 GB Working Set",
+      "ramFootprint": "RAM: ~1.7 GB Working Set",
       "installButton": "Install Weights & Index ➔",
       "backButton": "‹ Back to Diagnostics"
     },
     "step3": {
       "title": "OFFLINE CORE INITIALIZATION",
-      "subtitle": "Fetching open-weights and seeding local SQLite knowledge base.",
+      "subtitle": "Fetching open-weights and seeding local knowledge base.",
       "assetsCached": "ASSETS CACHED TO DISK",
       "downloadingWeights": "DOWNLOADING WEIGHTS",
       "eta": "ETA: {{eta}}",
-      "phaseModel": "GGUF Reasoning Model",
+      "phaseModel": "Reasoning Models",
       "phaseEmbedding": "Embedding Model & Vectors",
       "phaseKnowledgeBase": "Offline Knowledge Base & FTS",
       "interfaceCustomization": "INTERFACE CUSTOMIZATION",
+      "customizeWhileWaiting": "While you wait, make it yours — pick a theme and font below.",
       "tipLabel": "💡 FIELD TERMINAL NOTICE",
       "tipText": "Once initialized, BOAR is completely self-contained. You can toggle airplane mode and use the app in complete isolation without loss of functionality.",
       "launchButton": "🐗 Launch BOAR Terminal",
       "indexingError": "Indexing error: {{error}}",
-      "buildingIndex": "Building local SQLite knowledge base & vector index…",
-      "waitingForDownloads": "Waiting for downloads…"
+      "buildingIndex": "Building local knowledge base & vector index…",
+      "waitingForDownloads": "Waiting for downloads…",
+      "downloadFailedLabel": "Download failed",
+      "retryDownloads": "Retry Download",
+      "keepOpenLabel": "⚠ KEEP BOAR OPEN",
+      "keepOpenText": "Downloads pause automatically if you switch to another app and resume where they left off when you come back — but they don't progress while backgrounded. Keep BOAR in the foreground for the fastest one-time setup.",
+      "assetCounter": "Model {{current}} of {{total}} — {{label}}",
+      "restartDownloads": "⟳ Downloads stuck? Tap to restart"
     },
     "phaseStatus": {
       "complete": "COMPLETE",
@@ -226,7 +238,9 @@
     "maxOutputTokens": "Max output tokens",
     "maxOutputTokensNote": "Caps how long a single response can be — lower is faster and more battery-friendly on phone hardware.",
     "deepResearchTitle": "Deep Research Mode",
-    "deepResearchNote": "Breaks your question into sub-questions, researches each separately, then synthesizes one answer. Several sequential model calls on the same model — noticeably slower than a normal reply, not multiple AI models running at once. Independent from the response style above: it changes how much research goes into an answer, not its tone — the two combine (e.g. Deep Research + Succinct still synthesizes a short final answer)."
+    "deepResearchNote": "Breaks your question into sub-questions, researches each separately, then synthesizes one answer. Several sequential model calls on the same model — noticeably slower than a normal reply, not multiple AI models running at once. Independent from the response style above: it changes how much research goes into an answer, not its tone — the two combine (e.g. Deep Research + Succinct still synthesizes a short final answer).",
+    "adaptiveRoutingTitle": "Adaptive Routing",
+    "adaptiveRoutingNote": "Classifies each message and picks which downloaded model answers it (e.g. a lightweight model for small talk, a stronger one for research/comparison questions), switching between them as needed. On by default and independent from Deep Research — if it fails for any reason, chat falls back to your normal active model automatically, it never leaves you without a response."
   },
   "corpusSettingsTab": {
     "downloadablePacks": "Downloadable knowledge packs",
@@ -268,14 +282,18 @@
     "clearAllChatHistory": "Clear All Chat History"
   },
   "voiceSettings": {
-    "title": "Voice & preferences",
+    "title": "Voice Input",
+    "enabledLabel": "Voice input",
+    "enabledValue": "Show the microphone button in the chat to dictate messages.",
     "speechEngineLabel": "Speech-to-text engine",
     "checking": "Checking…",
     "available": "Android SpeechRecognizer (offline)",
     "unavailable": "Unavailable on this device",
-    "unavailableNote": "No system speech-recognition service was found — common on GrapheneOS / de-Googled builds. An embedded whisper.cpp model would remove this dependency but is a separate project on the scale of the llama.rn integration itself; not implemented in this version.",
+    "unavailableNote": "No system speech-recognition service was found — common on GrapheneOS / de-Googled builds. An embedded whisper.cpp model would remove this dependency but is a separate project on the scale of the llama.rn integration itself; not implemented in this version."
+  },
+  "interfaceSettings": {
     "hapticFeedbackLabel": "Haptic feedback",
-    "hapticFeedbackValue": "Vibrate on stop / response finished"
+    "hapticFeedbackValue": "Vibrate on taps, sends, and responses finishing — app-wide, not just voice input."
   },
   "knowledgeBaseScreen": {
     "title": "MY DOCUMENTS"
@@ -293,10 +311,19 @@
     "initializingCore": "Initializing local offline core…",
     "mountingWeights": "Mounting local GGUF weights…",
     "indexingKnowledgeBase": "Indexing offline knowledge base…",
+    "reasoningElapsed": "💭 Reasoning… {{seconds}}s",
+    "reasoningUnfinished": "Reasoning didn't finish before the reply ended (stopped or out of tokens). Tap 💭 to read it.",
+    "showReasoning": "Show reasoning",
+    "hideReasoning": "Hide reasoning",
+    "messageReused": "Message copied to the input",
+    "stopping": "Stopping… (finishing the current step)",
+    "toneChanged": "Tone: {{tone}}",
+    "modelDownloadComplete": "✅ \"{{label}}\" download complete",
     "drawerItems": {
       "prompts": "Prompt Ideas",
       "myDocuments": "My Documents",
       "settings": "Settings",
+      "telemetry": "Execution Telemetry",
       "about": "About & Info"
     },
     "inputPlaceholder": "Ask an offline research question…",
@@ -308,19 +335,30 @@
       "synthesizing": "🔬 Synthesizing offline findings…"
     },
     "roleYou": "YOU",
-    "roleAssistant": "🐗 BOAR RESEARCHER",
+    "roleAssistant": "🐗 BOAR",
     "stoppedByUser": "Stopped by user",
     "deepResearchBanner": "MIXTURE-OF-AGENTS: DECOMPOSE ➔ LOCAL EMBEDDINGS ➔ SYNTHESIS",
-    "copyResponse": "Copy response"
+    "copyResponse": "Copy response",
+    "copied": "Copied",
+    "rateUp": "Good response",
+    "rateDown": "Bad response",
+    "rateHelpful": "Helpful",
+    "rateUnhelpful": "Unhelpful",
+    "stageTimedOut": "A research step took too long and was cut short",
+    "interruptedByBackground": "Paused — app was backgrounded. Ask again to continue."
   },
   "aboutScreen": {
     "title": "ABOUT BOAR",
-    "heroSubtitle": "BEST OFFLINE AI RESEARCHER",
-    "versionBadge": "v0.1.0 • PRODUCTION BUILD",
+    "heroSubtitle": "ADAPTIVE LOCAL INTELLIGENCE",
+    "versionBadge": "v{{version}} • {{build}}",
+    "buildDevelopment": "DEVELOPMENT BUILD",
+    "buildRelease": "RELEASE BUILD",
     "airGappedTitle": "AIR-GAPPED SOVEREIGN AI",
-    "airGappedBody": "BOAR is a fully offline, air-gapped AI research assistant engineered for Android mobile hardware. It performs local LLM inference via llama.rn / llama.cpp and local hybrid retrieval (SQLite FTS5 + on-device embeddings) with zero cloud dependencies.",
+    "airGappedBody": "BOAR is an offline-first mobile AI system exploring adaptive model routing, local retrieval, and resource-aware inference. It performs local LLM inference via llama.rn / llama.cpp and local hybrid retrieval (SQLite FTS5 + on-device embeddings) with zero cloud dependencies.",
     "hardwareTitle": "HARDWARE ARCHITECTURE & BUDGET",
     "hardwareBody": "Complies with strict mobile field constraints: resident memory remains capped under 12GB RAM using memory-mapped weights (mmap), and total storage is audited against a 50GB storage envelope.",
+    "benchmarkTitle": "BENCHMARK IT YOURSELF",
+    "benchmarkBody": "BOAR measures every answer on your own phone: model load time, time to first token, tokens/sec, peak memory and which sources were used. Run the built-in evaluation from Execution Telemetry → 🧪 Evaluate to compare any installed model on the same questions, or drive it from a computer with npm run eval:device.",
     "repoTitle": "OPEN SOURCE REPOSITORY",
     "repoBody": "Source code, quantized model manifests, and offline indexing scripts are available at:"
   },
@@ -357,5 +395,47 @@
       "label": "Custom",
       "description": "Write your own system prompt."
     }
+  },
+  "executionTelemetry": {
+    "title": "EXECUTION TELEMETRY",
+    "subtitle": "{{count}} recent runs",
+    "exportJson": "⬇ JSON",
+    "exportCsv": "⬇ CSV",
+    "clear": "🗑 Clear",
+    "clearTitle": "Clear execution telemetry?",
+    "clearMessage": "Deletes all persisted execution records on this device. This cannot be undone.",
+    "clearConfirm": "Clear",
+    "exportFailedTitle": "Export failed",
+    "empty": "No executions recorded yet. Send a message to record your first run.",
+    "noModel": "no model",
+    "tokPerSec": "Speed",
+    "loadTime": "Load",
+    "ttft": "TTFT",
+    "totalTime": "Total",
+    "memory": "Peak Mem",
+    "tokens": "Tokens",
+    "runEvaluation": "🧪 Evaluate"
+  },
+  "evaluation": {
+    "title": "EVALUATION",
+    "subtitle": "Set v{{version}} · {{count}} queries",
+    "configsTitle": "Configurations",
+    "adaptiveConfig": "Adaptive routing (preset: {{preset}})",
+    "noModels": "No language models installed.",
+    "summary": "{{queries}} queries × {{configs}} configs = {{total}} answers",
+    "keepScreenOn": "Keep the screen on and the app open while it runs. Each answer is also printed to the Metro terminal as an [EVAL] line.",
+    "chatBusy": "Wait for the current chat reply to finish before running an evaluation.",
+    "run": "▶ Run",
+    "stop": "■ Stop",
+    "stopping": "Stopping…",
+    "progress": "Config {{config}}/{{configs}} · Query {{query}}/{{queries}}",
+    "savedTo": "Saved to {{path}}",
+    "stoppedEarly": "Stopped early — partial results saved.",
+    "exportJsonl": "⬇ JSONL",
+    "exportCsv": "⬇ CSV",
+    "exportFailedTitle": "Export failed",
+    "runFailedTitle": "Evaluation failed",
+    "deviceRequest": "Started from a connected computer (request {{id}}).",
+    "noRetrieval": "no retrieval"
   }
 }
