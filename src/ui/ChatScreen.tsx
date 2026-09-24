@@ -736,7 +736,7 @@ export function ChatScreen({
   }
 
   if (showExecutionTelemetry) {
-    return <ExecutionTelemetryScreen onClose={() => setShowExecutionTelemetry(false)} />;
+    return <ExecutionTelemetryScreen chatBusy={generating} onClose={() => setShowExecutionTelemetry(false)} />;
   }
 
   if (showKnowledgeBase) {

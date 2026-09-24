@@ -135,7 +135,7 @@ const CSV_COLUMNS: Array<keyof ExecutionTelemetryRecord> = [
   "errorMessage",
 ];
 
-function csvCell(value: unknown): string {
+export function csvCell(value: unknown): string {
   if (value === undefined || value === null) return "";
   const s = Array.isArray(value) ? value.join("|") : String(value);
   // Quote whenever the cell could otherwise be misread — a comma, a quote

@@ -396,6 +396,28 @@
     "ttft": "TTFT",
     "totalTime": "Total",
     "memory": "Peak Mem",
-    "tokens": "Tokens"
+    "tokens": "Tokens",
+    "runEvaluation": "🧪 Evaluate"
+  },
+  "evaluation": {
+    "title": "EVALUATION",
+    "subtitle": "Set v{{version}} · {{count}} queries",
+    "configsTitle": "Configurations",
+    "adaptiveConfig": "Adaptive routing (preset: {{preset}})",
+    "noModels": "No language models installed.",
+    "summary": "{{queries}} queries × {{configs}} configs = {{total}} answers",
+    "keepScreenOn": "Keep the screen on and the app open while it runs. Each answer is also printed to the Metro terminal as an [EVAL] line.",
+    "chatBusy": "Wait for the current chat reply to finish before running an evaluation.",
+    "run": "▶ Run",
+    "stop": "■ Stop",
+    "stopping": "Stopping…",
+    "progress": "Config {{config}}/{{configs}} · Query {{query}}/{{queries}}",
+    "savedTo": "Saved to {{path}}",
+    "stoppedEarly": "Stopped early — partial results saved.",
+    "exportJsonl": "⬇ JSONL",
+    "exportCsv": "⬇ CSV",
+    "exportFailedTitle": "Export failed",
+    "runFailedTitle": "Evaluation failed",
+    "noRetrieval": "no retrieval"
   }
 }

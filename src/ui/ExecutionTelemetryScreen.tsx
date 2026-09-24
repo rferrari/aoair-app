@@ -11,9 +11,11 @@ import {
 import { colors } from "./theme/colors";
 import { typography } from "./theme/typography";
 import { spacing, radii } from "./theme/spacing";
+import { EvaluationScreen } from "./EvaluationScreen";
 
 interface Props {
   onClose?: () => void;
+  chatBusy?: boolean;
 }
 
 function formatMs(ms: number | undefined): string {
@@ -47,11 +49,12 @@ function outcomeColor(outcome: ExecutionTelemetryRecord["outcome"]): string {
  * models, not a user-facing preference. Kept simple: a scrollable list of
  * recent executions plus export, no charts/analytics.
  */
-export function ExecutionTelemetryScreen({ onClose }: Props) {
+export function ExecutionTelemetryScreen({ onClose, chatBusy }: Props) {
   const { t } = useTranslation();
   const [records, setRecords] = useState<ExecutionTelemetryRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [showEvaluation, setShowEvaluation] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -101,6 +104,18 @@ export function ExecutionTelemetryScreen({ onClose }: Props) {
     );
   };
 
+  if (showEvaluation) {
+    return (
+      <EvaluationScreen
+        chatBusy={chatBusy}
+        onClose={() => {
+          setShowEvaluation(false);
+          refresh();
+        }}
+      />
+    );
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -117,6 +132,9 @@ export function ExecutionTelemetryScreen({ onClose }: Props) {
       </View>
 
       <View style={styles.actionsRow}>
+        <Pressable style={styles.actionBtn} onPress={() => setShowEvaluation(true)}>
+          <Text style={styles.actionBtnText}>{t("executionTelemetry.runEvaluation")}</Text>
+        </Pressable>
         <Pressable style={styles.actionBtn} onPress={() => handleExport("json")} disabled={exporting}>
           <Text style={styles.actionBtnText}>{t("executionTelemetry.exportJson")}</Text>
         </Pressable>

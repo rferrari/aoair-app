@@ -396,6 +396,28 @@
     "ttft": "TTFT",
     "totalTime": "Total",
     "memory": "Mem. Pico",
-    "tokens": "Tokens"
+    "tokens": "Tokens",
+    "runEvaluation": "🧪 Avaliar"
+  },
+  "evaluation": {
+    "title": "AVALIAÇÃO",
+    "subtitle": "Conjunto v{{version}} · {{count}} perguntas",
+    "configsTitle": "Configurações",
+    "adaptiveConfig": "Roteamento adaptativo (preset: {{preset}})",
+    "noModels": "Nenhum modelo de linguagem instalado.",
+    "summary": "{{queries}} perguntas × {{configs}} configurações = {{total}} respostas",
+    "keepScreenOn": "Mantenha a tela ligada e o app aberto durante a execução. Cada resposta também aparece no terminal do Metro como uma linha [EVAL].",
+    "chatBusy": "Aguarde a resposta atual do chat terminar antes de rodar uma avaliação.",
+    "run": "▶ Rodar",
+    "stop": "■ Parar",
+    "stopping": "Parando…",
+    "progress": "Config. {{config}}/{{configs}} · Pergunta {{query}}/{{queries}}",
+    "savedTo": "Salvo em {{path}}",
+    "stoppedEarly": "Interrompido — resultados parciais salvos.",
+    "exportJsonl": "⬇ JSONL",
+    "exportCsv": "⬇ CSV",
+    "exportFailedTitle": "Falha ao exportar",
+    "runFailedTitle": "Falha na avaliação",
+    "noRetrieval": "sem recuperação"
   }
 }
