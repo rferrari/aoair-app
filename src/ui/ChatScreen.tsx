@@ -103,7 +103,11 @@ async function resolveActiveModel(kind: "llm" | "embedding"): Promise<CatalogMod
   const activeId = await getActiveModelId(kind);
   const fallback = REQUIRED_MODELS.find((m) => m.kind === kind)!;
   if (!activeId) return fallback;
-  return MODEL_CATALOG.find((m) => m.id === activeId && m.kind === kind) ?? fallback;
+  // Models picked from the Hugging Face browser live in discoveredModels, not MODEL_CATALOG.
+  const candidates = [...MODEL_CATALOG, ...(await listDiscoveredModels())];
+  const found = candidates.find((m) => m.id === activeId && m.kind === kind);
+  if (!found) console.warn(`[ChatScreen] active ${kind} model "${activeId}" not found, using ${fallback.id}`);
+  return found ?? fallback;
 }
 
 export function ChatScreen({

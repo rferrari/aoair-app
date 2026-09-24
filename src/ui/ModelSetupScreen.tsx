@@ -78,7 +78,9 @@ export function ModelSetupScreen(props: Props) {
 
   const refreshStatus = useCallback(async () => {
     const statuses = await modelManager.statusAll();
-    setPresence(Object.fromEntries(statuses.map((s) => [s.asset.id, s.present])));
+    // Merge, not replace: replacing drops discovered models' presence until
+    // refreshDiscovered() below restores it, flashing their Download button.
+    setPresence((prev) => ({ ...prev, ...Object.fromEntries(statuses.map((s) => [s.asset.id, s.present])) }));
     await refreshDiscovered();
 
     const next: Partial<Record<AssetKind, string>> = {};
