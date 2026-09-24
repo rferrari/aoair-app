@@ -307,7 +307,7 @@
     "initializingCore": "Initializing local offline core…",
     "mountingWeights": "Mounting local GGUF weights…",
     "indexingKnowledgeBase": "Indexing offline knowledge base…",
-    "thinking": "Thinking…",
+    "reasoningElapsed": "Reasoning… {{seconds}}s",
     "showReasoning": "Show reasoning",
     "hideReasoning": "Hide reasoning",
     "modelDownloadComplete": "✅ \"{{label}}\" download complete",

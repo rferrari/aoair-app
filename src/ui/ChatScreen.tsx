@@ -68,6 +68,7 @@ import { ChatHeader } from "./ChatHeader";
 import { Toast } from "./Toast";
 import { ModelLoadErrorCard } from "./components/ModelLoadErrorCard";
 import { MarkdownMessage } from "./components/MarkdownMessage";
+import { ReasoningPeek } from "./components/ReasoningPeek";
 import { splitThinking, stripThinking } from "../services/thinking";
 import { SourceFootnotes } from "./components/SourceFootnotes";
 import { recordQueryStats, trackPeakRss, startAppMemoryTracking, QueryStats } from "../services/telemetry";
@@ -145,6 +146,14 @@ export function ChatScreen({
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   // Assistant messages whose model reasoning (<think>…</think>) is expanded.
   const [shownReasoning, setShownReasoning] = useState<Set<string>>(new Set());
+  const toggleReasoning = useCallback((id: string) => {
+    setShownReasoning((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
   const [downloadToast, setDownloadToast] = useState<string | null>(null);
 
   const listRef = useRef<FlatList<Message>>(null);
@@ -924,9 +933,11 @@ export function ChatScreen({
                       </Text>
                     )}
                     {split?.thinkingInProgress && !split.answer ? (
-                      <Text style={[styles.reasoningText, { color: colors.text.dim, borderLeftColor: colors.border.default }]}>
-                        💭 {t("chatScreen.thinking")}
-                      </Text>
+                      <ReasoningPeek
+                        thinking={split.thinking ?? ""}
+                        expanded={reasoningShown}
+                        onToggle={() => toggleReasoning(item.id)}
+                      />
                     ) : (
                       <MarkdownMessage content={shownText} isStreaming={isStreamingThis} />
                     )}
@@ -1035,14 +1046,7 @@ export function ChatScreen({
 
                     {split?.thinking && (
                       <Pressable
-                        onPress={() =>
-                          setShownReasoning((prev) => {
-                            const next = new Set(prev);
-                            if (next.has(item.id)) next.delete(item.id);
-                            else next.add(item.id);
-                            return next;
-                          })
-                        }
+                        onPress={() => toggleReasoning(item.id)}
                         hitSlop={6}
                         accessibilityLabel={reasoningShown ? t("chatScreen.hideReasoning") : t("chatScreen.showReasoning")}
                         style={[
