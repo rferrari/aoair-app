@@ -20,6 +20,7 @@ import { embeddingEngine } from "../rag/embed";
 import { retrieve, assemblePrompt, RetrievedChunk, ConversationTurn } from "../rag/retrieve";
 import { assembleChatMessages } from "../rag/pure";
 import { classifyTask, isRetrievalIrrelevant } from "../routing/classify";
+import type { TaskType } from "../routing/types";
 import { seedKnowledgeBaseIfEmpty } from "../rag/seedCorpus";
 import { MODEL_CATALOG, CORPUS_CATALOG, REQUIRED_MODELS, CatalogModel } from "../models/manifest";
 import { listDiscoveredModels } from "../models/discoveredModels";
@@ -144,6 +145,9 @@ export function ChatScreen({
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeModel, setActiveModel] = useState<CatalogModel | null>(null);
+  // send() reads the loaded model for telemetry without re-creating itself on every model change.
+  const activeModelRef = useRef<CatalogModel | null>(null);
+  activeModelRef.current = activeModel;
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   // Assistant messages whose model reasoning (<think>…</think>) is expanded.
@@ -469,6 +473,9 @@ export function ChatScreen({
     setMessages((prev) => [...prev, userMsg, { id: assistantId, role: "assistant", text: "" }]);
     setProcessing({ messageId: assistantId, status: "retrieving" });
 
+    // The loaded model answers unless adaptive routing picks another (its telemetry overrides this).
+    const baseModelId = activeModelRef.current?.id;
+    let fixedTaskType: TaskType | undefined;
     const peakRss = trackPeakRss(() => {
       try {
         return getMemoryInfo().rssBytes;
@@ -552,7 +559,8 @@ export function ChatScreen({
         // never retrieves unrelated knowledge-base chunks either way.
         const runFixedModelChat = async (): Promise<RetrievedChunk[]> => {
           let c: RetrievedChunk[];
-          if (isRetrievalIrrelevant(classifyTask(query))) {
+          fixedTaskType = classifyTask(query);
+          if (isRetrievalIrrelevant(fixedTaskType)) {
             c = [];
           } else {
             setProcessing({ messageId: assistantId, status: "retrieving" });
@@ -674,6 +682,8 @@ export function ChatScreen({
         peakRssBytes: peakRss.stop(),
         timestamp: Date.now(),
         totalLatencyMs: durationMs,
+        modelId: baseModelId,
+        ...(fixedTaskType ? { taskType: fixedTaskType, retrievalUsed: chunks.length > 0 } : {}),
         ...(adaptiveTelemetry ?? {}),
       };
       recordQueryStats(finalStats);
@@ -757,6 +767,7 @@ export function ChatScreen({
       // a request failed at all, with what timing we do have.
       recordExecution({
         adaptiveRoutingUsed: false,
+        modelId: baseModelId,
         totalLatencyMs: performance.now() - startTime,
         tokensGenerated,
         outcome: "failure",

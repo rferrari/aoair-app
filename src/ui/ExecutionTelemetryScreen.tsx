@@ -12,6 +12,8 @@ import { colors } from "./theme/colors";
 import { typography } from "./theme/typography";
 import { spacing, radii } from "./theme/spacing";
 import { EvaluationScreen } from "./EvaluationScreen";
+import { MODEL_CATALOG } from "../models/manifest";
+import { listDiscoveredModels } from "../models/discoveredModels";
 
 interface Props {
   onClose?: () => void;
@@ -55,6 +57,16 @@ export function ExecutionTelemetryScreen({ onClose, chatBusy }: Props) {
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [showEvaluation, setShowEvaluation] = useState(false);
+  // Model id -> readable name; Hugging Face ids are long file-derived strings.
+  const [modelLabels, setModelLabels] = useState<Record<string, string>>(
+    () => Object.fromEntries(MODEL_CATALOG.map((m) => [m.id, m.label]))
+  );
+
+  useEffect(() => {
+    listDiscoveredModels()
+      .then((models) => setModelLabels((prev) => ({ ...prev, ...Object.fromEntries(models.map((m) => [m.id, m.label])) })))
+      .catch(() => {});
+  }, []);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -160,7 +172,7 @@ export function ExecutionTelemetryScreen({ onClose, chatBusy }: Props) {
             <View key={r.id} style={styles.row}>
               <View style={styles.rowHeader}>
                 <Text style={styles.modelLabel} numberOfLines={1}>
-                  {r.modelId ?? t("executionTelemetry.noModel")}
+                  {r.modelId ? modelLabels[r.modelId] ?? r.modelId : t("executionTelemetry.noModel")}
                 </Text>
                 <Text style={[styles.outcomeLabel, { color: outcomeColor(r.outcome) }]}>
                   {(r.outcome ?? "—").toUpperCase()}
