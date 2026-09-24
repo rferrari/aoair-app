@@ -16,6 +16,9 @@ download (the app's only required network use); after that it works
 completely offline. Originally built for the "Best Offline AI Research App"
 community bounty.
 
+**Bounty**: [poidh.xyz/mainnet/bounty/31](https://poidh.xyz/mainnet/bounty/31)
+— submission wallet: `0x32d1C8A4d133241a710d780f1198992A015Ea5Ed`
+
 - ≤ 12GB peak RAM
 - ≤ 50GB total on-disk footprint (app + model weights + indexes)
 - Works completely offline after a one-time first-run model setup
