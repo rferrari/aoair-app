@@ -307,7 +307,7 @@
     "initializingCore": "Inicializando núcleo offline local…",
     "mountingWeights": "Carregando pesos GGUF locais…",
     "indexingKnowledgeBase": "Indexando base de conhecimento offline…",
-    "reasoningElapsed": "Raciocinando… {{seconds}}s",
+    "reasoningElapsed": "💭 Raciocinando… {{seconds}}s",
     "showReasoning": "Mostrar raciocínio",
     "hideReasoning": "Ocultar raciocínio",
     "modelDownloadComplete": "✅ Download de \"{{label}}\" concluído",

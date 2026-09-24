@@ -18,6 +18,7 @@ import { useTranslation } from "react-i18next";
 import { llamaEngine } from "../inference/LlamaEngine";
 import { embeddingEngine } from "../rag/embed";
 import { retrieve, assemblePrompt, RetrievedChunk, ConversationTurn } from "../rag/retrieve";
+import { assembleChatMessages } from "../rag/pure";
 import { classifyTask, isRetrievalIrrelevant } from "../routing/classify";
 import { seedKnowledgeBaseIfEmpty } from "../rag/seedCorpus";
 import { MODEL_CATALOG, CORPUS_CATALOG, REQUIRED_MODELS, CatalogModel } from "../models/manifest";
@@ -557,8 +558,14 @@ export function ChatScreen({
             c = await retrieve(query);
           }
           setProcessing({ messageId: assistantId, status: "thinking" });
-          const prompt = assemblePrompt(query, c, systemPrompt, history);
-          await llamaEngine.generate({ prompt, nPredict: maxTokens, onToken });
+          // Use the model's own chat template when its file ships one; the
+          // plain prompt is only a fallback. Off-template, models ramble,
+          // echo instructions, and reasoning models never open <think>.
+          await llamaEngine.generate(
+            llamaEngine.hasEmbeddedChatTemplate()
+              ? { messages: assembleChatMessages(query, c, systemPrompt, history), nPredict: maxTokens, onToken }
+              : { prompt: assemblePrompt(query, c, systemPrompt, history), nPredict: maxTokens, onToken }
+          );
           return c;
         };
 
