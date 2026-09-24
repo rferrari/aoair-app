@@ -207,7 +207,7 @@ export function ModelSetupScreen(props: Props) {
       </View>
 
       <ScrollView contentContainerStyle={styles.accordionScroll}>
-        <AccordionSection icon="🎭" title={t("modelSetupScreen.sections.tone")} defaultOpen>
+        <AccordionSection icon="🎭" title={t("modelSetupScreen.sections.tone")}>
           <PersonalitySettings />
         </AccordionSection>
 
