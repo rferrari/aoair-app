@@ -55,6 +55,8 @@ export type PromptFormat = "chat-template" | "plain";
 export interface PipelineInput {
   query: string;
   systemPrompt?: string;
+  /** Personality.styleReminder of the selected tone. */
+  styleReminder?: string;
   history?: ConversationHistory;
 }
 
@@ -251,14 +253,14 @@ export async function executeRoutingPlan(
 
         answer = useTemplate
           ? await llamaEngine.generate({
-              messages: assembleChatMessages(input.query, citations, input.systemPrompt, input.history),
+              messages: assembleChatMessages(input.query, citations, input.systemPrompt, input.history, input.styleReminder),
               nPredict: step.maxTokens ?? 512,
               onToken: timedOnToken,
               timeoutMs: step.timeoutMs ?? STEP_TIMEOUT_MS,
               onTimeout: markTimedOut,
             })
           : await llamaEngine.generate({
-              prompt: assemblePrompt(input.query, citations, input.systemPrompt, input.history),
+              prompt: assemblePrompt(input.query, citations, input.systemPrompt, input.history, input.styleReminder),
               nPredict: step.maxTokens ?? 512,
               onToken: timedOnToken,
               timeoutMs: step.timeoutMs ?? STEP_TIMEOUT_MS,

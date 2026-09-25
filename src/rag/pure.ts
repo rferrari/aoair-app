@@ -261,7 +261,8 @@ export function assemblePrompt(
   userQuery: string,
   chunks: RetrievedChunk[],
   systemPrompt?: string,
-  history?: ConversationHistory
+  history?: ConversationHistory,
+  styleReminder?: string
 ): string {
   const instruction =
     systemPrompt && systemPrompt.trim().length > 0
@@ -300,7 +301,7 @@ export function assemblePrompt(
   return `${instruction}${contextInstruction} ${GROUNDING_INSTRUCTION}\n\n` +
     `${summarySection}${turnsSection}` +
     `${contextSection}` +
-    `Question: ${userQuery}\n\nAnswer:`;
+    `Question: ${userQuery}${styleSection(styleReminder)}\n\nAnswer:`;
 }
 
 export interface ChatMessage {
@@ -327,7 +328,8 @@ export function assembleChatMessages(
   userQuery: string,
   chunks: RetrievedChunk[],
   systemPrompt?: string,
-  history?: ConversationHistory
+  history?: ConversationHistory,
+  styleReminder?: string
 ): ChatMessage[] {
   const instruction =
     systemPrompt && systemPrompt.trim().length > 0
@@ -349,7 +351,8 @@ export function assembleChatMessages(
 
   const systemMessage: ChatMessage = {
     role: "system",
-    content: `${instruction}${contextInstruction} ${GROUNDING_INSTRUCTION}${summarySection}${contextSection}`,
+    content:
+      `${instruction}${contextInstruction} ${GROUNDING_INSTRUCTION}${summarySection}${contextSection}`,
   };
 
   const historyMessages: ChatMessage[] = (history?.turns ?? []).map((t) => ({
@@ -357,7 +360,7 @@ export function assembleChatMessages(
     content: t.text,
   }));
 
-  return [systemMessage, ...historyMessages, { role: "user", content: userQuery }];
+  return [systemMessage, ...historyMessages, { role: "user", content: userQuery + styleSection(styleReminder) }];
 }
 
 /**
@@ -384,6 +387,16 @@ export function assembleChatMessages(
  * decomposed sub-questions are always real questions, never action
  * requests), so it doesn't change that path's behavior in practice.
  */
+/**
+ * The tone's style reminder, appended to the current question (see
+ * Personality.styleReminder). Only this turn carries it: history keeps the
+ * user's own words, and retrieval searches the question alone.
+ */
+function styleSection(styleReminder: string | undefined): string {
+  const s = styleReminder?.trim();
+  return s ? `\n\n(Response style: ${s})` : "";
+}
+
 const GROUNDING_INSTRUCTION =
   "You have no ability to control real-world devices or take physical actions — no alarms, " +
   "lights, thermostats, timers, or any other device or system. You can only respond with text. " +

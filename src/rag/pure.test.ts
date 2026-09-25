@@ -176,6 +176,17 @@ describe("assemblePrompt", () => {
   });
 });
 
+describe("assemblePrompt style reminder", () => {
+  it("goes right after the question", () => {
+    const chunks: RetrievedChunk[] = [
+      { chunkId: "1", docId: "1", title: "Doc One", body: "Body one.", score: 0.9, matchType: "hybrid" },
+    ];
+    const prompt = assemblePrompt("Why?", chunks, "You are Boar.", undefined, "Be brief.");
+    expect(prompt).toContain("Body one.");
+    expect(prompt.endsWith("Question: Why?\n\n(Response style: Be brief.)\n\nAnswer:")).toBe(true);
+  });
+});
+
 describe("assembleChatMessages", () => {
   const chunks: RetrievedChunk[] = [
     { chunkId: "1", docId: "1", title: "Doc One", body: "Body one.", score: 0.9, matchType: "hybrid" },
@@ -187,6 +198,19 @@ describe("assembleChatMessages", () => {
     expect(messages[0].content).toContain("You are a pirate.");
     expect(messages[0].content).toContain("no ability to control real-world devices");
     expect(messages[messages.length - 1]).toEqual({ role: "user", content: "hey!" });
+  });
+
+  it("appends the tone's style reminder to the current question only", () => {
+    const history = { turns: [{ role: "user" as const, text: "earlier" }, { role: "assistant" as const, text: "reply" }] };
+    const messages = assembleChatMessages("q", chunks, "You are Boar.", history, "Be thorough.");
+    expect(messages[messages.length - 1].content).toBe("q\n\n(Response style: Be thorough.)");
+    expect(messages[1].content).toBe("earlier");
+    expect(messages[0].content).not.toContain("Response style:");
+  });
+
+  it("leaves the question alone without a reminder", () => {
+    const messages = assembleChatMessages("q", chunks, "You are Boar.");
+    expect(messages[messages.length - 1].content).toBe("q");
   });
 
   it("uses the default instruction when no system prompt is given", () => {

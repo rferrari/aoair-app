@@ -72,6 +72,7 @@ import { ChatHeader } from "./ChatHeader";
 import { Toast } from "./Toast";
 import { ModelLoadErrorCard } from "./components/ModelLoadErrorCard";
 import { MarkdownMessage } from "./components/MarkdownMessage";
+import { splitInlineBullets } from "../services/answerFormat";
 import { ReasoningPeek } from "./components/ReasoningPeek";
 import { splitThinking, stripThinking } from "../services/thinking";
 import { cleanCitations } from "../services/citations";
@@ -526,6 +527,7 @@ export function ChatScreen({
       ]);
       const personality = getPersonality(activePersonalityId);
       const systemPrompt = activePersonalityId === "custom" ? customPrompt : personality.systemPrompt;
+      const styleReminder = activePersonalityId === "custom" ? undefined : personality.styleReminder;
 
       const priorMessages = messagesRef.current.filter((m) => m.text.length > 0);
       const verbatimTurns: ConversationTurn[] = priorMessages
@@ -602,8 +604,8 @@ export function ChatScreen({
           // echo instructions, and reasoning models never open <think>.
           await llamaEngine.generate(
             llamaEngine.hasEmbeddedChatTemplate()
-              ? { messages: assembleChatMessages(query, c, systemPrompt, history), nPredict: maxTokens, onToken }
-              : { prompt: assemblePrompt(query, c, systemPrompt, history), nPredict: maxTokens, onToken }
+              ? { messages: assembleChatMessages(query, c, systemPrompt, history, styleReminder), nPredict: maxTokens, onToken }
+              : { prompt: assemblePrompt(query, c, systemPrompt, history, styleReminder), nPredict: maxTokens, onToken }
           );
           return c;
         };
@@ -613,7 +615,7 @@ export function ChatScreen({
         if (adaptiveRoutingEnabled) {
           try {
             const result = await runAdaptiveChat(
-              { query, systemPrompt, history },
+              { query, systemPrompt, styleReminder, history },
               maxTokens,
               {
                 onToken,
@@ -962,7 +964,7 @@ export function ChatScreen({
             const shownText = split
               ? isStreamingThis
                 ? split.answer
-                : cleanCitations(split.answer, item.citations?.length)
+                : splitInlineBullets(cleanCitations(split.answer, item.citations?.length))
               : item.text;
             const reasoningShown = shownReasoning.has(item.id);
 

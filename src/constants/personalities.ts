@@ -7,6 +7,13 @@ export interface Personality {
   description: string;
   /** System prompt text; unused for "custom" (user supplies their own via settings). */
   systemPrompt: string;
+  /**
+   * Appended to the current question. Small models follow what's closest to the
+   * question: the system prompt alone gets buried under ~2,000 characters of
+   * retrieved context. Tested with Qwen2.5-1.5B: only here did "summary" produce
+   * its takeaway and bullets, and "detailed" answers got about 70% longer.
+   */
+  styleReminder?: string;
 }
 
 /**
@@ -36,6 +43,7 @@ export const PERSONALITIES: Personality[] = [
       "sentences or a brief paragraph, no preamble. Do not default to a bulleted list " +
       "or a single takeaway sentence followed by three bullet points — use bullets only " +
       "when the content is genuinely a list of distinct items.",
+    styleReminder: "Keep it short: 2-3 sentences. No lists unless the question asks for one.",
   },
   {
     // Deliberately not called "Deep Research" or using 🔬 — that name/icon
@@ -52,6 +60,9 @@ export const PERSONALITIES: Personality[] = [
     systemPrompt:
       "You are Boar, an analytical research partner. Provide thorough, structured " +
       "explanations with comparisons and evidence.",
+    styleReminder:
+      "Be thorough: 3-5 paragraphs that cover the key points in depth, with reasons, " +
+      "comparisons and examples. Don't repeat yourself.",
   },
   {
     id: "summary",
@@ -61,6 +72,9 @@ export const PERSONALITIES: Personality[] = [
     systemPrompt:
       "You are Boar, Provide a 1-sentence top-line key takeaway followed by 3 short bullet " +
       "points summarizing the answer.",
+    styleReminder:
+      "Use exactly this format and nothing else:\n" +
+      "<one-sentence key takeaway>\n- <point 1>\n- <point 2>\n- <point 3>",
   },
   {
     id: "custom",
