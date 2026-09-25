@@ -133,9 +133,27 @@ async function loadDownloadedCorpusPacks(): Promise<SeedDoc[]> {
   return docs;
 }
 
+export interface SeedProgress {
+  /** Documents checked so far, including ones already indexed. */
+  done: number;
+  total: number;
+  /** Title of the document being indexed. */
+  title: string;
+}
+
 // On globalThis rather than in the module: a dev hot reload re-runs this
 // module while the previous run is still inserting.
-const running = globalThis as { __boarSeeding?: Promise<void> | null };
+const running = globalThis as {
+  __boarSeeding?: Promise<void> | null;
+  __boarSeedListeners?: Set<(p: SeedProgress) => void>;
+};
+const listeners = (running.__boarSeedListeners ??= new Set());
+
+/** Progress of the indexing run in progress, for a status line. Returns an unsubscribe. */
+export function onSeedProgress(listener: (p: SeedProgress) => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
 
 /**
  * The setup wizard and the chat screen can both ask for this at once (and a
@@ -173,7 +191,15 @@ async function seedNow(): Promise<void> {
   )) ?? { count: 0 };
   if (count === allDocs.length) return;
 
-  for (const doc of allDocs) {
+  let lastReport = 0;
+  for (const [i, doc] of allDocs.entries()) {
+    // About four updates a second is enough to show it's moving.
+    const now = Date.now();
+    if (now - lastReport > 250 || i === allDocs.length - 1) {
+      lastReport = now;
+      listeners.forEach((l) => l({ done: i + 1, total: allDocs.length, title: doc.title }));
+    }
+
     const existing = await db.getFirstAsync<{ chunk_id: string }>(
       `SELECT chunk_id FROM chunks WHERE chunk_id = ?`,
       [doc.id]

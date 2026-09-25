@@ -227,7 +227,8 @@
     },
     "step4": {
       "title": "INDEXANDO O CONHECIMENTO OFFLINE",
-      "subtitle": "Montando a base de conhecimento local e o índice de busca neste celular. Sem internet."
+      "subtitle": "Montando a base de conhecimento local e o índice de busca neste celular. Sem internet.",
+      "counter": "Indexados {{done}} de {{total}}"
     },
     "phaseStatus": {
       "complete": "COMPLETO",

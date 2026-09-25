@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -29,7 +29,7 @@ import {
   isDownloading,
   subscribeDownloads,
 } from "../services/downloadManager";
-import { seedKnowledgeBaseIfEmpty } from "../rag/seedCorpus";
+import { onSeedProgress, seedKnowledgeBaseIfEmpty, SeedProgress } from "../rag/seedCorpus";
 import { embeddingEngine } from "../rag/embed";
 import { useTheme, colors, typography } from "./theme";
 import { ThemeSelector } from "./components/ThemeSelector";
@@ -72,6 +72,15 @@ function formatEta(seconds: number | undefined, estimatingLabel: string): string
   return `${m}m ${s}s`;
 }
 
+/** Seconds left at the pace since the screen started watching, or undefined while too early to tell. */
+function seedEtaSeconds(p: SeedProgress, start: { at: number; done: number } | null): number | undefined {
+  if (!start) return undefined;
+  const elapsed = (Date.now() - start.at) / 1000;
+  const indexed = p.done - start.done;
+  if (elapsed < 3 || indexed < 5) return undefined;
+  return ((p.total - p.done) * elapsed) / indexed;
+}
+
 export function SetupWizardScreen({ onReady, onSkip }: Props) {
   const { colors, typography } = useTheme();
   const { t } = useTranslation();
@@ -85,6 +94,18 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
   });
   const [indexingPhase, setIndexingPhase] = useState<"waiting" | "building" | "ready" | "error">("waiting");
   const [indexingError, setIndexingError] = useState<string | null>(null);
+  const [seedProgress, setSeedProgress] = useState<SeedProgress | null>(null);
+  // Where the count was when this screen started watching, for a time-left estimate.
+  const seedStart = useRef<{ at: number; done: number } | null>(null);
+
+  useEffect(
+    () =>
+      onSeedProgress((p) => {
+        seedStart.current ??= { at: Date.now(), done: p.done };
+        setSeedProgress(p);
+      }),
+    []
+  );
   const [, forceRender] = useState(0);
 
   // Subscribe to live download progress
@@ -581,6 +602,36 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
               t={t}
             />
           </View>
+
+          {indexingPhase === "building" && seedProgress && (
+            <View style={styles.progressCard}>
+              <View style={styles.progressHeader}>
+                <View style={styles.progressLeft}>
+                  <ActivityIndicator size="small" color={colors.emerald[400]} />
+                  <Text style={styles.progressTitle}>
+                    {t("setupWizard.step4.counter", {
+                      done: seedProgress.done.toLocaleString(),
+                      total: seedProgress.total.toLocaleString(),
+                    })}
+                  </Text>
+                </View>
+                <Text style={styles.progressPctText}>
+                  {Math.floor((seedProgress.done / seedProgress.total) * 100)}%
+                </Text>
+              </View>
+              <Text style={styles.progressAssetLabel} numberOfLines={1}>
+                {seedProgress.title}
+              </Text>
+              <View style={styles.progressTrack}>
+                <View
+                  style={[styles.progressFill, { width: `${Math.max((seedProgress.done / seedProgress.total) * 100, 3)}%` }]}
+                />
+              </View>
+              <Text style={styles.telemetryEta}>
+                {t("setupWizard.step3.eta", { eta: formatEta(seedEtaSeconds(seedProgress, seedStart.current), t("setupWizard.estimating")) })}
+              </Text>
+            </View>
+          )}
 
           <View style={styles.tipBox}>
             <Text style={styles.tipLabel}>{t("setupWizard.step3.tipLabel")}</Text>

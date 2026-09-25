@@ -227,7 +227,8 @@
     },
     "step4": {
       "title": "INDEXING OFFLINE KNOWLEDGE",
-      "subtitle": "Building the local knowledge base and search index on this phone. No internet needed."
+      "subtitle": "Building the local knowledge base and search index on this phone. No internet needed.",
+      "counter": "Indexed {{done}} of {{total}}"
     },
     "phaseStatus": {
       "complete": "COMPLETE",

@@ -23,7 +23,7 @@ import { retrieve, assemblePrompt, RetrievedChunk, ConversationTurn } from "../r
 import { assembleChatMessages, ANSWER_CONTEXT_CHUNKS } from "../rag/pure";
 import { classifyTask, isRetrievalIrrelevant } from "../routing/classify";
 import type { TaskType } from "../routing/types";
-import { seedKnowledgeBaseIfEmpty } from "../rag/seedCorpus";
+import { onSeedProgress, seedKnowledgeBaseIfEmpty } from "../rag/seedCorpus";
 import { MODEL_CATALOG, CORPUS_CATALOG, REQUIRED_MODELS, CatalogModel } from "../models/manifest";
 import { listDiscoveredModels } from "../models/discoveredModels";
 import { subscribeDownloads, listDownloadStates } from "../services/downloadManager";
@@ -339,7 +339,10 @@ export function ChatScreen({
       startAppMemoryTracking();
 
       setLoadStatus(t("chatScreen.indexingKnowledgeBase"));
-      await seedKnowledgeBaseIfEmpty();
+      const stopProgress = onSeedProgress((p) =>
+        setLoadStatus(`${t("chatScreen.indexingKnowledgeBase")} ${p.done.toLocaleString()} / ${p.total.toLocaleString()}`)
+      );
+      await seedKnowledgeBaseIfEmpty().finally(stopProgress);
       setReady(true);
     } catch (e: any) {
       setLoadError(e?.message ?? String(e));
