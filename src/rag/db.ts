@@ -16,6 +16,26 @@ export function getDb(): Promise<SQLite.SQLiteDatabase> {
   return dbPromise;
 }
 
+let writeChain: Promise<unknown> = Promise.resolve();
+
+/**
+ * A transaction on the shared connection, run after any other one still in
+ * progress. Two overlapping withTransactionAsync calls on one connection
+ * fail with "cannot start a transaction within a transaction", and
+ * withExclusiveTransactionAsync opens and closes a connection per call,
+ * which crashed expo-sqlite natively after a few thousand inserts.
+ */
+export function writeTransaction(
+  work: (db: SQLite.SQLiteDatabase) => Promise<void>
+): Promise<void> {
+  const run = writeChain.then(async () => {
+    const db = await getDb();
+    await db.withTransactionAsync(() => work(db));
+  });
+  writeChain = run.catch(() => {});
+  return run;
+}
+
 /**
  * Closes and deletes the on-disk database (chat history, the whole
  * knowledge base — bundled corpus, downloaded packs, and custom imported
@@ -161,8 +181,7 @@ export async function insertChunk(
   chunk: ChunkRecord,
   embedding: Float32Array
 ): Promise<void> {
-  const db = await getDb();
-  await db.withExclusiveTransactionAsync(async (txn) => {
+  await writeTransaction(async (txn) => {
     await txn.runAsync(
       `INSERT OR REPLACE INTO chunks (chunk_id, doc_id, title, body, source, collection_id) VALUES (?, ?, ?, ?, ?, ?)`,
       [chunk.chunkId, chunk.docId, chunk.title, chunk.body, chunk.source ?? null, chunk.collectionId ?? null]
@@ -238,8 +257,7 @@ export async function setCustomCollectionActive(id: string, active: boolean): Pr
 }
 
 export async function deleteCustomCollection(id: string): Promise<void> {
-  const db = await getDb();
-  await db.withExclusiveTransactionAsync(async (txn) => {
+  await writeTransaction(async (txn) => {
     const rows = await txn.getAllAsync<{ chunk_id: string }>(
       `SELECT chunk_id FROM chunks WHERE collection_id = ?`,
       [id]

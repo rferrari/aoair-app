@@ -1,4 +1,4 @@
-import { getDb } from "../rag/db";
+import { getDb, writeTransaction } from "../rag/db";
 
 export interface ChatSession {
   id: string;
@@ -123,8 +123,7 @@ export async function setSessionSummary(sessionId: string, summary: string): Pro
 }
 
 export async function deleteSession(sessionId: string): Promise<void> {
-  const db = await getDb();
-  await db.withExclusiveTransactionAsync(async (txn) => {
+  await writeTransaction(async (txn) => {
     await txn.runAsync(
       `DELETE FROM answer_feedback WHERE message_id IN (SELECT id FROM chat_messages WHERE session_id = ?)`,
       [sessionId]
@@ -135,8 +134,7 @@ export async function deleteSession(sessionId: string): Promise<void> {
 }
 
 export async function clearAllHistory(): Promise<void> {
-  const db = await getDb();
-  await db.withExclusiveTransactionAsync(async (txn) => {
+  await writeTransaction(async (txn) => {
     await txn.runAsync(`DELETE FROM answer_feedback`);
     await txn.runAsync(`DELETE FROM chat_messages`);
     await txn.runAsync(`DELETE FROM chat_sessions`);
