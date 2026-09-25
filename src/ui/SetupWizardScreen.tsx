@@ -43,7 +43,7 @@ interface Props {
   onSkip?: () => void;
 }
 
-type WizardStep = 1 | 2 | 3;
+type WizardStep = 1 | 2 | 3 | 4;
 
 interface HardwareScan {
   totalRamBytes: number;
@@ -149,9 +149,14 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
     }
   }, [refreshPresence, tierAssets]);
 
-  // When all assets land on disk in Step 3, seed the knowledge base
+  // Downloads done: move on to indexing.
   useEffect(() => {
-    if (step === 3 && allAssetsPresent) {
+    if (step === 3 && allAssetsPresent) setStep(4);
+  }, [step, allAssetsPresent]);
+
+  // Step 4: seed the knowledge base on the phone.
+  useEffect(() => {
+    if (step === 4) {
       (async () => {
         try {
           setIndexingPhase("building");
@@ -164,7 +169,7 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
         }
       })();
     }
-  }, [step, allAssetsPresent]);
+  }, [step]);
 
   // Compute aggregate download metrics across tier assets
   let totalBytesExpected = 0;
@@ -263,7 +268,9 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
           <View style={[styles.stepLine, step > 1 && styles.stepLineCompleted]} />
           <StepBadge num={2} label={t("setupWizard.steps.modelTier")} active={step === 2} completed={step > 2} />
           <View style={[styles.stepLine, step > 2 && styles.stepLineCompleted]} />
-          <StepBadge num={3} label={t("setupWizard.steps.indexing")} active={step === 3} completed={allAssetsPresent} />
+          <StepBadge num={3} label={t("setupWizard.steps.install")} active={step === 3} completed={step > 3} />
+          <View style={[styles.stepLine, step > 3 && styles.stepLineCompleted]} />
+          <StepBadge num={4} label={t("setupWizard.steps.indexing")} active={step === 4} completed={indexingPhase === "ready"} />
         </View>
       </View>
 
@@ -407,7 +414,7 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
         </ScrollView>
       )}
 
-      {/* STEP 3: INITIAL CORPUS INDEXING & DOWNLOAD */}
+      {/* STEP 3: INSTALL (downloads, the only network use) */}
       {step === 3 && (
         <ScrollView contentContainerStyle={styles.stepContent}>
           <View style={styles.stepHeader}>
@@ -503,18 +510,6 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
               }
               t={t}
             />
-            <PhaseRow
-              index="3"
-              title={t("setupWizard.step3.phaseKnowledgeBase")}
-              status={
-                indexingPhase === "ready"
-                  ? "COMPLETE"
-                  : allAssetsPresent
-                  ? "INDEXING"
-                  : "QUEUED"
-              }
-              t={t}
-            />
           </View>
 
           {/* Off-Grid Terminal Tips */}
@@ -554,28 +549,59 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
             </AccordionSection>
           </View>
 
-          {/* Ready Action */}
           <View style={styles.actionsBottom}>
-            {indexingPhase === "ready" || allAssetsPresent ? (
-              <Pressable
-                style={[styles.primaryBtn, styles.launchBtn]}
-                onPress={() => {
-                  notification(NotificationFeedbackType.Success);
-                  onReady();
-                }}
-              >
-                <Text style={styles.launchBtnText}>{t("setupWizard.step3.launchButton")}</Text>
-              </Pressable>
+            <View style={styles.waitingContainer}>
+              <ActivityIndicator color={colors.emerald[400]} />
+              <Text style={styles.waitingText}>{t("setupWizard.step3.waitingForDownloads")}</Text>
+            </View>
+          </View>
+        </ScrollView>
+      )}
+
+      {/* STEP 4: INDEXING (on the phone, offline) */}
+      {step === 4 && (
+        <ScrollView contentContainerStyle={styles.stepContent}>
+          <View style={styles.stepHeader}>
+            <Text style={styles.stepTitle}>{t("setupWizard.step4.title")}</Text>
+            <Text style={styles.stepSubtitle}>{t("setupWizard.step4.subtitle")}</Text>
+          </View>
+
+          <View style={styles.phasesCard}>
+            <PhaseRow index="1" title={t("setupWizard.step3.phaseModel")} status="COMPLETE" t={t} />
+            <PhaseRow index="2" title={t("setupWizard.step3.phaseEmbedding")} status="COMPLETE" t={t} />
+            <PhaseRow
+              index="3"
+              title={t("setupWizard.step3.phaseKnowledgeBase")}
+              status={indexingPhase === "ready" ? "COMPLETE" : "INDEXING"}
+              t={t}
+            />
+          </View>
+
+          <View style={styles.tipBox}>
+            <Text style={styles.tipLabel}>{t("setupWizard.step3.tipLabel")}</Text>
+            <Text style={styles.tipText}>{t("setupWizard.step3.tipText")}</Text>
+          </View>
+
+          <View style={styles.actionsBottom}>
+            {indexingPhase === "ready" || indexingPhase === "error" ? (
+              <>
+                {indexingPhase === "error" && (
+                  <Text style={styles.waitingText}>{t("setupWizard.step3.indexingError", { error: indexingError })}</Text>
+                )}
+                <Pressable
+                  style={[styles.primaryBtn, styles.launchBtn]}
+                  onPress={() => {
+                    notification(NotificationFeedbackType.Success);
+                    onReady();
+                  }}
+                >
+                  <Text style={styles.launchBtnText}>{t("setupWizard.step3.launchButton")}</Text>
+                </Pressable>
+              </>
             ) : (
               <View style={styles.waitingContainer}>
                 <ActivityIndicator color={colors.emerald[400]} />
-                <Text style={styles.waitingText}>
-                  {indexingPhase === "error"
-                    ? t("setupWizard.step3.indexingError", { error: indexingError })
-                    : indexingPhase === "building"
-                    ? t("setupWizard.step3.buildingIndex")
-                    : t("setupWizard.step3.waitingForDownloads")}
-                </Text>
+                <Text style={styles.waitingText}>{t("setupWizard.step3.buildingIndex")}</Text>
               </View>
             )}
           </View>
