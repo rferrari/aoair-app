@@ -124,22 +124,22 @@ export async function setSessionSummary(sessionId: string, summary: string): Pro
 
 export async function deleteSession(sessionId: string): Promise<void> {
   const db = await getDb();
-  await db.withTransactionAsync(async () => {
-    await db.runAsync(
+  await db.withExclusiveTransactionAsync(async (txn) => {
+    await txn.runAsync(
       `DELETE FROM answer_feedback WHERE message_id IN (SELECT id FROM chat_messages WHERE session_id = ?)`,
       [sessionId]
     );
-    await db.runAsync(`DELETE FROM chat_messages WHERE session_id = ?`, [sessionId]);
-    await db.runAsync(`DELETE FROM chat_sessions WHERE id = ?`, [sessionId]);
+    await txn.runAsync(`DELETE FROM chat_messages WHERE session_id = ?`, [sessionId]);
+    await txn.runAsync(`DELETE FROM chat_sessions WHERE id = ?`, [sessionId]);
   });
 }
 
 export async function clearAllHistory(): Promise<void> {
   const db = await getDb();
-  await db.withTransactionAsync(async () => {
-    await db.runAsync(`DELETE FROM answer_feedback`);
-    await db.runAsync(`DELETE FROM chat_messages`);
-    await db.runAsync(`DELETE FROM chat_sessions`);
+  await db.withExclusiveTransactionAsync(async (txn) => {
+    await txn.runAsync(`DELETE FROM answer_feedback`);
+    await txn.runAsync(`DELETE FROM chat_messages`);
+    await txn.runAsync(`DELETE FROM chat_sessions`);
   });
 }
 

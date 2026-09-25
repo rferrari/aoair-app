@@ -162,16 +162,16 @@ export async function insertChunk(
   embedding: Float32Array
 ): Promise<void> {
   const db = await getDb();
-  await db.withTransactionAsync(async () => {
-    await db.runAsync(
+  await db.withExclusiveTransactionAsync(async (txn) => {
+    await txn.runAsync(
       `INSERT OR REPLACE INTO chunks (chunk_id, doc_id, title, body, source, collection_id) VALUES (?, ?, ?, ?, ?, ?)`,
       [chunk.chunkId, chunk.docId, chunk.title, chunk.body, chunk.source ?? null, chunk.collectionId ?? null]
     );
-    await db.runAsync(
+    await txn.runAsync(
       `INSERT OR REPLACE INTO chunks_fts (chunk_id, doc_id, title, body) VALUES (?, ?, ?, ?)`,
       [chunk.chunkId, chunk.docId, chunk.title, chunk.body]
     );
-    await db.runAsync(
+    await txn.runAsync(
       `INSERT OR REPLACE INTO chunk_embeddings (chunk_id, embedding, dim) VALUES (?, ?, ?)`,
       [chunk.chunkId, new Uint8Array(embedding.buffer), embedding.length]
     );
@@ -239,17 +239,17 @@ export async function setCustomCollectionActive(id: string, active: boolean): Pr
 
 export async function deleteCustomCollection(id: string): Promise<void> {
   const db = await getDb();
-  await db.withTransactionAsync(async () => {
-    const rows = await db.getAllAsync<{ chunk_id: string }>(
+  await db.withExclusiveTransactionAsync(async (txn) => {
+    const rows = await txn.getAllAsync<{ chunk_id: string }>(
       `SELECT chunk_id FROM chunks WHERE collection_id = ?`,
       [id]
     );
     for (const r of rows) {
-      await db.runAsync(`DELETE FROM chunks WHERE chunk_id = ?`, [r.chunk_id]);
-      await db.runAsync(`DELETE FROM chunks_fts WHERE chunk_id = ?`, [r.chunk_id]);
-      await db.runAsync(`DELETE FROM chunk_embeddings WHERE chunk_id = ?`, [r.chunk_id]);
+      await txn.runAsync(`DELETE FROM chunks WHERE chunk_id = ?`, [r.chunk_id]);
+      await txn.runAsync(`DELETE FROM chunks_fts WHERE chunk_id = ?`, [r.chunk_id]);
+      await txn.runAsync(`DELETE FROM chunk_embeddings WHERE chunk_id = ?`, [r.chunk_id]);
     }
-    await db.runAsync(`DELETE FROM custom_collections WHERE id = ?`, [id]);
+    await txn.runAsync(`DELETE FROM custom_collections WHERE id = ?`, [id]);
   });
 }
 

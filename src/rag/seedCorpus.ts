@@ -133,7 +133,9 @@ async function loadDownloadedCorpusPacks(): Promise<SeedDoc[]> {
   return docs;
 }
 
-let seeding: Promise<void> | null = null;
+// On globalThis rather than in the module: a dev hot reload re-runs this
+// module while the previous run is still inserting.
+const running = globalThis as { __boarSeeding?: Promise<void> | null };
 
 /**
  * The setup wizard and the chat screen can both ask for this at once (and a
@@ -141,10 +143,10 @@ let seeding: Promise<void> | null = null;
  * inserting the same documents twice.
  */
 export function seedKnowledgeBaseIfEmpty(): Promise<void> {
-  seeding ??= seedNow().finally(() => {
-    seeding = null;
+  running.__boarSeeding ??= seedNow().finally(() => {
+    running.__boarSeeding = null;
   });
-  return seeding;
+  return running.__boarSeeding;
 }
 
 async function seedNow(): Promise<void> {
