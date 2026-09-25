@@ -10,8 +10,21 @@ import * as FileSystem from "expo-file-system/legacy";
 export class EmbeddingEngine {
   private context: LlamaContext | null = null;
   private modelFilename: string | null = null;
+  // llama.rn rejects a call on a context that's still working ("Context is
+  // busy"), so loads, embeddings and unloads run one at a time.
+  private queue: Promise<unknown> = Promise.resolve();
 
-  async load(modelFilename: string) {
+  private enqueue<T>(task: () => Promise<T>): Promise<T> {
+    const run = this.queue.then(task, task);
+    this.queue = run.catch(() => {});
+    return run;
+  }
+
+  load(modelFilename: string): Promise<void> {
+    return this.enqueue(() => this.loadNow(modelFilename));
+  }
+
+  private async loadNow(modelFilename: string) {
     // Same rationale as LlamaEngine.load: ChatScreen re-mounts (and calls
     // load() again) every time Settings is closed, even if the user didn't
     // touch the model — skip re-initializing the native context if it's
@@ -25,7 +38,7 @@ export class EmbeddingEngine {
     if (!info.exists) {
       throw new Error(`Embedding model not found at ${modelPath}`);
     }
-    await this.unload();
+    await this.unloadNow();
     this.context = await initLlama({
       model: modelPath,
       embedding: true,
@@ -35,13 +48,19 @@ export class EmbeddingEngine {
     this.modelFilename = modelFilename;
   }
 
-  async embed(text: string): Promise<Float32Array> {
-    if (!this.context) throw new Error("EmbeddingEngine: model not loaded");
-    const result = await this.context.embedding(text);
-    return Float32Array.from(result.embedding);
+  embed(text: string): Promise<Float32Array> {
+    return this.enqueue(async () => {
+      if (!this.context) throw new Error("EmbeddingEngine: model not loaded");
+      const result = await this.context.embedding(text);
+      return Float32Array.from(result.embedding);
+    });
   }
 
-  async unload() {
+  unload(): Promise<void> {
+    return this.enqueue(() => this.unloadNow());
+  }
+
+  private async unloadNow() {
     await this.context?.release();
     this.context = null;
     this.modelFilename = null;

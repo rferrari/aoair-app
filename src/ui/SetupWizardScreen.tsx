@@ -30,6 +30,7 @@ import {
   subscribeDownloads,
 } from "../services/downloadManager";
 import { seedKnowledgeBaseIfEmpty } from "../rag/seedCorpus";
+import { embeddingEngine } from "../rag/embed";
 import { useTheme, colors, typography } from "./theme";
 import { ThemeSelector } from "./components/ThemeSelector";
 import { LanguageSelector } from "./components/LanguageSelector";
@@ -154,12 +155,16 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
     if (step === 3 && allAssetsPresent) setStep(4);
   }, [step, allAssetsPresent]);
 
-  // Step 4: seed the knowledge base on the phone.
+  // Step 4: seed the knowledge base on the phone. Indexing embeds every
+  // article, so the embedding model has to be loaded first; only the chat
+  // screen loaded it before.
   useEffect(() => {
     if (step === 4) {
       (async () => {
         try {
           setIndexingPhase("building");
+          const emb = MODEL_CATALOG.find((m) => m.kind === "embedding" && m.required)!;
+          await embeddingEngine.load(emb.filename);
           await seedKnowledgeBaseIfEmpty();
           setIndexingPhase("ready");
           notification(NotificationFeedbackType.Success);

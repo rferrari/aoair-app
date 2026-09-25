@@ -133,7 +133,21 @@ async function loadDownloadedCorpusPacks(): Promise<SeedDoc[]> {
   return docs;
 }
 
-export async function seedKnowledgeBaseIfEmpty(): Promise<void> {
+let seeding: Promise<void> | null = null;
+
+/**
+ * The setup wizard and the chat screen can both ask for this at once (and a
+ * dev reload can repeat it), so concurrent callers share one run instead of
+ * inserting the same documents twice.
+ */
+export function seedKnowledgeBaseIfEmpty(): Promise<void> {
+  seeding ??= seedNow().finally(() => {
+    seeding = null;
+  });
+  return seeding;
+}
+
+async function seedNow(): Promise<void> {
   const db = await getDb();
   const allDocs = [...APP_TOPIC_DOCS, ...MINIMUM_CORPUS_DOCS, ...(await loadDownloadedCorpusPacks())];
 
