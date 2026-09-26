@@ -6,12 +6,13 @@
 # installed (and launched once) first.
 #
 #   scripts/ios-sim-seed-models.sh [models_dir]   # default /Users/r4to/Script/boar/shared-models
+#   IOS_SIM_UDID=<udid> ...                        # a specific simulator instead of "booted"
 set -euo pipefail
 
 SRC="${1:-/Users/r4to/Script/boar/shared-models}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUNDLE_ID="$(node -p "require('$ROOT/app.json').expo.ios.bundleIdentifier")"
-DATA="$(xcrun simctl get_app_container booted "$BUNDLE_ID" data)"
+DATA="$(xcrun simctl get_app_container "${IOS_SIM_UDID:-booted}" "$BUNDLE_ID" data)"
 DEST="$DATA/Documents/models"
 mkdir -p "$DEST"
 

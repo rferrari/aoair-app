@@ -17,10 +17,12 @@ xcrun simctl install booted ios/build/Build/Products/Release-iphonesimulator/BOA
 xcrun simctl launch booted team.sopa.aoair
 
 # Build on a remote Mac with the newer Xcode (default host r4toMacMini), fetch the
-# .app to /Users/r4to/Script/boar/builds/ios, install + launch on the local simulator
-scripts/ios-remote-build.sh --install
-# Seed the required models into the simulator (APFS clone, no extra disk), relaunch
-scripts/ios-sim-seed-models.sh && xcrun simctl terminate booted team.sopa.aoair; xcrun simctl launch booted team.sopa.aoair
+# .app to /Users/r4to/Script/boar/builds/ios, then boot a simulator ON THAT MAC, seed
+# the required models from its ~/boar/shared-models (APFS clone) and launch.
+# Inference runs on the remote, not on the machine running the script.
+scripts/ios-remote-build.sh --run
+# Or install on the local booted simulator and seed from a local models dir
+scripts/ios-remote-build.sh --install && scripts/ios-sim-seed-models.sh
 
 # Simulator, Debug with Metro
 npx expo run:ios

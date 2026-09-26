@@ -4,7 +4,10 @@
 # Expo SDK 57 needs (see docs/IOS.md, "Toolchain requirement").
 #
 #   scripts/ios-remote-build.sh              # build, fetch .app
-#   scripts/ios-remote-build.sh --install    # ...then install + launch on the booted local simulator
+#   scripts/ios-remote-build.sh --run        # ...then boot a simulator ON THE REMOTE, seed the
+#                                            #    required models from its ~/boar/shared-models,
+#                                            #    install + launch (inference runs on the remote)
+#   scripts/ios-remote-build.sh --install    # ...or install + launch on the booted LOCAL simulator
 #
 # Env overrides:
 #   IOS_BUILD_HOST   ssh host                     (r4toMacMini)
@@ -13,6 +16,8 @@
 #   IOS_OUT_DIR      local output dir             (/Users/r4to/Script/boar/builds/ios)
 #   IOS_CONFIG       Release | Debug              (Release: JS bundled, no Metro)
 #   IOS_KEEP_REMOTE  1 = keep remote DerivedData  (default: deleted after the build)
+#   IOS_SIM_DEVICE   remote simulator for --run   (first available iPhone 17 Pro, else any iPhone)
+#   IOS_REMOTE_MODELS remote models dir for --run (~/boar/shared-models)
 set -euo pipefail
 
 HOST="${IOS_BUILD_HOST:-r4toMacMini}"
@@ -21,8 +26,9 @@ OUT_DIR="${IOS_OUT_DIR:-/Users/r4to/Script/boar/builds/ios}"
 CONFIG="${IOS_CONFIG:-Release}"
 XCODE_APP="${IOS_XCODE_APP:-}"
 KEEP_REMOTE="${IOS_KEEP_REMOTE:-0}"
-INSTALL=0
-[[ "${1:-}" == "--install" ]] && INSTALL=1
+SIM_DEVICE="${IOS_SIM_DEVICE:-}"
+REMOTE_MODELS="${IOS_REMOTE_MODELS:-~/boar/shared-models}"
+MODE="${1:-}"
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUNDLE_ID="$(node -p "require('$ROOT/app.json').expo.ios.bundleIdentifier")"
@@ -37,7 +43,7 @@ rsync -a --delete \
 cleanup_remote() {
   [[ "$KEEP_REMOTE" == "1" ]] && return
   log "delete remote intermediates"
-  ssh "$HOST" "bash -lc 'rm -rf $REMOTE_DIR/ios/build'" || true
+  ssh "$HOST" "bash -lc 'rm -rf $REMOTE_DIR/ios/build/Build/Intermediates.noindex $REMOTE_DIR/ios/build/Index.noindex'" || true
 }
 trap cleanup_remote EXIT
 
@@ -64,9 +70,26 @@ log "fetch BOAR.app -> $OUT_DIR"
 rsync -a --delete "$HOST:$APP_REMOTE/" "$OUT_DIR/BOAR.app/"
 du -sh "$OUT_DIR/BOAR.app"
 
-if [[ "$INSTALL" == "1" ]]; then
-  log "install + launch $BUNDLE_ID on the booted simulator"
+if [[ "$MODE" == "--install" ]]; then
+  log "install + launch $BUNDLE_ID on the booted local simulator"
   xcrun simctl install booted "$OUT_DIR/BOAR.app"
   xcrun simctl launch booted "$BUNDLE_ID"
+elif [[ "$MODE" == "--run" ]]; then
+  log "boot simulator, install, seed models, launch on $HOST"
+  ssh "$HOST" "bash -lc 'set -euo pipefail
+    cd $REMOTE_DIR
+    DEV=\"$SIM_DEVICE\"
+    if [[ -z \"\$DEV\" ]]; then
+      DEV=\$(xcrun simctl list devices available | grep -E \"iPhone 17 Pro \\(\" | head -1 | grep -oE \"[0-9A-F-]{36}\" || true)
+      [[ -n \"\$DEV\" ]] || DEV=\$(xcrun simctl list devices available | grep iPhone | head -1 | grep -oE \"[0-9A-F-]{36}\")
+    fi
+    xcrun simctl boot \"\$DEV\" 2>/dev/null || true
+    xcrun simctl bootstatus \"\$DEV\" -b >/dev/null
+    xcrun simctl install \"\$DEV\" $APP_REMOTE
+    xcrun simctl launch \"\$DEV\" $BUNDLE_ID >/dev/null
+    IOS_SIM_UDID=\"\$DEV\" scripts/ios-sim-seed-models.sh $REMOTE_MODELS
+    xcrun simctl terminate \"\$DEV\" $BUNDLE_ID || true
+    xcrun simctl launch \"\$DEV\" $BUNDLE_ID
+    echo \"simulator UDID: \$DEV\"'"
 fi
 log done
