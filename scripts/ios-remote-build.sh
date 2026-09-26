@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# Builds the iOS Simulator app on a remote Mac (default: r4toMacMini) and
+# copies BOAR.app back. Use it when the local Xcode is older than the one
+# Expo SDK 57 needs (see docs/IOS.md, "Toolchain requirement").
+#
+#   scripts/ios-remote-build.sh              # build, fetch .app
+#   scripts/ios-remote-build.sh --install    # ...then install + launch on the booted local simulator
+#
+# Env overrides:
+#   IOS_BUILD_HOST   ssh host                     (r4toMacMini)
+#   IOS_REMOTE_DIR   remote checkout dir          (~/boar-ios-build)
+#   IOS_XCODE_APP    Xcode on the remote          (newest /Applications/Xcode*.app)
+#   IOS_OUT_DIR      local output dir             (/Users/r4to/Script/boar/builds/ios)
+#   IOS_CONFIG       Release | Debug              (Release: JS bundled, no Metro)
+#   IOS_KEEP_REMOTE  1 = keep remote DerivedData  (default: deleted after the build)
+set -euo pipefail
+
+HOST="${IOS_BUILD_HOST:-r4toMacMini}"
+REMOTE_DIR="${IOS_REMOTE_DIR:-boar-ios-build}"
+OUT_DIR="${IOS_OUT_DIR:-/Users/r4to/Script/boar/builds/ios}"
+CONFIG="${IOS_CONFIG:-Release}"
+XCODE_APP="${IOS_XCODE_APP:-}"
+KEEP_REMOTE="${IOS_KEEP_REMOTE:-0}"
+INSTALL=0
+[[ "${1:-}" == "--install" ]] && INSTALL=1
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+BUNDLE_ID="$(node -p "require('$ROOT/app.json').expo.ios.bundleIdentifier")"
+log() { printf '[ios-remote-build %s] %s\n' "$(date +%H:%M:%S)" "$*"; }
+
+log "sync $ROOT -> $HOST:$REMOTE_DIR"
+rsync -a --delete \
+  --exclude node_modules --exclude /ios --exclude /android --exclude .git \
+  --exclude .maestri --exclude '*.gguf' --exclude /assets/models \
+  "$ROOT/" "$HOST:$REMOTE_DIR/"
+
+# The remote login shell is fish; everything runs under bash -lc.
+log "remote build ($CONFIG)"
+ssh "$HOST" "bash -lc 'set -euo pipefail
+  cd $REMOTE_DIR
+  XCODE=\"$XCODE_APP\"
+  if [[ -z \"\$XCODE\" ]]; then XCODE=\$(ls -d /Applications/Xcode*.app | sort -V | tail -1); fi
+  export DEVELOPER_DIR=\"\$XCODE/Contents/Developer\"
+  echo \"using \$(xcodebuild -version | head -1) at \$XCODE\"
+  npm ci --no-audit --no-fund
+  npx expo prebuild -p ios --no-install --clean
+  (cd ios && pod install)
+  xcodebuild -workspace ios/BOAR.xcworkspace -scheme BOAR -configuration $CONFIG \
+    -sdk iphonesimulator -destination \"generic/platform=iOS Simulator\" \
+    -derivedDataPath ios/build ARCHS=arm64 ONLY_ACTIVE_ARCH=YES \
+    > build.log 2>&1 || { grep -E \"error:|BUILD FAILED\" build.log | head -40; exit 65; }
+  grep -E \"BUILD SUCCEEDED\" build.log'"
+
+APP_REMOTE="$REMOTE_DIR/ios/build/Build/Products/$CONFIG-iphonesimulator/BOAR.app"
+mkdir -p "$OUT_DIR"
+log "fetch BOAR.app -> $OUT_DIR"
+rsync -a --delete "$HOST:$APP_REMOTE/" "$OUT_DIR/BOAR.app/"
+du -sh "$OUT_DIR/BOAR.app"
+
+if [[ "$KEEP_REMOTE" != "1" ]]; then
+  log "delete remote intermediates"
+  ssh "$HOST" "bash -lc 'rm -rf $REMOTE_DIR/ios/build'"
+fi
+
+if [[ "$INSTALL" == "1" ]]; then
+  log "install + launch $BUNDLE_ID on the booted simulator"
+  xcrun simctl install booted "$OUT_DIR/BOAR.app"
+  xcrun simctl launch booted "$BUNDLE_ID"
+fi
+log done

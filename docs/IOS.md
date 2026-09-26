@@ -16,6 +16,12 @@ xcrun simctl boot "iPhone 17 Pro" 2>/dev/null; open -a Simulator
 xcrun simctl install booted ios/build/Build/Products/Release-iphonesimulator/BOAR.app
 xcrun simctl launch booted team.sopa.aoair
 
+# Build on a remote Mac with the newer Xcode (default host r4toMacMini), fetch the
+# .app to /Users/r4to/Script/boar/builds/ios, install + launch on the local simulator
+scripts/ios-remote-build.sh --install
+# Seed the required models into the simulator (APFS clone, no extra disk), relaunch
+scripts/ios-sim-seed-models.sh && xcrun simctl terminate booted team.sopa.aoair; xcrun simctl launch booted team.sopa.aoair
+
 # Simulator, Debug with Metro
 npx expo run:ios
 
