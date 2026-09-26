@@ -1,7 +1,15 @@
 import { describe, it, expect } from "vitest";
 import type { RetrievedChunk } from "../../rag/retrieve.types";
 import type { AnswerEvent, AnswerReceipt as Receipt } from "./answerEvents";
-import { answerPhase, answerReducer, canDeepen, initialAnswer, isAnswerActive, type AnswerState } from "./answerReducer";
+import {
+  answerPhase,
+  answerReducer,
+  attachAnswer,
+  canDeepen,
+  initialAnswer,
+  isAnswerActive,
+  type AnswerState,
+} from "./answerReducer";
 
 const chunk = (id: string): RetrievedChunk => ({
   chunkId: id,
@@ -110,8 +118,8 @@ describe("answerReducer", () => {
     const offered = run([...fastDone, { answerId: "a1", type: "deep_available", estSeconds: 120 }]);
     expect(canDeepen(offered)).toBe(true);
 
-    const deepening = answerReducer(offered, {
-      answerId: "a1",
+    const deepening = answerReducer(attachAnswer(offered, "a2"), {
+      answerId: "a2",
       type: "stage",
       stage: "synthesizing",
       tier: "deep",

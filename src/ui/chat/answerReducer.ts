@@ -21,7 +21,8 @@ export interface TierState {
 
 /** Everything the chat shows for one assistant message. */
 export interface AnswerState {
-  answerId: string;
+  /** answer() calls whose events land here: the first answer, then a Deepen on the same message. */
+  answerIds: string[];
   /** Global, deduplicated list: "[n]" in any tier's text is sources[n - 1]. */
   sources: RetrievedChunk[];
   instant?: { text: string; sourceIndex: number; confidence: number };
@@ -35,7 +36,12 @@ export interface AnswerState {
 }
 
 export function initialAnswer(answerId: string): AnswerState {
-  return { answerId, sources: [] };
+  return { answerIds: [answerId], sources: [] };
+}
+
+/** Routes a follow-up answer() (Deepen) into this message. */
+export function attachAnswer(state: AnswerState, answerId: string): AnswerState {
+  return state.answerIds.includes(answerId) ? state : { ...state, answerIds: [...state.answerIds, answerId] };
 }
 
 function mergeSources(current: RetrievedChunk[], incoming: RetrievedChunk[]): RetrievedChunk[] {
@@ -55,7 +61,7 @@ function updateTier(state: AnswerState, tier: "fast" | "deep", patch: (t: TierSt
  * nothing changes a tier after its "done".
  */
 export function answerReducer(state: AnswerState, event: AnswerEvent): AnswerState {
-  if (event.answerId !== state.answerId) return state;
+  if (!state.answerIds.includes(event.answerId)) return state;
 
   switch (event.type) {
     case "sources":
