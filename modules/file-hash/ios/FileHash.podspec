@@ -1,12 +1,10 @@
-require 'json'
-
-package = JSON.parse(File.read(File.join(__dir__, '..', 'package.json')))
-
 Pod::Spec.new do |s|
   s.name           = 'FileHash'
-  s.version        = package['version']
-  s.summary        = package['description']
-  s.license        = package['license']
+  s.version        = '0.1.0'
+  # Self-contained (no ../package.json): this ios/ dir can land before the
+  # module's JS side, and pod install must not break in between.
+  s.summary        = 'Streaming SHA-256 of large files without loading them into JS memory.'
+  s.license        = 'MIT'
   s.authors        = 'BOAR'
   s.homepage       = 'https://github.com/rferrari/boar-app'
   s.platforms      = { :ios => '15.1' }
