@@ -40,7 +40,7 @@ export function AnnouncerProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** `const announce = useAnnounce(); announce(t("chat.answerReady"))`. Announce state changes once, never per streamed token. */
+/** Returns `announce(message, { assertive })`. Announce state changes once, never per streamed token. */
 export function useAnnounce(): Announce {
   return useContext(AnnounceContext);
 }
