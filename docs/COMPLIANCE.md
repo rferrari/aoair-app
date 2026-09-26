@@ -11,7 +11,7 @@ every status. Statuses are only what has been checked:
 Raw benchmark files (JSONL, answers, reports) are in [evidence/](evidence/);
 the demo videos and screenshots are in [demo/](demo/README.md).
 
-Last reviewed: 2026-09-24. Test device: Xiaomi 2311DRK48G, MediaTek MT6897
+Last reviewed: 2026-09-25. Test device: Xiaomi 2311DRK48G, MediaTek MT6897
 (Dimensity 8300), 11.6 GB RAM, Android 16.
 
 | # | Requirement | Status |
@@ -27,13 +27,13 @@ Last reviewed: 2026-09-24. Test device: Xiaomi 2311DRK48G, MediaTek MT6897
 | 9 | Published in a public GitHub repository | PASS |
 | 10 | Includes all code, assets, dependencies and instructions to reproduce | PASS |
 | 11 | Documents the models, datasets, indexes and other resources | PASS |
-| 12 | Works on real Android hardware at submission time | OPEN |
-| 13 | Someone can get it running within a few minutes | OPEN |
+| 12 | Works on real Android hardware at submission time | PASS |
+| 13 | Someone can get it running within a few minutes | PARTIAL |
 | 14 | Required assets included or with clear download instructions | PASS |
 | 15 | Public demo on X or Farcaster | PASS |
 | 16 | Demo shows offline use, hard queries, repo link and approach | PARTIAL |
 | 17 | Screenshot and links submitted to poidh | OPEN |
-| 18 | Repository contains the functional submitted version at claim time | OPEN |
+| 18 | Repository contains the functional submitted version at claim time | PASS |
 | 19 | Not fraudulent, malicious, plagiarized or otherwise in violation | PASS |
 | 20 | ">50% as good as internet + frontier models" | OPEN |
 
@@ -155,13 +155,18 @@ it's public at claim time (18).
 knowledge pack with source, size, checksum and license. The knowledge base and
 packs are Wikipedia-derived, CC BY-SA 4.0.
 
-### 12. Real hardware at submission — OPEN
-Re-run on a physical phone from the exact release build (18) right before
-claiming.
+### 12. Real hardware at submission — PASS
+Smoke test on 2026-09-25 with the published v1.0.0 APK on the test phone (the
+installed APK's SHA-256 matches the release): clean install, first-run setup,
+then a correct answer at about 7 tok/s with Qwen2.5-1.5B.
 
-### 13. Running within a few minutes — OPEN
-Not yet timed from a clean install. The first run downloads about 1 GB, so
-total time depends on the connection.
+### 13. Running within a few minutes — PARTIAL
+- No build needed: download the APK from the
+  [release](https://github.com/rferrari/boar-app/releases/tag/v1.0.0), check its
+  checksum and install it (the README's "Download the app"), or let
+  `make setup` do all three over USB.
+- The first run downloads about 1 GB, so total time depends on the connection;
+  the install-to-first-answer time hasn't been measured with a stopwatch.
 
 ### 14. Assets or download instructions — PASS
 The first-run setup wizard downloads every required model and optional
@@ -175,9 +180,10 @@ APK (see [docs/MODELS.md](MODELS.md)).
   knowledge-pack facts.
 - Still to do: submit a screenshot and links to poidh.
 
-### 18. Submitted version matches the repository — OPEN
-Tag the release commit and publish the APK with its SHA-256 as a GitHub
-release.
+### 18. Submitted version matches the repository — PASS
+[v1.0.0](https://github.com/rferrari/boar-app/releases/tag/v1.0.0): the APK
+(SHA-256 `de9e3156b4593c48e74a91a28931f044be8b64fd6d941e91b9a07a97eb4d3c01`)
+and its `.sha256` file, built from the tagged commit `8ae9d44`.
 
 ### 19. Not fraudulent, malicious or plagiarized — PASS
 - Original code, MIT licensed ([LICENSE](../LICENSE)).
