@@ -93,8 +93,8 @@ Only the default pair fits: Qwen2.5-1.5B Q4_K_M (0.92 GiB) + bge-small (35 MiB).
 | **Total, worst case (weights fully repacked, n_ctx 4096)** | **~1.8 GB** | |
 
 - The per-app limit on a 4GB iPhone without the entitlement is believed to be around 2 GB; with `increased-memory-limit` it is higher. Both `UNKNOWN`: the smoke test measures footprint + available at launch.
-- Recommendation for ≤4GB devices: `n_ctx` 2048 (saves ~60 MB of KV and part of the compute buffer), `n_gpu_layers` 0 until Metal is measured (Metal buffers are counted in the footprint), one LLM loaded at a time. `n_ctx` and the pre-flight check live in `src/inference` (engine owner); the pre-flight on iOS should compare against `getAvailableRamBytes()`, not device RAM.
-- `LlamaEngine.estimateFit` today: ~3.7 GB reported RAM − ~0.3 GB RSS − 2 GB overhead ≈ 1.4 GB available vs 1.08 GB needed, so it lets the 1.5B load and blocks the larger models, which matches this budget.
+- Engine settings (feat/engine-routing, PR #2): `n_ctx` 2048 when device RAM ≤ 4.5 GB (4096 otherwise), source budget capped at `n_ctx − maxTokens − 512`, `n_gpu_layers` 0 on every platform until Metal is measured (Metal buffers count in the footprint).
+- Pre-flight (same PR): compares the model's estimated need (file size × 1.15) with `getAvailableRamBytes()`, which is `os_proc_available_memory()` on iOS; falls back to device RAM − RSS − 2 GB. The estimate counts the whole file although clean mmap'd pages are not in the footprint, so it errs on the safe side. Whether it lets the 1.5B load on the iPhone 13 depends on the real headroom at launch (`UNKNOWN`; the smoke test records it).
 
 ## Apple account requirements
 
