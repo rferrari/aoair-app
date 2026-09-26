@@ -44,6 +44,17 @@ export interface GenerateOptions {
   timeoutMs?: number;
   /** Called once, right before the timeout triggers stop() — lets the caller distinguish a timeout from a natural finish or a user-initiated stop. */
   onTimeout?: () => void;
+  /** llama.cpp's own measurements for this completion (prompt = prefill). */
+  onTimings?: (t: GenerationTimings) => void;
+}
+
+export interface GenerationTimings {
+  promptTokens: number;
+  promptMs: number;
+  predictedTokens: number;
+  predictedMs: number;
+  /** Prompt tokens reused from the previous completion's KV cache (prefix cache hit). */
+  cachedTokens?: number;
 }
 
 /**
@@ -90,6 +101,13 @@ export class LlamaEngine {
   // runs leaves its promise unsettled forever (the chat stays "generating"),
   // so unload stops it and waits for it first.
   private inFlight: Promise<unknown> | null = null;
+  // generate() calls run one at a time: two completions on one llama.cpp
+  // context interleave their tokens and corrupt the KV cache (double-send
+  // race, review boar.md). A second call waits for the first to settle.
+  private genQueue: Promise<unknown> = Promise.resolve();
+  // Bumped by stop(): a generation queued before a stop resolves empty
+  // instead of starting after the user already pressed Stop.
+  private stopEpoch = 0;
 
   private enqueue(task: () => Promise<void>): Promise<void> {
     const run = this.queue.then(task);
@@ -248,7 +266,14 @@ export class LlamaEngine {
     return this.context?.isJinjaSupported() ?? false;
   }
 
-  async generate({
+  generate(opts: GenerateOptions): Promise<string> {
+    const epoch = this.stopEpoch;
+    const run = this.genQueue.then(() => (epoch === this.stopEpoch ? this.generateNow(opts) : ""));
+    this.genQueue = run.catch(() => {});
+    return run;
+  }
+
+  private async generateNow({
     prompt,
     messages,
     nPredict = 512,
@@ -257,6 +282,7 @@ export class LlamaEngine {
     stop,
     timeoutMs,
     onTimeout,
+    onTimings,
   }: GenerateOptions): Promise<string> {
     if (!this.context) throw new Error("LlamaEngine: model not loaded");
     if (!prompt && !messages) {
@@ -290,8 +316,18 @@ export class LlamaEngine {
     });
     this.inFlight = completion;
     try {
-      const { text } = await completion;
-      return text ?? full;
+      const result = await completion;
+      const t = (result as { timings?: any; tokens_cached?: number }).timings;
+      if (t && onTimings) {
+        onTimings({
+          promptTokens: t.prompt_n ?? 0,
+          promptMs: t.prompt_ms ?? 0,
+          predictedTokens: t.predicted_n ?? 0,
+          predictedMs: t.predicted_ms ?? 0,
+          cachedTokens: (result as { tokens_cached?: number }).tokens_cached,
+        });
+      }
+      return result.text ?? full;
     } finally {
       if (this.inFlight === completion) this.inFlight = null;
       if (timer) clearTimeout(timer);
@@ -305,6 +341,7 @@ export class LlamaEngine {
    * error/abort path, so no try/catch needed around a stopped generate().
    */
   async stop(): Promise<void> {
+    this.stopEpoch++;
     await this.context?.stopCompletion();
   }
 }

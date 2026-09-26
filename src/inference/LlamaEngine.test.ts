@@ -201,3 +201,45 @@ describe("LlamaEngine pre-flight memory check (mmap-aware)", () => {
     expect(created).toHaveLength(0);
   });
 });
+
+describe("LlamaEngine generate queue (double-send race)", () => {
+  it("never runs two completions on one context at once", async () => {
+    const engine = new LlamaEngine();
+    await engine.load("models/a.gguf");
+    const ctx = created[0] as any;
+    let running = 0;
+    let maxRunning = 0;
+    ctx.completion = (_p: unknown, onToken: (d: { token: string }) => void) => {
+      running++;
+      maxRunning = Math.max(maxRunning, running);
+      onToken({ token: "x" });
+      return new Promise((resolve) =>
+        setTimeout(() => {
+          running--;
+          resolve({ text: "x", timings: { prompt_n: 12, prompt_ms: 30, predicted_n: 1, predicted_ms: 5 }, tokens_cached: 8 });
+        }, 10)
+      );
+    };
+    const timings: unknown[] = [];
+    const [a, b] = await Promise.all([
+      engine.generate({ prompt: "one", onTimings: (t) => timings.push(t) }),
+      engine.generate({ prompt: "two" }),
+    ]);
+    expect([a, b]).toEqual(["x", "x"]);
+    expect(maxRunning).toBe(1);
+    expect(timings[0]).toEqual({ promptTokens: 12, promptMs: 30, predictedTokens: 1, predictedMs: 5, cachedTokens: 8 });
+  });
+
+  it("keeps serving after a failed generation", async () => {
+    const engine = new LlamaEngine();
+    await expect(engine.generate({ prompt: "x" })).rejects.toThrow(/not loaded/);
+    await engine.load("models/a.gguf");
+    const first = engine.generate({ prompt: "x" });
+    await new Promise((r) => setTimeout(r, 0));
+    const queued = engine.generate({ prompt: "y" });
+    await engine.stop();
+    // The running one ends with what it had; the queued one never starts.
+    await expect(first).resolves.toBe("Hi");
+    await expect(queued).resolves.toBe("");
+  });
+});
