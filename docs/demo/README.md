@@ -1,5 +1,7 @@
 # BOAR demo
 
+Posted on X: [the BOAR thread](https://x.com/arferrari/status/2103677576380387484).
+
 Recorded on a Xiaomi phone (MediaTek Dimensity, 12 GB RAM) in airplane mode, with
 the default model, Qwen2.5-1.5B-Instruct (about 1 GB). Nothing leaves the phone.
 

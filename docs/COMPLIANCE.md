@@ -30,7 +30,7 @@ Last reviewed: 2026-09-24. Test device: Xiaomi 2311DRK48G, MediaTek MT6897
 | 12 | Works on real Android hardware at submission time | OPEN |
 | 13 | Someone can get it running within a few minutes | OPEN |
 | 14 | Required assets included or with clear download instructions | PASS |
-| 15 | Public demo on X or Farcaster | OPEN |
+| 15 | Public demo on X or Farcaster | PASS |
 | 16 | Demo shows offline use, hard queries, repo link and approach | PARTIAL |
 | 17 | Screenshot and links submitted to poidh | OPEN |
 | 18 | Repository contains the functional submitted version at claim time | OPEN |
@@ -169,11 +169,11 @@ knowledge pack in the app. `scripts/setup-models.sh` plus
 `plugins/withBundledModels.js` is an alternative that bundles models into the
 APK (see [docs/MODELS.md](MODELS.md)).
 
-### 15–17. Public demo and poidh submission — OPEN / PARTIAL
-- Recorded: four clips and screenshots in [demo/](demo/README.md), showing
-  airplane mode, a synthesis prompt, a follow-up and knowledge-pack facts.
-- Still to do: post them on X or Farcaster with the repo link and a short
-  explanation of the approach, then submit a screenshot and links to poidh.
+### 15–17. Public demo and poidh submission — PASS / PARTIAL / OPEN
+- Posted on X: [x.com/arferrari/status/2103677576380387484](https://x.com/arferrari/status/2103677576380387484), with the demo clips from
+  [demo/](demo/README.md): airplane mode, a synthesis prompt, a follow-up and
+  knowledge-pack facts.
+- Still to do: submit a screenshot and links to poidh.
 
 ### 18. Submitted version matches the repository — OPEN
 Tag the release commit and publish the APK with its SHA-256 as a GitHub
