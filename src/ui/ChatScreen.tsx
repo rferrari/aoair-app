@@ -60,11 +60,10 @@ import { generateSessionTitle, summarizeConversation } from "../services/summari
 import { PromptIdeasCarousel } from "./PromptIdeasCarousel";
 import { VoiceInputButton } from "./VoiceInputButton";
 import { ProcessingIndicator, ProcessingStatus } from "./ProcessingIndicator";
-import { Drawer, DrawerItem } from "./Drawer";
-import { AboutScreen } from "./AboutScreen";
-import { KnowledgeBaseScreen } from "./KnowledgeBaseScreen";
-import { ExecutionTelemetryScreen } from "./ExecutionTelemetryScreen";
-import { ModelSetupScreen } from "./ModelSetupScreen";
+import { DrawerActions, useFocusEffect, useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { RootStackParamList } from "./navigation/types";
+import { publishChatBridge } from "./navigation/chatBridge";
 import { EvaluationScreen } from "./EvaluationScreen";
 import { takePendingEvalRequest } from "../eval/deviceEvalRequest";
 import type { EvalRequest } from "../eval/deviceEvalRequest.pure";
@@ -132,14 +131,11 @@ export function ChatScreen({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [showPromptIdeas, setShowPromptIdeas] = useState(false);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [showAbout, setShowAbout] = useState(false);
-  const [showKnowledgeBase, setShowKnowledgeBase] = useState(false);
-  const [showExecutionTelemetry, setShowExecutionTelemetry] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [voiceInputEnabled, setVoiceInputEnabledState] = useState(true);
+  // True while another screen (Settings, Models, ...) is pushed on top of the chat:
+  // set on blur, cleared on refocus. Suppresses download toasts meant for that screen.
   const showSettingsRef = useRef(false);
-  showSettingsRef.current = showSettings;
   const [deviceEvalRequest, setDeviceEvalRequest] = useState<EvalRequest | null>(null);
   const [personalityId, setPersonalityIdState] = useState<PersonalityId>("succinct");
   const [processing, setProcessing] = useState<{ messageId: string; status: ProcessingStatus; label?: string } | null>(null);
@@ -829,53 +825,58 @@ export function ChatScreen({
     });
   }, [send, scrollToBottom]);
 
-  const drawerItems: DrawerItem[] = [
-    { key: "prompts", icon: "💡", label: t("chatScreen.drawerItems.prompts"), onPress: () => setShowPromptIdeas(true) },
-    { key: "knowledge", icon: "📚", label: t("chatScreen.drawerItems.myDocuments"), onPress: () => setShowKnowledgeBase(true) },
-    { key: "settings", icon: "⚙️", label: t("chatScreen.drawerItems.settings"), onPress: () => setShowSettings(true) },
-    { key: "telemetry", icon: "📊", label: t("chatScreen.drawerItems.telemetry"), onPress: () => setShowExecutionTelemetry(true) },
-    { key: "about", icon: "ℹ️", label: t("chatScreen.drawerItems.about"), onPress: () => setShowAbout(true) },
-  ];
+  const openSettings = useCallback(() => navigation.navigate("Settings"), [navigation]);
+
+  useEffect(
+    () =>
+      navigation.addListener("blur", () => {
+        showSettingsRef.current = true;
+      }),
+    [navigation]
+  );
+
+  // Returning from any pushed screen (reached from the drawer, the error card
+  // or a deep link): pick up settings that may have changed there. Mirrors the
+  // old Settings onClose; the back gesture counts too.
+  useFocusEffect(
+    useCallback(() => {
+      if (!showSettingsRef.current) return;
+      showSettingsRef.current = false;
+      (async () => {
+        getVoiceInputEnabled().then(setVoiceInputEnabledState);
+        // Deep Research is switched in Settings only.
+        const drMode = await getDeepResearchMode();
+        deepResearchModeRef.current = drMode;
+        setDeepResearchEnabled(drMode);
+        // Settings loads a newly chosen LLM itself; only re-run the full
+        // init (with its loading screen) if what's loaded doesn't match.
+        const llm = await resolveActiveModel("llm");
+        if (ready && llamaEngine.getModelInfo()?.filename === llm.filename) {
+          setActiveModel(llm);
+        } else {
+          initModels();
+        }
+      })();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [ready, initModels])
+  );
+
+  // Publish session state and handlers for the app drawer (src/ui/navigation).
+  useEffect(() => {
+    publishChatBridge({
+      sessions,
+      activeSessionId,
+      generating,
+      newChat: resetToNewChat,
+      selectSession,
+      deleteSession: removeSession,
+      refreshSessions,
+      openPromptIdeas: () => setShowPromptIdeas(true),
+    });
+  }, [sessions, activeSessionId, generating, resetToNewChat, selectSession, removeSession, refreshSessions]);
 
   if (deviceEvalRequest) {
     return <EvaluationScreen deviceRequest={deviceEvalRequest} onClose={() => setDeviceEvalRequest(null)} />;
-  }
-
-  if (showSettings) {
-    return (
-      <ModelSetupScreen
-        mode="optional"
-        onClose={async () => {
-          setShowSettings(false);
-          getVoiceInputEnabled().then(setVoiceInputEnabledState);
-          // Deep Research is switched in Settings only.
-          const drMode = await getDeepResearchMode();
-          deepResearchModeRef.current = drMode;
-          setDeepResearchEnabled(drMode);
-          // Settings loads a newly chosen LLM itself; only re-run the full
-          // init (with its loading screen) if what's loaded doesn't match.
-          const llm = await resolveActiveModel("llm");
-          if (ready && llamaEngine.getModelInfo()?.filename === llm.filename) {
-            setActiveModel(llm);
-          } else {
-            initModels();
-          }
-        }}
-        onRelaunchWizard={onRelaunchWizard}
-      />
-    );
-  }
-
-  if (showExecutionTelemetry) {
-    return <ExecutionTelemetryScreen chatBusy={generating} onClose={() => setShowExecutionTelemetry(false)} />;
-  }
-
-  if (showKnowledgeBase) {
-    return <KnowledgeBaseScreen onClose={() => setShowKnowledgeBase(false)} />;
-  }
-
-  if (showAbout) {
-    return <AboutScreen onClose={() => setShowAbout(false)} />;
   }
 
   const isDeepActive = deepResearchEnabled || deepResearchActive;
@@ -903,7 +904,7 @@ export function ChatScreen({
           activeModelLabel={activeModel?.label}
           onOpenDrawer={() => {
             refreshSessions();
-            setDrawerOpen(true);
+            navigation.dispatch(DrawerActions.openDrawer());
           }}
           onCycleTone={cycleTone}
           onNewChat={resetToNewChat}
@@ -924,7 +925,7 @@ export function ChatScreen({
         {loadError && (
           <ModelLoadErrorCard
             error={loadError}
-            onOpenSettings={() => setShowSettings(true)}
+            onOpenSettings={openSettings}
             onRelaunchWizard={onRelaunchWizard}
             onRetry={initModels}
           />
@@ -1247,17 +1248,6 @@ export function ChatScreen({
           />
         )}
       </View>
-
-      <Drawer
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        items={drawerItems}
-        sessions={sessions}
-        activeSessionId={activeSessionId}
-        onNewChat={resetToNewChat}
-        onSelectSession={selectSession}
-        onDeleteSession={removeSession}
-      />
 
       {toast && <Toast message={toast} onHide={() => setToast(null)} />}
     </LinearGradient>
