@@ -5,6 +5,7 @@ import { ModelRole, RoutingPreset } from "../routing/types";
 
 export type ThemeId = "midnight" | "amber" | "frontier";
 export type FontScale = "compact" | "standard" | "large";
+export type Appearance = "system" | "light" | "dark";
 export type LanguageId = "en" | "pt";
 
 interface Settings {
@@ -21,6 +22,7 @@ interface Settings {
   autoGenerateTitles?: boolean;
   deepResearchMode?: boolean;
   themeId?: ThemeId;
+  appearance?: Appearance;
   fontScale?: FontScale;
   languageId?: LanguageId;
   routingPreset?: RoutingPreset;
@@ -137,7 +139,8 @@ export async function setHapticsEnabled(enabled: boolean): Promise<void> {
 /** Whether the chat shows the microphone button. */
 export async function getVoiceInputEnabled(): Promise<boolean> {
   const s = await readSettings();
-  return s.voiceInputEnabled ?? true;
+  // Off by default: the system recognizer may use the network on devices with Google services.
+  return s.voiceInputEnabled ?? false;
 }
 
 export async function setVoiceInputEnabled(enabled: boolean): Promise<void> {
@@ -189,6 +192,17 @@ export async function setThemeId(theme: ThemeId): Promise<void> {
   await writeSettings(s);
 }
 
+export async function getAppearance(): Promise<Appearance> {
+  const s = await readSettings();
+  return s.appearance ?? "system";
+}
+
+export async function setAppearance(appearance: Appearance): Promise<void> {
+  const s = await readSettings();
+  s.appearance = appearance;
+  await writeSettings(s);
+}
+
 export async function getFontScale(): Promise<FontScale> {
   const s = await readSettings();
   return s.fontScale ?? "standard";
@@ -200,9 +214,23 @@ export async function setFontScale(scale: FontScale): Promise<void> {
   await writeSettings(s);
 }
 
+/** The UI language for a BCP 47 locale: Portuguese for any pt-* locale, English otherwise. */
+export function languageForLocale(locale: string | undefined): LanguageId {
+  return locale?.toLowerCase().startsWith("pt") ? "pt" : "en";
+}
+
+function deviceLocale(): string | undefined {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().locale;
+  } catch {
+    return undefined;
+  }
+}
+
+/** The saved choice, or the device's language until the user picks one. Local only, no network. */
 export async function getLanguageId(): Promise<LanguageId> {
   const s = await readSettings();
-  return s.languageId ?? "en";
+  return s.languageId ?? languageForLocale(deviceLocale());
 }
 
 export async function setLanguageId(language: LanguageId): Promise<void> {
