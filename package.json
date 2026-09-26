@@ -46,7 +46,8 @@
     "eval:device": "node scripts/eval-device.mjs",
     "eval:summary": "node scripts/eval-summary.mjs",
     "pack:build": "node scripts/build-knowledge-pack.mjs",
-    "pack:push": "node scripts/push-knowledge-pack.mjs"
+    "pack:push": "node scripts/push-knowledge-pack.mjs",
+    "manifest:verify": "node scripts/verify-manifest-pins.mjs"
   },
   "private": true
 }
