@@ -343,6 +343,7 @@ export function createAnswerer(deps: AnswerDeps) {
         loadMs,
         prefillMs: timings?.promptMs,
         ctxTokens: timings?.promptTokens,
+        cachedTokens: timings?.cachedTokens,
       });
       if (stopRequested) return finish(genTier, "stopped", text, sources, baseReceipt);
 
