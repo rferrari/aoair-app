@@ -17,6 +17,7 @@ import {
   setPersonalityId,
 } from "../models/settings";
 import { clearAllHistory } from "../services/chatHistory";
+import { getChatBridge } from "./navigation/chatBridge";
 import { RadioRow } from "./flows/RadioRow";
 
 export function SettingsToneScreen() {
@@ -175,6 +176,7 @@ export function SettingsHistoryScreen() {
               fullWidth
               onPress={async () => {
                 await clearAllHistory();
+                getChatBridge().refreshSessions();
                 setClearOpen(false);
                 toast({ message: t("flows.history.cleared"), tone: "success" });
               }}
