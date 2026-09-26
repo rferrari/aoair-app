@@ -224,6 +224,7 @@ The same app builds for iOS (simulator needs Xcode only; a device needs an Apple
 ```bash
 npx expo prebuild -p ios --no-install && (cd ios && pod install)
 npx expo run:ios                                   # simulator, Debug + Metro
+scripts/ios-remote-build.sh sim-run                # build + run on a remote Mac with the newer Xcode
 eas build -p ios --profile preview-simulator       # cloud simulator build, no Apple credentials
 ```
 

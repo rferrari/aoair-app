@@ -17,12 +17,18 @@ xcrun simctl install booted ios/build/Build/Products/Release-iphonesimulator/BOA
 xcrun simctl launch booted team.sopa.aoair
 
 # Build on a remote Mac with the newer Xcode (default host r4toMacMini), fetch the
-# .app to /Users/r4to/Script/boar/builds/ios, then boot a simulator ON THAT MAC, seed
-# the required models from its ~/boar/shared-models (APFS clone) and launch.
+# .app to /Users/r4to/Script/boar/builds/ios/<sdk>/, then boot a simulator ON THAT MAC,
+# seed the required models from its ~/boar/shared-models (APFS clone) and launch.
 # Inference runs on the remote, not on the machine running the script.
-scripts/ios-remote-build.sh --run
-# Or install on the local booted simulator and seed from a local models dir
-scripts/ios-remote-build.sh --install && scripts/ios-sim-seed-models.sh
+scripts/ios-remote-build.sh sim-run
+# Or only build the simulator .app
+scripts/ios-remote-build.sh sim
+# On the build Mac itself (what the remote wrapper runs)
+scripts/ios-build-on-host.sh sim-run
+
+# Real iPhone: signed Release built on the mini (see docs/IOS_DEVICE_SMOKE.md)
+IOS_TEAM=<team id> IOS_DEVICE=<devicectl id> scripts/ios-remote-build.sh device-local   # install from this Mac
+IOS_TEAM=<team id> IOS_DEVICE=<devicectl id> scripts/ios-remote-build.sh device-run     # install from the mini
 
 # Simulator, Debug with Metro
 npx expo run:ios
@@ -74,12 +80,28 @@ New JS API: `excludeFromBackup()` in `bundled-assets`.
 - Entitlements: `com.apple.developer.kernel.increased-memory-limit` and `com.apple.developer.kernel.extended-virtual-addressing` (needed to mmap multi-GB GGUFs).
 - Offline variant: same env as Android, `EXPO_PUBLIC_BOAR_VARIANT=offline` (read by JS and `app.config.ts`). iOS has no `INTERNET` permission, so the proof is the code path: in the offline variant the downloader throws before any fetch.
 
+## Memory budget: 4GB iPhone (iPhone 13)
+
+Only the default pair fits: Qwen2.5-1.5B Q4_K_M (0.92 GiB) + bge-small (35 MiB). The 7B/8B catalog models (4.4–4.8 GiB files) do not fit this phone.
+
+| Item | Estimate | Counts in phys_footprint? |
+|---|---|---|
+| Qwen2.5-1.5B weights, mmap'd | 940 MB | Clean file pages: no. Any weights llama.cpp repacks into anonymous memory for the CPU kernels: yes (`UNKNOWN` how much for Q4_K_M on A15) |
+| KV cache, f16, 28 layers × 2 KV heads × 128 dims | 28 KB/token: 59 MB at n_ctx 2048, 117 MB at 4096 | yes |
+| Compute buffers | ~100–300 MB (`UNKNOWN`, grows with n_ctx) | yes |
+| App (RN, Hermes, JS heap, SQLite, embeddings model) | ~250–350 MB (`UNKNOWN`) | yes |
+| **Total, worst case (weights fully repacked, n_ctx 4096)** | **~1.8 GB** | |
+
+- The per-app limit on a 4GB iPhone without the entitlement is believed to be around 2 GB; with `increased-memory-limit` it is higher. Both `UNKNOWN`: the smoke test measures footprint + available at launch.
+- Recommendation for ≤4GB devices: `n_ctx` 2048 (saves ~60 MB of KV and part of the compute buffer), `n_gpu_layers` 0 until Metal is measured (Metal buffers are counted in the footprint), one LLM loaded at a time. `n_ctx` and the pre-flight check live in `src/inference` (engine owner); the pre-flight on iOS should compare against `getAvailableRamBytes()`, not device RAM.
+- `LlamaEngine.estimateFit` today: ~3.7 GB reported RAM − ~0.3 GB RSS − 2 GB overhead ≈ 1.4 GB available vs 1.08 GB needed, so it lets the 1.5B load and blocks the larger models, which matches this budget.
+
 ## Apple account requirements
 
 | Goal | Needs |
 |---|---|
 | Simulator build and run | Xcode only, no account |
-| Own iPhone, local build | Free Apple ID in Xcode (profile expires every 7 days). `UNKNOWN`: whether the two kernel entitlements are granted to free-team profiles; if not, remove them for that build |
+| Own iPhone | Free Apple ID signed into Xcode on the build Mac (profile expires every 7 days). Apple's capability table lists **Extended Virtual Addressing** for free accounts; **Increased Memory Limit** is not in that table, so whether a free team gets it is `UNKNOWN`. If signing fails on it, build with `IOS_STRIP_ENTITLEMENTS=com.apple.developer.kernel.increased-memory-limit` |
 | TestFlight / ad hoc / App Store | Apple Developer Program ($99/yr), App ID with "Increased Memory Limit" and "Extended Virtual Addressing" capabilities enabled, then `eas build -p ios --profile preview` or `production` |
 
 `UNKNOWN`: which Apple team (if any) the project owner has. Nothing in this repo is signed for a device yet.

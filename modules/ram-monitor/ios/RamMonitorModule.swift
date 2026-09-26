@@ -17,13 +17,22 @@ import os
  * - getAvailableRamBytes: os_proc_available_memory(), how much more this
  *   process may allocate before jetsam kills it. On iOS this, not device RAM
  *   minus RSS, is the real headroom.
+ *
+ * getMemoryInfo also logs all three figures (at most every 5s, as the UI
+ * polls it) to stderr and os_log, subsystem team.sopa.aoair, category
+ * memory, so a device smoke test can record memory without Instruments:
+ * `xcrun devicectl device process launch --console ...` shows the lines.
  */
 public class RamMonitorModule: Module {
+  private static let log = OSLog(subsystem: "team.sopa.aoair", category: "memory")
+  private var lastLog = Date.distantPast
+
   public func definition() -> ModuleDefinition {
     Name("RamMonitor")
 
     Function("getMemoryInfo") { () -> [String: Double] in
       let info = Self.taskVmInfo()
+      self.logThrottled(info)
       return [
         "rssBytes": Double(info?.resident_size ?? 0),
         "totalPssBytes": Double(info?.phys_footprint ?? 0),
@@ -37,6 +46,16 @@ public class RamMonitorModule: Module {
     Function("getAvailableRamBytes") { () -> Double in
       return Double(os_proc_available_memory())
     }
+  }
+
+  private func logThrottled(_ info: task_vm_info_data_t?) {
+    let now = Date()
+    guard now.timeIntervalSince(lastLog) >= 5 else { return }
+    lastLog = now
+    let mb = { (bytes: UInt64) in bytes / 1_048_576 }
+    let line = "[BOAR mem] rss_mb=\(mb(info?.resident_size ?? 0)) footprint_mb=\(mb(info?.phys_footprint ?? 0)) available_mb=\(mb(UInt64(os_proc_available_memory())))"
+    FileHandle.standardError.write((line + "\n").data(using: .utf8)!)
+    os_log("%{public}@", log: Self.log, type: .info, line)
   }
 
   private static func taskVmInfo() -> task_vm_info_data_t? {
