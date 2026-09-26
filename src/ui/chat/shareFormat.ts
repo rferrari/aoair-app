@@ -1,5 +1,5 @@
 import type { RetrievedChunk } from "../../rag/retrieve.types";
-import type { Receipt } from "./answerEvents";
+import type { AnswerReceipt as Receipt } from "./answerEvents";
 import { EXTRACTIVE_MODEL_ID } from "./answerEvents";
 
 /** Labels come from i18n so the text reads in the app's language. */

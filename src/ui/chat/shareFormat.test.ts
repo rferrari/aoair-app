@@ -41,7 +41,7 @@ describe("formatForCopy", () => {
 });
 
 describe("formatForShare", () => {
-  const receipt = { modelId: "qwen3-4b", modelLabel: "Qwen3 4B", tokens: 90, tokPerSec: 14.8, ttftMs: 2100, totalMs: 6200 };
+  const receipt = { modelId: "qwen3-4b", modelLabel: "Qwen3 4B", tokens: 90, tokPerSec: 14.8, ttftMs: 2100, totalMs: 6200, reasonCodes: [] };
 
   it("puts the question first and a provenance line last", () => {
     expect(formatForShare("What is Raft?", "A consensus algorithm.", [], receipt, labels, "en-US")).toBe(

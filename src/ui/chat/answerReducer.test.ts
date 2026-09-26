@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { RetrievedChunk } from "../../rag/retrieve.types";
-import type { AnswerEvent, Receipt } from "./answerEvents";
+import type { AnswerEvent, AnswerReceipt as Receipt } from "./answerEvents";
 import { answerPhase, answerReducer, canDeepen, initialAnswer, isAnswerActive, type AnswerState } from "./answerReducer";
 
 const chunk = (id: string): RetrievedChunk => ({
@@ -19,6 +19,7 @@ const receipt = (over: Partial<Receipt> = {}): Receipt => ({
   tokPerSec: 14.8,
   ttftMs: 2100,
   totalMs: 6200,
+  reasonCodes: [],
   ...over,
 });
 
@@ -106,7 +107,7 @@ describe("answerReducer", () => {
     ];
     expect(canDeepen(run(fastDone))).toBe(false);
 
-    const offered = run([...fastDone, { answerId: "a1", type: "deep_available", estSeconds: 120, modelLabel: "Qwen3 30B" }]);
+    const offered = run([...fastDone, { answerId: "a1", type: "deep_available", estSeconds: 120 }]);
     expect(canDeepen(offered)).toBe(true);
 
     const deepening = answerReducer(offered, {
@@ -121,6 +122,13 @@ describe("answerReducer", () => {
     expect(answerPhase(deepening)).toBe("synthesizing");
     expect(deepening.deep?.detail).toEqual({ index: 1, count: 3 });
     expect(deepening.fast?.text).toBe("Short answer.");
+  });
+
+  it("flags a model whose weights stream from storage", () => {
+    const state = run([
+      { answerId: "a1", type: "warning", code: "model_streams_from_storage", message: "slow" },
+    ]);
+    expect(state.streamsFromStorage).toBe(true);
   });
 
   it("does not offer Deepen after a stopped fast pass", () => {

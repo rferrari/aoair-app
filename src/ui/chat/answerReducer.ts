@@ -3,11 +3,10 @@ import {
   EXTRACTIVE_MODEL_ID,
   type AnswerErrorCode,
   type AnswerEvent,
-  type Outcome,
-  type Receipt,
-  type Stage,
+  type AnswerOutcome as Outcome,
+  type AnswerReceipt as Receipt,
+  type AnswerStageName as Stage,
   type StageDetail,
-  type Tier,
 } from "./answerEvents";
 
 /** One model pass (fast or deep) inside an answer. */
@@ -30,7 +29,9 @@ export interface AnswerState {
   deep?: TierState;
   /** Set when the passage alone was the answer (no model ran). */
   extractiveReceipt?: Receipt;
-  deepAvailable?: { estSeconds?: number; modelLabel?: string };
+  deepAvailable?: { estSeconds?: number; reason?: string };
+  /** The model's weights stream from storage: answers will be slower than usual. */
+  streamsFromStorage?: boolean;
 }
 
 export function initialAnswer(answerId: string): AnswerState {
@@ -64,7 +65,10 @@ export function answerReducer(state: AnswerState, event: AnswerEvent): AnswerSta
       return { ...state, instant: { ...event.snippet, confidence: event.confidence } };
 
     case "deep_available":
-      return { ...state, deepAvailable: { estSeconds: event.estSeconds, modelLabel: event.modelLabel } };
+      return { ...state, deepAvailable: { estSeconds: event.estSeconds, reason: event.reason } };
+
+    case "warning":
+      return event.code === "model_streams_from_storage" ? { ...state, streamsFromStorage: true } : state;
 
     case "stage":
       if (event.tier === "instant" || state[event.tier]?.outcome) return state;
