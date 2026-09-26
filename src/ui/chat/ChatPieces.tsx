@@ -65,6 +65,8 @@ export const UserMessage = memo(function UserMessage({
     <Pressable
       onLongPress={onEdit}
       delayLongPress={350}
+      accessibilityLabel={text}
+      accessibilityHint={tr("chat.actions.editQuestion")}
       accessibilityActions={[
         { name: "copy", label: tr("chat.actions.copyQuestion") },
         { name: "edit", label: tr("chat.actions.editQuestion") },
