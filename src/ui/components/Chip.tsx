@@ -18,9 +18,10 @@ export interface ChipProps {
    */
   size?: "md" | "sm" | "inline";
   accessibilityLabel?: string;
+  accessibilityHint?: string;
 }
 
-export function Chip({ label, icon, tone = "neutral", selected, onPress, size = "md", accessibilityLabel }: ChipProps) {
+export function Chip({ label, icon, tone = "neutral", selected, onPress, size = "md", accessibilityLabel, accessibilityHint }: ChipProps) {
   const t = useTokens();
   const tc = toneColors(t.color, selected ? "accent" : tone);
   const height = size === "inline" ? 20 : size === "sm" ? 30 : 36;
@@ -58,6 +59,7 @@ export function Chip({ label, icon, tone = "neutral", selected, onPress, size = 
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
+      accessibilityHint={accessibilityHint}
       accessibilityState={selected === undefined ? undefined : { selected }}
       hitSlop={{ top: slop, bottom: slop, left: size === "inline" ? 6 : slop, right: size === "inline" ? 6 : slop }}
       onPress={() => {
