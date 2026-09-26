@@ -1,6 +1,6 @@
 import React from "react";
-import { Pressable, StyleSheet, View } from "react-native";
-import { impact, ImpactFeedbackStyle } from "../../services/haptics";
+import { Platform, Pressable, StyleSheet, Switch as RNSwitch, View } from "react-native";
+import { impact, ImpactFeedbackStyle, selection } from "../../services/haptics";
 import { useTokens } from "../theme";
 import { Icon, IconName } from "./Icon";
 import { Text } from "./Text";
@@ -11,7 +11,13 @@ export interface ListRowProps {
   /** Current value, shown trailing (e.g. "Qwen2.5 1.5B"). */
   value?: string;
   icon?: IconName;
-  /** Custom trailing element (Switch, Badge). Replaces value + chevron. */
+  /**
+   * Makes the whole row a switch: one focus stop with role "switch" and
+   * `checked`, toggled by tapping anywhere. Prefer this over a Switch in
+   * `trailing`, which screen readers can't reach inside a non-pressable row.
+   */
+  switch?: { value: boolean; onValueChange: (value: boolean) => void };
+  /** Custom non-interactive trailing element (Badge, text). Replaces value + chevron. */
   trailing?: React.ReactNode;
   onPress?: () => void;
   /** Shows a chevron; defaults to true when the row navigates (`onPress` without `trailing`). */
@@ -39,8 +45,22 @@ export function ListRow({
   disabled,
   accessibilityLabel,
   accessibilityHint,
+  switch: toggle,
 }: ListRowProps) {
   const t = useTokens();
+  if (toggle) {
+    trailing = (
+      <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+        <RNSwitch
+          value={toggle.value}
+          disabled={disabled}
+          trackColor={{ false: t.color.line.strong, true: t.color.accent.solid }}
+          ios_backgroundColor={t.color.line.strong}
+          thumbColor={Platform.OS === "android" ? t.color.bg.raised : undefined}
+        />
+      </View>
+    );
+  }
   const showChevron = chevron ?? (!!onPress && !trailing);
   const label = accessibilityLabel ?? [title, value, subtitle].filter(Boolean).join(", ");
   const content = (
@@ -73,6 +93,24 @@ export function ListRow({
     paddingVertical: t.space.md,
     gap: t.space.md,
   };
+  if (toggle) {
+    return (
+      <Pressable
+        accessibilityRole="switch"
+        accessibilityLabel={accessibilityLabel ?? [title, subtitle].filter(Boolean).join(", ")}
+        accessibilityHint={accessibilityHint}
+        accessibilityState={{ checked: toggle.value, disabled: !!disabled }}
+        disabled={disabled}
+        onPress={() => {
+          selection();
+          toggle.onValueChange(!toggle.value);
+        }}
+        style={({ pressed }) => [styles.row, rowStyle, pressed && { backgroundColor: t.color.bg.sunken }, disabled && { opacity: 0.45 }]}
+      >
+        {content}
+      </Pressable>
+    );
+  }
   if (!onPress) {
     return (
       <View accessible accessibilityLabel={label} style={[styles.row, rowStyle]}>

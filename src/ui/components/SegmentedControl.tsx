@@ -55,7 +55,7 @@ export function SegmentedControl<T extends string>({ options, value, onChange, l
             style={({ pressed }) => [
               {
                 flex: vertical ? undefined : 1,
-                minHeight: t.size.touch - 6,
+                minHeight: t.size.touch,
                 flexDirection: "row",
                 alignItems: "center",
                 justifyContent: vertical ? "flex-start" : "center",
@@ -63,13 +63,15 @@ export function SegmentedControl<T extends string>({ options, value, onChange, l
                 paddingHorizontal: t.space.sm,
                 borderRadius: t.radius.sm,
                 backgroundColor: selected ? t.color.bg.raised : "transparent",
-                borderWidth: selected ? t.size.hairline : 0,
-                borderColor: t.color.line.hairline,
+                // Selection is marked by border + weight + check, not by fill alone.
+                borderWidth: selected ? t.size.border : 0,
+                borderColor: t.color.line.strong,
                 ...(selected ? (t.elevation[1] as object) : null),
               },
               pressed && !selected && { opacity: 0.6 },
             ]}
           >
+            {selected && !opt.icon && <Icon name="check" size="sm" color={t.color.text.primary} />}
             {opt.icon && <Icon name={opt.icon} size="sm" color={selected ? t.color.text.primary : t.color.text.secondary} />}
             <Text variant="subhead" color={selected ? "primary" : "secondary"} weight={selected ? "semibold" : "medium"}>
               {opt.label}
