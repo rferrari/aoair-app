@@ -233,7 +233,9 @@
       "eraseSettings": "Seus ajustes",
       "eraseConfirm": "Apagar tudo",
       "saveFailed": "Não foi possível salvar essa mudança. Tente de novo.",
-      "resetFailed": "Não foi possível apagar os dados: {{error}}"
+      "resetFailed": "Não foi possível apagar os dados: {{error}}",
+      "quickFirstHint": "Mostra um trecho das suas fontes em menos de um segundo.",
+      "alwaysCompleteHint": "Pesquisa cada parte da pergunta. Mais lento."
     },
     "tone": {
       "footer": "Muda o jeito de escrever as respostas a partir da próxima pergunta.",
@@ -306,7 +308,9 @@
       "inUseHint": "Em uso. Escolha outro modelo antes de remover este.",
       "removeTitle": "Remover {{name}}?",
       "removeBody": "Libera {{size}} neste celular. Dá para baixar de novo depois.",
-      "removed": "{{name}} removido"
+      "removed": "{{name}} removido",
+      "wontFitTitle": "{{name}} não cabe neste celular",
+      "downloadAnyway": "Baixar mesmo assim ({{size}})"
     },
     "models": {
       "storage": "O BOAR usa {{used}} · {{free}} livres no celular",
@@ -503,7 +507,9 @@
       "doneTitle": "Pronto",
       "doneBody": "Tudo roda offline a partir de agora.",
       "doneAnnounce": "Configuração concluída. O BOAR está pronto.",
-      "open": "Abrir o BOAR"
+      "open": "Abrir o BOAR",
+      "languageAnnounce": "Idioma: Português",
+      "smallerPackage": "Escolher um pacote menor"
     }
   }
 }

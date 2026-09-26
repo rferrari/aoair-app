@@ -111,11 +111,15 @@ export function SettingsScreen() {
         />
         <ListRow
           icon="zap"
-          title={t("flows.settings.quickFirst")} switch={{ value: values.quickFirst, onValueChange: (v) => update("quickFirst", v, setAdaptiveRoutingEnabled) }}
+          title={t("flows.settings.quickFirst")}
+          subtitle={t("flows.settings.quickFirstHint")}
+          switch={{ value: values.quickFirst, onValueChange: (v) => update("quickFirst", v, setAdaptiveRoutingEnabled) }}
         />
         <ListRow
           icon="layers"
-          title={t("flows.settings.alwaysComplete")} switch={{ value: values.alwaysComplete, onValueChange: (v) => update("alwaysComplete", v, setDeepResearchMode) }}
+          title={t("flows.settings.alwaysComplete")}
+          subtitle={t("flows.settings.alwaysCompleteHint")}
+          switch={{ value: values.alwaysComplete, onValueChange: (v) => update("alwaysComplete", v, setDeepResearchMode) }}
         />
       </Section>
 

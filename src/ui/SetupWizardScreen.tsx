@@ -4,7 +4,7 @@
  * manifest (flows-spec §4.1); nothing is typed in by hand.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AccessibilityInfo, AppState, BackHandler, findNodeHandle, Image, Pressable, View } from "react-native";
+import { AccessibilityInfo, AppState, BackHandler, findNodeHandle, Image, Pressable, Text as RNText, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { Badge, Button, EmptyState, Icon, IconName, Progress, Screen, SegmentedControl, Sheet, Text, useAnnounce } from "./components";
 import { useTokens } from "./theme";
@@ -51,7 +51,7 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
   const [step, setStep] = useState<Step>(1);
   const [packageId, setPackageId] = useState<PackageId>("essential");
   const [backOpen, setBackOpen] = useState(false);
-  const titleRef = useRef<View>(null);
+  const titleRef = useRef<RNText>(null);
 
   // Focus and announce the title on every step change (Prism F7).
   useEffect(() => {
@@ -113,6 +113,7 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
           allPresent={allPresent}
           lang={lang}
           onBack={() => setBackOpen(true)}
+          onChoosePackage={() => setStep(2)}
           onReady={onReady}
         />
       )}
@@ -140,7 +141,7 @@ export function SetupWizardScreen({ onReady, onSkip }: Props) {
   );
 }
 
-function StepHeader({ titleRef, step, title, subtitle }: { titleRef: React.RefObject<View | null>; step: Step; title: string; subtitle?: string }) {
+function StepHeader({ titleRef, step, title, subtitle }: { titleRef: React.RefObject<RNText | null>; step: Step; title: string; subtitle?: string }) {
   const { t } = useTranslation();
   const tokens = useTokens();
   return (
@@ -148,9 +149,9 @@ function StepHeader({ titleRef, step, title, subtitle }: { titleRef: React.RefOb
       <Text variant="label" color="tertiary">
         {t("flows.onboarding.stepOf", { step, total: 3 })}
       </Text>
-      <View ref={titleRef} accessible accessibilityRole="header" accessibilityLabel={title}>
-        <Text variant="title1">{title}</Text>
-      </View>
+      <Text ref={titleRef} variant="title1" header>
+        {title}
+      </Text>
       {subtitle && (
         <Text variant="callout" color="secondary">
           {subtitle}
@@ -167,13 +168,13 @@ function Welcome({
   onNext,
   onSkip,
 }: {
-  titleRef: React.RefObject<View | null>;
+  titleRef: React.RefObject<RNText | null>;
   languageId: LanguageId;
   setLanguage: (id: LanguageId) => Promise<void>;
   onNext: () => void;
   onSkip?: () => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const tokens = useTokens();
   const announce = useAnnounce();
   const points: { icon: IconName; key: string }[] = [
@@ -193,11 +194,9 @@ function Welcome({
     >
       <View style={{ alignItems: "center", gap: tokens.space.md, paddingTop: tokens.space.xl }}>
         <Image source={require("../../assets/boar.png")} style={{ width: 88, height: 88, borderRadius: tokens.radius.lg }} accessible={false} />
-        <View ref={titleRef} accessible accessibilityRole="header" accessibilityLabel="BOAR">
-          <Text variant="display" align="center">
-            BOAR
-          </Text>
-        </View>
+        <Text ref={titleRef} variant="display" align="center" header>
+          BOAR
+        </Text>
         <Text variant="title3" align="center" color="secondary">
           {t("flows.onboarding.tagline")}
         </Text>
@@ -221,7 +220,7 @@ function Welcome({
           value={languageId}
           onChange={async (id) => {
             await setLanguage(id);
-            announce(id === "pt" ? "Idioma: Português" : "Language: English");
+            announce(i18n.getFixedT(id)("flows.onboarding.languageAnnounce"));
           }}
           options={[
             { value: "en", label: "English" },
@@ -245,7 +244,7 @@ function PackageStep({
   onBack,
   onInstall,
 }: {
-  titleRef: React.RefObject<View | null>;
+  titleRef: React.RefObject<RNText | null>;
   selected: PackageId;
   onSelect: (id: PackageId) => void;
   present: Record<string, boolean>;
@@ -277,8 +276,14 @@ function PackageStep({
             label={chosen.plan.downloadBytes > 0 ? t("flows.onboarding.install", { size: formatBytes(chosen.plan.downloadBytes, lang) }) : t("flows.onboarding.continue")}
             fullWidth
             disabled={!loaded || chosen.shortfall > 0}
+            accessibilityHint={chosen.shortfall > 0 ? t("flows.onboarding.noSpace", { size: formatBytes(chosen.shortfall, lang) }) : undefined}
             onPress={onInstall}
           />
+          {chosen.shortfall > 0 && (
+            <Text variant="footnote" color="danger" align="center">
+              {t("flows.onboarding.noSpace", { size: formatBytes(chosen.shortfall, lang) })}
+            </Text>
+          )}
           <Button label={t("flows.onboarding.back")} variant="ghost" fullWidth onPress={onBack} />
         </>
       }
@@ -307,8 +312,8 @@ function PackageStep({
           const warning =
             p.shortfall > 0
               ? t("flows.onboarding.noSpace", { size: formatBytes(p.shortfall, lang) })
-              : p.fit === "thrashing"
-                ? t("flows.row.fit.thrashing")
+              : p.fit === "insufficient" || p.fit === "thrashing" || p.fit === "streaming"
+                ? t(`flows.row.fit.${p.fit}`)
                 : null;
           const name = t(`flows.onboarding.package.${p.id}.name`);
           return (
@@ -344,7 +349,7 @@ function PackageStep({
                 </Text>
               ))}
               {warning && (
-                <Text variant="footnote" color={p.shortfall > 0 ? "danger" : "warning"}>
+                <Text variant="footnote" color={p.shortfall > 0 || p.fit === "insufficient" ? "danger" : "warning"}>
                   {warning}
                 </Text>
               )}
@@ -387,14 +392,16 @@ function InstallStep({
   allPresent,
   lang,
   onBack,
+  onChoosePackage,
   onReady,
 }: {
-  titleRef: React.RefObject<View | null>;
+  titleRef: React.RefObject<RNText | null>;
   assets: CatalogModel[];
   catalog: ReturnType<typeof useCatalog>;
   allPresent: boolean;
   lang: string;
   onBack: () => void;
+  onChoosePackage: () => void;
   onReady: () => void;
 }) {
   const { t } = useTranslation();
@@ -409,6 +416,32 @@ function InstallStep({
   const states = assets.map((a) => ({ asset: a, state: catalog.view(a).state }));
   const downloading = states.some((s) => s.state.kind === "downloading" || s.state.kind === "verifying");
   const failed = states.filter((s) => s.state.kind === "failed");
+  const noSpaceFailure = failed.some((f) => f.state.kind === "failed" && f.state.errorKind === "storage");
+
+  // A new failure is announced right away and focus moves to the retry button (Prism F5).
+  const retryRef = useRef<View>(null);
+  const failedKey = failed.map((f) => f.asset.id).join(",");
+  const lastFailedKey = useRef("");
+  useEffect(() => {
+    if (failedKey && failedKey !== lastFailedKey.current) {
+      const first = failed[0];
+      const reason = first.state.kind === "failed" ? t(`flows.row.error.${first.state.errorKind}`) : "";
+      announce(`${t("flows.onboarding.downloadFailed")}. ${first.asset.label}: ${reason}`, { assertive: true });
+      setTimeout(() => {
+        const node = retryRef.current && findNodeHandle(retryRef.current);
+        if (node) AccessibilityInfo.setAccessibilityFocus(node);
+      }, 300);
+    }
+    lastFailedKey.current = failedKey;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [failedKey]);
+
+  // Announce the switch to verification once per asset.
+  const verifyingKey = states.filter((s) => s.state.kind === "verifying").map((s) => s.asset.id).join(",");
+  useEffect(() => {
+    if (verifyingKey) announce(t("flows.row.verifying"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [verifyingKey]);
 
   // Aggregate progress, and when it last moved, for the stall hint.
   const totalBytes = assets.reduce((sum, a) => sum + a.sizeBytes, 0);
@@ -561,19 +594,41 @@ function InstallStep({
                     : t("flows.onboarding.indexFailed")}
           </Text>
           {indexPhase === "building" && seed && (
-            <Progress label={t("flows.onboarding.indexRow")} value={seed.done / seed.total} valueText={t("flows.onboarding.indexCounter", { done: seed.done, total: seed.total })} tone="field" />
+            <Progress label={t("flows.onboarding.indexRow")} value={seed.done / seed.total} valueText={t("flows.onboarding.indexCounter", { done: formatCount(seed.done, lang), total: formatCount(seed.total, lang) })} tone="field" />
           )}
         </View>
       </View>
 
       {failed.length > 0 && (
-        <EmptyState
-          tone="error"
-          title={t("flows.onboarding.downloadFailed")}
-          body={failed.map((f) => `${f.asset.label}: ${f.state.kind === "failed" ? f.state.message : ""}`).join("\n")}
-          actionLabel={t("flows.row.retry")}
-          onAction={() => failed.forEach((f) => catalog.download(f.asset))}
-        />
+        <View
+          style={{
+            gap: tokens.space.sm,
+            padding: tokens.space.base,
+            borderRadius: tokens.radius.md,
+            backgroundColor: tokens.color.status.danger.soft,
+          }}
+        >
+          <View style={{ flexDirection: "row", gap: tokens.space.sm, alignItems: "center" }}>
+            <Icon name="alert-octagon" color={tokens.color.status.danger.solid} />
+            <Text variant="headline" color="danger" header>
+              {t("flows.onboarding.downloadFailed")}
+            </Text>
+          </View>
+          {failed.map((f) => (
+            <View key={f.asset.id} style={{ gap: tokens.space.xxs }}>
+              <Text variant="callout">
+                {f.asset.label}: {t(`flows.row.error.${f.state.kind === "failed" ? f.state.errorKind : "unknown"}`)}
+              </Text>
+              {f.state.kind === "failed" && (
+                <Text variant="caption" color="tertiary" selectable>
+                  {f.state.message}
+                </Text>
+              )}
+            </View>
+          ))}
+          <Button ref={retryRef} label={t("flows.row.retry")} icon="refresh-cw" onPress={() => failed.forEach((f) => catalog.download(f.asset))} />
+          {noSpaceFailure && <Button label={t("flows.onboarding.smallerPackage")} variant="secondary" onPress={onChoosePackage} />}
+        </View>
       )}
 
       {indexPhase === "error" && (
