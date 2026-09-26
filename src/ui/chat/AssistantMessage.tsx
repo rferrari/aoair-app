@@ -195,6 +195,7 @@ function SourceStrip({ answer, onOpenSource }: { answer: AnswerState; onOpenSour
             tone="field"
             onPress={() => onOpenSource(i)}
             accessibilityLabel={tr("chat.sources.chip", { n: i + 1, title: s.title })}
+            accessibilityHint={tr("chat.sources.openHint")}
           />
         ))}
       </ScrollView>

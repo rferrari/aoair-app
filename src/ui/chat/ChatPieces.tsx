@@ -89,7 +89,7 @@ export const UserMessage = memo(function UserMessage({
 
 export const SUGGESTION_KEYS = ["q1", "q2", "q3", "q4"] as const;
 
-/** A new chat: what the app does, and questions to start with (tap sends; the screen reader action fills the composer). */
+/** A new chat: what the app does, and questions to start with (tap sends; long-press or the screen reader action fills the composer). */
 export function ChatEmptyState({
   showSuggestions,
   onAsk,
@@ -116,6 +116,8 @@ export function ChatEmptyState({
                 key={k}
                 padding="sm"
                 onPress={() => onAsk(q)}
+                onLongPress={() => onFill(q)}
+                accessibilityHint={tr("chat.empty.fill")}
                 accessibilityLabel={tr("chat.empty.ask", { question: q })}
                 accessibilityActions={[{ name: "fill", label: tr("chat.empty.fill") }]}
                 onAccessibilityAction={() => onFill(q)}

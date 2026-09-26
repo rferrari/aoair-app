@@ -514,7 +514,8 @@
       "myDocuments": "Meus documentos",
       "copyPassage": "Copiar trecho",
       "passageCopied": "Trecho copiado",
-      "sheetTitle": "Fonte {{n}}"
+      "sheetTitle": "Fonte {{n}}",
+      "openHint": "Abre o trecho"
     },
     "receipt": {
       "sourcePassage": "Trecho da fonte",
