@@ -443,5 +443,13 @@
     "runFailedTitle": "Evaluation failed",
     "deviceRequest": "Started from a connected computer (request {{id}}).",
     "noRetrieval": "no retrieval"
+  },
+  "ui": {
+    "close": "Close",
+    "dismiss": "Dismiss",
+    "undo": "Undo",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "back": "Back"
   }
 }

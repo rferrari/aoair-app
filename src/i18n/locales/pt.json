@@ -443,5 +443,13 @@
     "runFailedTitle": "Falha na avaliação",
     "deviceRequest": "Iniciado por um computador conectado (pedido {{id}}).",
     "noRetrieval": "sem recuperação"
+  },
+  "ui": {
+    "close": "Fechar",
+    "dismiss": "Dispensar",
+    "undo": "Desfazer",
+    "cancel": "Cancelar",
+    "delete": "Apagar",
+    "back": "Voltar"
   }
 }
