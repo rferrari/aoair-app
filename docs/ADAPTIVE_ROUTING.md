@@ -95,6 +95,7 @@ Inputs: GGUF header via `loadLlamaModelInfo` (layers, heads, KV heads, head widt
 ## UNKNOWN
 
 - Real RSS / low-memory-killer behavior with an 11 GB mmap on Android; real tok/s of the deep tier through plain llama.rn (no expert cache). Needs a device-lab run.
+- The hot-set estimate counts parameters, not bytes. Unsloth "UD" quants keep attention/shared weights at higher precision than experts, so the dense part is underestimated: Qwen3.6-35B-A3B UD-Q2_K_XL measures 1.63 GiB dense + 9.80 GiB experts (Caldera, `gguf-split.py`), i.e. ~1.9 GiB touched per token vs ~0.9 GiB estimated. On a 12 GB phone the verdict is `streaming` either way; on smaller devices it may be optimistic. Fix if needed: read per-tensor sizes from the GGUF tensor table (not exposed by llama.rn's `loadLlamaModelInfo`).
 - Instant-tier confidence threshold (0.75) is set from test fixtures, not from the evaluation set.
 - Quality effect of sentence-level compression vs whole chunks: needs the frontier evaluation.
 
