@@ -19,3 +19,11 @@ export const APP_VARIANT: AppVariant = parseVariant(process.env.EXPO_PUBLIC_BOAR
 export function networkAllowed(): boolean {
   return APP_VARIANT !== "offline";
 }
+
+/**
+ * Whether this build declares RECORD_AUDIO. The offline build drops it
+ * unless built with EXPO_PUBLIC_BOAR_VOICE=1 (plugins/withBuildVariant.js).
+ */
+export function voiceInBuild(variant: AppVariant = APP_VARIANT, voiceFlag = process.env.EXPO_PUBLIC_BOAR_VOICE): boolean {
+  return variant !== "offline" || voiceFlag === "1";
+}
