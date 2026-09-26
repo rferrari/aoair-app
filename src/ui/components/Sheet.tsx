@@ -13,11 +13,13 @@ export interface SheetProps {
   title: string;
   description?: string;
   children?: React.ReactNode;
-  /** Sticky footer (actions). */
+  /** Sticky footer actions, listed safest first (Cancel before Delete); drawn bottom-up so the last one is on top. */
   footer?: React.ReactNode;
   /** Hide the close button, e.g. for a forced choice. Back/scrim still close unless `dismissible` is false. */
   showClose?: boolean;
   dismissible?: boolean;
+  /** Element to give screen-reader focus back to when the sheet closes (usually the trigger). */
+  returnFocusRef?: React.RefObject<View | null>;
 }
 
 /**
@@ -25,7 +27,17 @@ export interface SheetProps {
  * Modal: traps focus, closes on Android back / scrim tap / close button, and
  * moves screen-reader focus to the title on open.
  */
-export function Sheet({ visible, onClose, title, description, children, footer, showClose = true, dismissible = true }: SheetProps) {
+export function Sheet({
+  visible,
+  onClose,
+  title,
+  description,
+  children,
+  footer,
+  showClose = true,
+  dismissible = true,
+  returnFocusRef,
+}: SheetProps) {
   const { tokens: t, reduceMotion } = useTheme();
   const { t: tr } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -42,12 +54,17 @@ export function Sheet({ visible, onClose, title, description, children, footer, 
       easing: visible ? t.motion.easing.enter : t.motion.easing.exit,
       useNativeDriver: true,
     }).start(({ finished }) => {
-      if (finished && !visible) setMounted(false);
+      if (finished && !visible) {
+        setMounted(false);
+        const trigger = returnFocusRef?.current && findNodeHandle(returnFocusRef.current);
+        if (trigger) setTimeout(() => AccessibilityInfo.setAccessibilityFocus(trigger), 50);
+      }
       if (finished && visible) {
         const node = titleRef.current && findNodeHandle(titleRef.current);
         if (node) AccessibilityInfo.setAccessibilityFocus(node);
       }
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, progress, reduceMotion, t.motion]);
 
   if (!mounted) return null;
@@ -103,7 +120,13 @@ export function Sheet({ visible, onClose, title, description, children, footer, 
               {children}
             </ScrollView>
           )}
-          {footer && <View style={{ paddingHorizontal: t.space.base, paddingTop: t.space.base, gap: t.space.sm }}>{footer}</View>}
+          {footer && (
+            // Footer children are given safest-first (Cancel, then the action) for focus order,
+            // and drawn in reverse so the main action sits on top.
+            <View style={{ flexDirection: "column-reverse", paddingHorizontal: t.space.base, paddingTop: t.space.base, gap: t.space.sm }}>
+              {footer}
+            </View>
+          )}
         </Animated.View>
       </KeyboardAvoidingView>
     </Modal>

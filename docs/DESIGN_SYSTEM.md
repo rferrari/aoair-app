@@ -157,19 +157,19 @@ Suggested mapping: menu `menu` · new chat `edit-3` · send `arrow-up` · stop `
 | `IconButton` | Icon-only; `plain`/`tonal`/`filled`; `selected` | `label` required, `selected` state |
 | `Card` | Grouped content; `level`, `onPress` | Button role when pressable |
 | `Section` | Titled group; `inset` draws the grouped surface with hairlines; `footer` explains effect | Title is a header |
-| `ListRow` | Settings/navigation row: `title`, `value`, `subtitle`, `icon`, `trailing`, `destructive` | One focus stop reading "title, value, subtitle"; title/value wrap instead of truncating |
+| `ListRow` | Settings/navigation row: `title`, `value`, `subtitle`, `icon`, `trailing` (non-interactive), `switch={{ value, onValueChange }}`, `destructive` | One focus stop reading "title, value, subtitle"; with `switch` the whole row is role switch + `checked`; title/value wrap instead of truncating |
 | `Switch` | Immediate on/off only | role switch, `checked`, named by the row text |
 | `SegmentedControl` | 2-4 exclusive options | radiogroup + radio `checked`; turns vertical at ≥ 1.35 font scale |
 | `Chip` | Filter/toggle/tag; `size="inline"` for citation `[n]` inside text | Button + `selected` when pressable; inline chip keeps a 44/48-tall hit area (horizontal slop is limited so adjacent citations stay separate) |
 | `Badge` | Non-interactive status with tone | Text always present |
 | `Banner` | Inline notice (info/success/warning/danger/field) with optional action and dismiss | Live region (danger assertive) |
 | `Toast` | `useToast()({ message, tone, icon, actionLabel, onAction })` | Announced; ≥ 5s + 60ms/char (6s with action); sits above the composer |
-| `Sheet` | Confirmations and short tasks; `footer` for actions | Modal, focus to title, Android back/scrim close, `accessibilityViewIsModal` |
+| `Sheet` | Confirmations and short tasks; `footer` actions listed safest first (Cancel, then Delete; drawn with the last on top); `returnFocusRef` = the trigger | Modal, focus to title and back to the trigger on close, Android back/scrim close, `accessibilityViewIsModal` |
 | `TextField` | Visible `label` (or `accessibilityLabel`), `helper`, `error`, `autoGrow` + `maxRows`, `leading`/`trailing` | Label is the name (not placeholder), error as hint + live |
 | `Progress` | Determinate (`value` 0..1, `valueText`) or indeterminate | role progressbar with `accessibilityValue`; `busy` |
 | `Skeleton` | Loading placeholder | Hidden; the screen announces loading once |
 | `EmptyState` | Empty (`neutral`) and error (`tone="error"`) states with one primary action | Title is a header |
-| `useAnnounce()` | `announce(msg, { assertive })` for state changes (answer ready, download failed) | iOS `announceForAccessibilityWithOptions`; Android live-region node (announce API is deprecated on Android 16) |
+| `useAnnounce()` | `announce(msg, { assertive })` for state changes (answer ready, download failed) | iOS `announceForAccessibilityWithOptions`; Android < 16 `announceForAccessibility` (no priority there: `assertive` is ignored); Android 16+ a 1×1 live-region node in the viewport (UNKNOWN until verified on device, Prism A1) |
 
 Patterns:
 - **Destructive = confirm or undo.** Irreversible (delete model, erase data, delete chat): `Sheet` with a `destructive` Button and a ghost Cancel. Reversible: act immediately and offer Undo in a toast.

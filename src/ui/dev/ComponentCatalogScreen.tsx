@@ -181,7 +181,8 @@ export function ComponentCatalogScreen() {
       <Group title="Lists">
         <Section title="Answers" footer="Section footer explains the effect of the settings above.">
           <ListRow title="Tone" value="Succinct" icon="message-circle" onPress={() => {}} />
-          <ListRow title="Deep research" icon="layers" trailing={<Switch label="Deep research" value={on} onValueChange={setOn} />} />
+          <ListRow title="Deep research" subtitle="Whole row is the switch" icon="layers" switch={{ value: on, onValueChange: setOn }} />
+          <ListRow title="Standalone switch" trailing={<Switch label="Standalone switch" value={on} onValueChange={setOn} />} accessibilityLabel="Standalone switch row" />
           <ListRow title="Models" subtitle="Qwen2.5 1.5B in use · 3 installed" icon="cpu" onPress={() => {}} />
           <ListRow title="Erase all data" icon="trash-2" destructive onPress={() => {}} />
         </Section>
@@ -256,8 +257,8 @@ export function ComponentCatalogScreen() {
         description="Qwen2.5 3B (2.4 GB) will be removed. You can download it again later."
         footer={
           <>
-            <Button label="Delete model" variant="destructive" icon="trash-2" fullWidth onPress={() => setSheet(false)} />
             <Button label="Cancel" variant="ghost" fullWidth onPress={() => setSheet(false)} />
+            <Button label="Delete model" variant="destructive" icon="trash-2" fullWidth onPress={() => setSheet(false)} />
           </>
         }
       />

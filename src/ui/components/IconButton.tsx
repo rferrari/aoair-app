@@ -1,5 +1,5 @@
-import React from "react";
-import { Pressable, PressableProps, StyleProp, ViewStyle } from "react-native";
+import React, { forwardRef } from "react";
+import { Pressable, PressableProps, StyleProp, View, ViewStyle } from "react-native";
 import { impact, ImpactFeedbackStyle } from "../../services/haptics";
 import { useTokens } from "../theme";
 import { Icon, IconName } from "./Icon";
@@ -16,7 +16,7 @@ export interface IconButtonProps extends Omit<PressableProps, "children" | "styl
 }
 
 /** Icon-only button. The visual may be 36pt, the touch target is always >= 44/48. */
-export function IconButton({
+export const IconButton = forwardRef<View, IconButtonProps>(function IconButton({
   icon,
   label,
   variant = "plain",
@@ -27,7 +27,7 @@ export function IconButton({
   style,
   onPress,
   ...rest
-}: IconButtonProps) {
+}, ref) {
   const t = useTokens();
   const c = t.color;
   const visual = size === "sm" ? t.size.controlSm : t.size.touch;
@@ -38,6 +38,7 @@ export function IconButton({
 
   return (
     <Pressable
+      ref={ref}
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ disabled: !!disabled, selected }}
@@ -64,4 +65,4 @@ export function IconButton({
       <Icon name={icon} size={size === "sm" ? "sm" : "md"} color={fg} />
     </Pressable>
   );
-}
+});

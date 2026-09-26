@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Image, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { DrawerContentComponentProps, useDrawerStatus } from "@react-navigation/drawer";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -30,6 +30,9 @@ export function AppDrawerContent({ navigation }: DrawerContentComponentProps) {
   const chat = useChatBridge();
   const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string } | null>(null);
   const [maxSessions, setMaxSessions] = useState<number | null>(null);
+  const trashRefs = useRef(new Map<string, View | null>());
+  const returnFocusRef = useRef<View | null>(null);
+  const newChatRef = useRef<View | null>(null);
 
   useEffect(() => {
     if (status !== "open") return;
@@ -72,7 +75,7 @@ export function AppDrawerContent({ navigation }: DrawerContentComponentProps) {
       </View>
 
       <View style={{ paddingHorizontal: t.space.base, paddingBottom: t.space.md }}>
-        <Button label={tr("nav.newChat")} icon="edit-3" variant="secondary" fullWidth onPress={() => go(chat.newChat)} />
+        <Button ref={newChatRef} label={tr("nav.newChat")} icon="edit-3" variant="secondary" fullWidth onPress={() => go(chat.newChat)} />
       </View>
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: t.space.base }}>
@@ -114,10 +117,16 @@ export function AppDrawerContent({ navigation }: DrawerContentComponentProps) {
                   </Text>
                 </Pressable>
                 <IconButton
+                  ref={(node) => {
+                    trashRefs.current.set(s.id, node);
+                  }}
                   icon="trash-2"
                   size="sm"
                   label={tr("nav.deleteChatA11y", { title: s.title })}
-                  onPress={() => setPendingDelete({ id: s.id, title: s.title })}
+                  onPress={() => {
+                    returnFocusRef.current = trashRefs.current.get(s.id) ?? null;
+                    setPendingDelete({ id: s.id, title: s.title });
+                  }}
                 />
               </View>
             );
@@ -151,10 +160,12 @@ export function AppDrawerContent({ navigation }: DrawerContentComponentProps) {
       <Sheet
         visible={pendingDelete !== null}
         onClose={() => setPendingDelete(null)}
+        returnFocusRef={returnFocusRef}
         title={tr("nav.deleteChatTitle")}
         description={pendingDelete ? tr("nav.deleteChatBody", { title: pendingDelete.title }) : undefined}
         footer={
           <>
+            <Button label={tr("ui.cancel")} variant="ghost" fullWidth onPress={() => setPendingDelete(null)} />
             <Button
               label={tr("nav.deleteChatConfirm")}
               variant="destructive"
@@ -162,11 +173,12 @@ export function AppDrawerContent({ navigation }: DrawerContentComponentProps) {
               fullWidth
               onPress={() => {
                 if (pendingDelete) chat.deleteSession(pendingDelete.id);
+                // The trash button goes away with the row; land focus on "New chat" instead.
+                returnFocusRef.current = newChatRef.current;
                 setPendingDelete(null);
                 toast({ message: tr("nav.chatDeleted"), icon: "trash-2" });
               }}
             />
-            <Button label={tr("ui.cancel")} variant="ghost" fullWidth onPress={() => setPendingDelete(null)} />
           </>
         }
       />
