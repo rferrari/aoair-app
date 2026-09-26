@@ -133,7 +133,8 @@ export function ChatScreen({
   const [showPromptIdeas, setShowPromptIdeas] = useState(false);
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [voiceInputEnabled, setVoiceInputEnabledState] = useState(true);
-  // True while Settings is pushed on top of the chat (set on navigate, cleared on refocus).
+  // True while another screen (Settings, Models, ...) is pushed on top of the chat:
+  // set on blur, cleared on refocus. Suppresses download toasts meant for that screen.
   const showSettingsRef = useRef(false);
   const [deviceEvalRequest, setDeviceEvalRequest] = useState<EvalRequest | null>(null);
   const [personalityId, setPersonalityIdState] = useState<PersonalityId>("succinct");
@@ -824,14 +825,19 @@ export function ChatScreen({
     });
   }, [send, scrollToBottom]);
 
-  const openSettings = useCallback(() => {
-    showSettingsRef.current = true;
-    navigation.navigate("Settings");
-  }, [navigation]);
+  const openSettings = useCallback(() => navigation.navigate("Settings"), [navigation]);
 
-  // Returning from Settings: pick up what may have changed there. Mirrors the
-  // old Settings onClose; runs on any refocus after Settings was opened, so
-  // the system back gesture counts too.
+  useEffect(
+    () =>
+      navigation.addListener("blur", () => {
+        showSettingsRef.current = true;
+      }),
+    [navigation]
+  );
+
+  // Returning from any pushed screen (reached from the drawer, the error card
+  // or a deep link): pick up settings that may have changed there. Mirrors the
+  // old Settings onClose; the back gesture counts too.
   useFocusEffect(
     useCallback(() => {
       if (!showSettingsRef.current) return;
