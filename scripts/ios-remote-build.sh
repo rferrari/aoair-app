@@ -34,6 +34,13 @@ rsync -a --delete \
   --exclude .maestri --exclude '*.gguf' --exclude /assets/models \
   "$ROOT/" "$HOST:$REMOTE_DIR/"
 
+cleanup_remote() {
+  [[ "$KEEP_REMOTE" == "1" ]] && return
+  log "delete remote intermediates"
+  ssh "$HOST" "bash -lc 'rm -rf $REMOTE_DIR/ios/build'" || true
+}
+trap cleanup_remote EXIT
+
 # The remote login shell is fish; everything runs under bash -lc.
 log "remote build ($CONFIG)"
 ssh "$HOST" "bash -lc 'set -euo pipefail
@@ -56,11 +63,6 @@ mkdir -p "$OUT_DIR"
 log "fetch BOAR.app -> $OUT_DIR"
 rsync -a --delete "$HOST:$APP_REMOTE/" "$OUT_DIR/BOAR.app/"
 du -sh "$OUT_DIR/BOAR.app"
-
-if [[ "$KEEP_REMOTE" != "1" ]]; then
-  log "delete remote intermediates"
-  ssh "$HOST" "bash -lc 'rm -rf $REMOTE_DIR/ios/build'"
-fi
 
 if [[ "$INSTALL" == "1" ]]; then
   log "install + launch $BUNDLE_ID on the booted simulator"
