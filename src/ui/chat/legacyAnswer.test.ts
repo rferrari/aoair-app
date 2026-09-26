@@ -19,7 +19,13 @@ vi.mock("../../rag/retrieve", () => ({
   assemblePrompt: () => "prompt",
 }));
 vi.mock("../../rag/pure", () => ({ assembleChatMessages: () => [], ANSWER_CONTEXT_CHUNKS: 4 }));
-vi.mock("../../models/settings", () => ({ getAdaptiveRoutingEnabled: () => adaptiveEnabledMock() }));
+vi.mock("../../models/settings", () => ({
+  getAdaptiveRoutingEnabled: () => adaptiveEnabledMock(),
+  getDeepResearchMode: async () => false,
+  getActiveModelId: async () => "qwen",
+}));
+vi.mock("../../models/manifest", () => ({ MODEL_CATALOG: [{ id: "qwen", label: "Qwen 1.5B" }] }));
+vi.mock("../../models/discoveredModels", () => ({ listDiscoveredModels: async () => [] }));
 vi.mock("../../services/orchestrator", () => ({ runDeepResearch: vi.fn() }));
 vi.mock("../../services/adaptiveChat", () => ({ runAdaptiveChat: vi.fn() }));
 vi.mock("../../services/telemetry", () => ({
@@ -31,12 +37,7 @@ vi.mock("ram-monitor", () => ({ getMemoryInfo: () => ({ rssBytes: 0 }) }));
 
 import { answer, errorCode } from "./legacyAnswer";
 
-const ctx = {
-  history: { summary: null, turns: [] },
-  maxTokens: 256,
-  model: { id: "qwen", label: "Qwen 1.5B" },
-  alwaysComplete: false,
-};
+const ctx = { maxTokens: 256 };
 const chunk = { chunkId: "c1", docId: "d1", title: "Raft", body: "…", score: 0.5, matchType: "hybrid" as const };
 
 beforeEach(() => {
@@ -96,6 +97,20 @@ describe("legacy answer adapter", () => {
     expect(result.outcome).toBe("error");
     const done = events.find((e) => e.type === "done");
     expect(done?.type === "done" && done.error?.code).toBe("oom");
+  });
+
+  it("stops the previous answer before starting a new one", async () => {
+    let release!: () => void;
+    generateMock.mockImplementationOnce(({ onToken }: { onToken: (s: string) => void }) => {
+      onToken("first");
+      return new Promise<void>((r) => (release = r));
+    });
+    stopMock.mockImplementation(async () => release?.());
+    const first = answer({ query: "Explain Paxos" }, () => {}, ctx);
+    await vi.waitFor(() => expect(release).toBeDefined());
+    const second = answer({ query: "Explain Raft" }, () => {}, ctx);
+    expect((await first.done).outcome).toBe("stopped");
+    expect((await second.done).outcome).toBe("success");
   });
 });
 

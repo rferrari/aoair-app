@@ -17,7 +17,9 @@ import type { RetrievedChunk } from "../../rag/retrieve.types";
 import { assembleChatMessages, ANSWER_CONTEXT_CHUNKS } from "../../rag/pure";
 import { classifyTask, isRetrievalIrrelevant } from "../../routing/classify";
 import type { TaskType } from "../../routing/types";
-import { getAdaptiveRoutingEnabled } from "../../models/settings";
+import { getActiveModelId, getAdaptiveRoutingEnabled, getDeepResearchMode } from "../../models/settings";
+import { MODEL_CATALOG } from "../../models/manifest";
+import { listDiscoveredModels } from "../../models/discoveredModels";
 import { runDeepResearch, type ResearchProgress } from "../../services/orchestrator";
 import { runAdaptiveChat } from "../../services/adaptiveChat";
 import { recordQueryStats, trackPeakRss, type QueryStats } from "../../services/telemetry";
@@ -34,16 +36,24 @@ import type {
   AnswerTier,
 } from "./answerEvents";
 
+/** Same shape as the engine's AnswerContext (src/routing/answer.ts). */
 export interface AnswerContext {
   systemPrompt?: string;
   styleReminder?: string;
-  history: { summary: string | null; turns: ConversationTurn[] };
+  history?: { summary: string | null; turns: ConversationTurn[] };
   maxTokens: number;
-  /** The loaded model, for the receipt when routing doesn't report one. */
-  model: { id: string; label: string } | null;
-  /** Settings "always complete answer" (the old Deep Research mode). */
-  alwaysComplete: boolean;
 }
+
+/** The active model's id and label, for the receipt when routing doesn't report one. */
+async function activeModel(): Promise<{ id: string; label: string } | null> {
+  const id = await getActiveModelId("llm");
+  if (!id) return null;
+  const found = [...MODEL_CATALOG, ...(await listDiscoveredModels())].find((m) => m.id === id);
+  return { id, label: found?.label ?? id };
+}
+
+// One answer at a time: a new one stops the previous and waits for it.
+let current: AnswerHandle | null = null;
 
 let counter = 0;
 const newAnswerId = () => `${Date.now()}-${++counter}`;
@@ -60,15 +70,36 @@ function researchStage(p: ResearchProgress): Extract<AnswerEvent, { type: "stage
   return p.stage === "researching" ? "retrieving" : "synthesizing";
 }
 
+export function deepen(
+  query: string,
+  sources: RetrievedChunk[],
+  onEvent: AnswerEventHandler,
+  ctx: AnswerContext
+): AnswerHandle {
+  return answer({ query, tier: "deep", reuseSources: sources }, onEvent, ctx);
+}
+
 export function answer(req: AnswerRequest, onEvent: AnswerEventHandler, ctx: AnswerContext): AnswerHandle {
   const answerId = newAnswerId();
-  const tier: AnswerTier = req.tier === "deep" || (req.tier !== "fast" && ctx.alwaysComplete) ? "deep" : "fast";
+  const previous = current;
   let stopRequested = false;
-  const emit = (e: DistributiveOmit<AnswerEvent, "answerId">) => onEvent({ ...e, answerId } as AnswerEvent);
+  let tier: AnswerTier = req.tier === "deep" ? "deep" : "fast";
+  const emit = (e: DistributiveOmit<AnswerEvent, "answerId">) => {
+    try {
+      onEvent({ ...e, answerId } as AnswerEvent);
+    } catch (err) {
+      console.warn("[legacyAnswer] onEvent threw", err);
+    }
+  };
+  const history = ctx.history ?? { summary: null, turns: [] };
 
-  const done = run();
+  const done = (async () => {
+    await previous?.stop();
+    if (req.tier !== "fast" && req.tier !== "deep" && (await getDeepResearchMode())) tier = "deep";
+    return run(await activeModel());
+  })();
 
-  return {
+  const handle: AnswerHandle = {
     answerId,
     done,
     async stop() {
@@ -77,8 +108,13 @@ export function answer(req: AnswerRequest, onEvent: AnswerEventHandler, ctx: Ans
       await done.catch(() => {});
     },
   };
+  current = handle;
+  done.finally(() => {
+    if (current === handle) current = null;
+  });
+  return handle;
 
-  async function run(): Promise<AnswerResult> {
+  async function run(model: { id: string; label: string } | null): Promise<AnswerResult> {
     const { query } = req;
     const peakRss = trackPeakRss(() => {
       try {
@@ -92,8 +128,8 @@ export function answer(req: AnswerRequest, onEvent: AnswerEventHandler, ctx: Ans
     let firstTokenAt = 0;
     let tokens = 0;
     let text = "";
-    let modelId = ctx.model?.id ?? "";
-    let modelLabel = ctx.model?.label ?? "";
+    let modelId = model?.id ?? "";
+    let modelLabel = model?.label ?? "";
     let reasonCodes: string[] = [];
     let fixedTaskType: TaskType | undefined;
     let adaptiveTelemetry: Partial<QueryStats> | null = null;
@@ -126,8 +162,8 @@ export function answer(req: AnswerRequest, onEvent: AnswerEventHandler, ctx: Ans
       // The model's own chat template when its file ships one; the plain prompt is only a fallback.
       await llamaEngine.generate(
         llamaEngine.hasEmbeddedChatTemplate()
-          ? { messages: assembleChatMessages(query, c, ctx.systemPrompt, ctx.history, ctx.styleReminder), nPredict: ctx.maxTokens, onToken }
-          : { prompt: assemblePrompt(query, c, ctx.systemPrompt, ctx.history, ctx.styleReminder), nPredict: ctx.maxTokens, onToken }
+          ? { messages: assembleChatMessages(query, c, ctx.systemPrompt, history, ctx.styleReminder), nPredict: ctx.maxTokens, onToken }
+          : { prompt: assemblePrompt(query, c, ctx.systemPrompt, history, ctx.styleReminder), nPredict: ctx.maxTokens, onToken }
       );
       return c;
     };
@@ -137,7 +173,7 @@ export function answer(req: AnswerRequest, onEvent: AnswerEventHandler, ctx: Ans
         const result = await runDeepResearch(
           query,
           ctx.systemPrompt,
-          ctx.history,
+          history,
           ctx.maxTokens,
           (p) => stage(researchStage(p), { index: p.subQuestionIndex, count: p.subQuestionCount }),
           onToken,
@@ -149,7 +185,7 @@ export function answer(req: AnswerRequest, onEvent: AnswerEventHandler, ctx: Ans
       } else if (await getAdaptiveRoutingEnabled()) {
         try {
           const result = await runAdaptiveChat(
-            { query, systemPrompt: ctx.systemPrompt, styleReminder: ctx.styleReminder, history: ctx.history },
+            { query, systemPrompt: ctx.systemPrompt, styleReminder: ctx.styleReminder, history: history },
             ctx.maxTokens,
             {
               onToken,
@@ -225,7 +261,7 @@ export function answer(req: AnswerRequest, onEvent: AnswerEventHandler, ctx: Ans
         peakRssBytes: peakRss.stop(),
         timestamp: Date.now(),
         totalLatencyMs: totalMs,
-        modelId: ctx.model?.id,
+        modelId: model?.id,
         ...(fixedTaskType ? { taskType: fixedTaskType, retrievalUsed: sources.length > 0 } : {}),
         ...(adaptiveTelemetry ?? {}),
       };
@@ -262,7 +298,7 @@ export function answer(req: AnswerRequest, onEvent: AnswerEventHandler, ctx: Ans
       const totalMs = performance.now() - startTime;
       recordExecution({
         adaptiveRoutingUsed: false,
-        modelId: ctx.model?.id,
+        modelId: model?.id,
         totalLatencyMs: totalMs,
         tokensGenerated: tokens,
         outcome: "failure",

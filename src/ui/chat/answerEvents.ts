@@ -1,4 +1,4 @@
-// Mirror of src/routing/events.ts on feat/engine-routing (470167e), the
+// Mirror of src/routing/events.ts on feat/engine-routing (5ccf4b7), the
 // engine owner's AnswerEvent contract. Once that file is on main, replace
 // this module with: export * from "../../routing/events";
 /**
@@ -58,6 +58,8 @@ export interface AnswerReceipt {
   prefillMs?: number;
   /** Prompt tokens evaluated for the final generation (timings.prompt_n), after context compression. */
   ctxTokens?: number;
+  /** Prompt tokens reused from the KV cache of the previous completion (llama.rn prefix reuse). */
+  cachedTokens?: number;
   /** Model load time paid by this answer (0 when already resident). */
   loadMs?: number;
   /** Verification verdict, when a verify stage ran. */
