@@ -53,6 +53,21 @@ Build is configured and the project is linked for cloud builds without a
 local Android SDK. Not yet verified with an actual compile + install on real
 hardware — see open items below.
 
+## Download the app
+
+No building needed: get `boar-v1.0.0-arm64.apk` from the
+[latest release](https://github.com/rferrari/boar-app/releases/latest) (any
+64-bit ARM Android phone, 122 MB). Check it against the published checksum:
+
+```bash
+sha256sum -c boar-v1.0.0-arm64.apk.sha256   # prints "boar-v1.0.0-arm64.apk: OK"
+```
+
+Install it (open it on the phone, or `adb install boar-v1.0.0-arm64.apk`), open
+BOAR once with an internet connection to download the default model (about
+1 GB), then it works fully offline. `make setup` → "Install BOAR on my phone"
+does the download, checksum and USB install for you.
+
 ## Quickstart
 
 ```bash
