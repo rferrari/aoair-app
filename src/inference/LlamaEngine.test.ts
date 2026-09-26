@@ -67,7 +67,7 @@ vi.mock("ram-monitor", () => ({
   getAvailableRamBytes: () => ram.avail,
 }));
 
-import { LlamaEngine } from "./LlamaEngine";
+import { LlamaEngine, defaultContextSize } from "./LlamaEngine";
 
 const live = () => created.filter((c) => !c.released);
 
@@ -241,5 +241,19 @@ describe("LlamaEngine generate queue (double-send race)", () => {
     // The running one ends with what it had; the queued one never starts.
     await expect(first).resolves.toBe("Hi");
     await expect(queued).resolves.toBe("");
+  });
+});
+
+describe("default context size", () => {
+  it("uses 2048 on 4GB devices and 4096 otherwise (or when RAM is unknown)", async () => {
+    ram.total = 4 * 1024 ** 3;
+    expect(defaultContextSize()).toBe(2048);
+    const engine = new LlamaEngine();
+    await engine.load("models/a.gguf");
+    expect(initParams[0]).toMatchObject({ n_ctx: 2048 });
+    ram.total = 12 * 1024 ** 3;
+    expect(defaultContextSize()).toBe(4096);
+    ram.total = 0;
+    expect(defaultContextSize()).toBe(4096);
   });
 });

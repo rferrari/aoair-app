@@ -73,7 +73,12 @@ export interface AnswerDeps {
   assemblePrompt(q: string, chunks: RetrievedChunk[], system?: string, history?: ConversationHistory, style?: string): string;
   assembleChatMessages(q: string, chunks: RetrievedChunk[], system?: string, history?: ConversationHistory, style?: string): ChatMessage[];
   now(): number;
+  /** Context window the model will be loaded with (LlamaEngine defaultContextSize). */
+  contextSize?(): number;
 }
+
+/** Room kept for the system prompt, history and template tokens around the sources. */
+const PROMPT_OVERHEAD_TOKENS = 512;
 
 export interface AnswerContext {
   systemPrompt?: string;
@@ -216,7 +221,13 @@ export function createAnswerer(deps: AnswerDeps) {
       }
       if (stopRequested) return finish(genTier, "stopped", "", [], receipt({ retrievalMs }));
 
-      const compressed = compressContext(req.query, raw, { tokenBudget: gen?.contextTokens ?? 1200 });
+      // Never let sources + answer overflow the context window (2048 on 4GB phones).
+      const ctxSize = deps.contextSize?.() ?? 4096;
+      const budget = Math.max(
+        256,
+        Math.min(gen?.contextTokens ?? 1200, ctxSize - ctx.maxTokens - PROMPT_OVERHEAD_TOKENS)
+      );
+      const compressed = compressContext(req.query, raw, { tokenBudget: budget });
       let sources = compressed.chunks;
       reasonCodes.push(`context:${compressed.tokensBefore}->${compressed.tokensAfter}`);
       if (sources.length && gen?.mode !== "multipass") {

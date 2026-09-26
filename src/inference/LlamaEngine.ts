@@ -76,6 +76,21 @@ export interface LoadedModelInfo {
   nThreads: number;
 }
 
+/**
+ * Context window when the caller does not pick one. 4GB phones (e.g. iPhone
+ * 13) get 2048: the KV cache is the one allocation mmap cannot page out, and
+ * with 4096 the worst case sits too close to the iOS jetsam limit (docs/IOS.md).
+ */
+export function defaultContextSize(): number {
+  let total = 0;
+  try {
+    total = getDeviceTotalRamBytes();
+  } catch {
+    total = 0;
+  }
+  return total > 0 && total <= 4.5 * 1024 ** 3 ? 2048 : 4096;
+}
+
 export interface LoadResult {
   /** Memory estimate taken right before loading; null when the RAM readouts were unavailable. */
   fit: MemoryFit | null;
@@ -125,7 +140,7 @@ export class LlamaEngine {
   }
 
   private async loadNow(modelFilename: string, opts?: { nCtx?: number; nThreads?: number }): Promise<LoadResult> {
-    const nCtx = opts?.nCtx ?? 4096;
+    const nCtx = opts?.nCtx ?? defaultContextSize();
     const nThreads = opts?.nThreads ?? 4;
 
     // ChatScreen re-mounts (and calls load() again) every time Settings is
@@ -200,7 +215,7 @@ export class LlamaEngine {
     const modelPath = `${FileSystem.documentDirectory}${modelFilename}`;
     const info = await FileSystem.getInfoAsync(modelPath);
     if (!info.exists) return null;
-    return this.estimateFitAt(modelPath, (info as { size?: number }).size ?? 0, opts?.nCtx ?? 4096);
+    return this.estimateFitAt(modelPath, (info as { size?: number }).size ?? 0, opts?.nCtx ?? defaultContextSize());
   }
 
   private async estimateFitAt(modelPath: string, fileBytes: number, nCtx: number): Promise<MemoryFit | null> {

@@ -267,3 +267,20 @@ describe("answer(): double send", () => {
     expect(e2.every((e) => e.answerId === h2.answerId)).toBe(true);
   });
 });
+
+describe("answer(): context budget", () => {
+  it("shrinks the sources to fit a 2048-token context window", async () => {
+    f.settings.quickFirst = false;
+    f.deps.contextSize = () => 2048;
+    const big = Array.from({ length: 6 }, (_, i) =>
+      chunk(`b${i}`, `Canberra ${i}`, Array.from({ length: 30 }, (_, j) => `Canberra fact ${i}-${j} about the capital city design and history.`).join(" "))
+    );
+    f.retrieved = big;
+    const { answer } = createAnswerer(f.deps);
+    const r = await answer({ query: "Tell me about Canberra's capital city design" }, () => {}, { maxTokens: 1024 }).done;
+    const sourceTokens = r.sources.reduce((acc, c) => acc + approxTokens(`${c.title}\n${c.body}`), 0);
+    expect(f.multipassCalls).toBe(0);
+    expect(r.sources.length).toBeGreaterThan(0);
+    expect(sourceTokens).toBeLessThanOrEqual(2048 - 1024 - 512);
+  });
+});

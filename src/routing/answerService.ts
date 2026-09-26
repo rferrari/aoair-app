@@ -9,7 +9,7 @@
  * See src/routing/events.ts for the event contract and
  * docs/ADAPTIVE_ROUTING.md for the routing rules.
  */
-import { llamaEngine } from "../inference/LlamaEngine";
+import { defaultContextSize, llamaEngine } from "../inference/LlamaEngine";
 import { retrieve } from "../rag/retrieve";
 import { assemblePrompt, assembleChatMessages } from "../rag/pure";
 import { ModelManager } from "../models/ModelManager";
@@ -45,4 +45,5 @@ export const { answer, deepen } = createAnswerer({
   assemblePrompt,
   assembleChatMessages,
   now: () => performance.now(),
+  contextSize: defaultContextSize,
 });
