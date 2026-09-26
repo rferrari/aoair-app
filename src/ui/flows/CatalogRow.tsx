@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { View } from "react-native";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { Badge, Button, Progress, Sheet, Text, useAnnounce, useToast } from "../components";
 import type { Tone } from "../theme";
 import { useTokens } from "../theme";
@@ -18,7 +19,7 @@ interface Props {
   busy?: boolean;
 }
 
-function badge(state: RowState, t: (k: string, o?: object) => string): { label: string; tone: Tone } | null {
+function badge(state: RowState, t: TFunction): { label: string; tone: Tone } | null {
   switch (state.kind) {
     case "not-installed":
       return null;
@@ -131,7 +132,7 @@ export function CatalogRow({ model, view, onDownload, onUse, onRemove, busy }: P
         title={t("flows.row.removeTitle", { name: model.label })}
         description={t("flows.row.removeBody", { size })}
         footer={
-          <View style={{ gap: tokens.space.sm }}>
+          <>
             <Button label={t("common.cancel")} variant="secondary" fullWidth onPress={() => setConfirmOpen(false)} disabled={removing} />
             <Button
               label={t("flows.row.remove")}
@@ -149,7 +150,7 @@ export function CatalogRow({ model, view, onDownload, onUse, onRemove, busy }: P
                 }
               }}
             />
-          </View>
+          </>
         }
       />
     </View>

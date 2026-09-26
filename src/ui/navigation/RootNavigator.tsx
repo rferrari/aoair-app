@@ -68,12 +68,10 @@ function ChatRoute() {
 function SetupRoute() {
   const navigation = useNavigation<RootNav>();
   return (
-    <Legacy>
-      <SetupWizardScreen
-        onReady={() => navigation.reset({ index: 0, routes: [{ name: "Main" }] })}
-        onSkip={navigation.canGoBack() ? () => navigation.goBack() : undefined}
-      />
-    </Legacy>
+    <SetupWizardScreen
+      onReady={() => navigation.reset({ index: 0, routes: [{ name: "Main" }] })}
+      onSkip={navigation.canGoBack() ? () => navigation.goBack() : undefined}
+    />
   );
 }
 

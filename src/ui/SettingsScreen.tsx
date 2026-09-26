@@ -24,7 +24,6 @@ import {
 } from "../models/settings";
 import { setHapticsEnabledCache } from "../services/haptics";
 import { resetAllAppData } from "../services/appReset";
-import { SwitchRow } from "./flows/SwitchRow";
 import type { RootStackParamList } from "./navigation/types";
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -110,17 +109,13 @@ export function SettingsScreen() {
           value={t("flows.settings.tokens", { count: values.maxTokens })}
           onPress={() => navigation.navigate("SettingsLength")}
         />
-        <SwitchRow
+        <ListRow
           icon="zap"
-          title={t("flows.settings.quickFirst")}
-          value={values.quickFirst}
-          onValueChange={(v) => update("quickFirst", v, setAdaptiveRoutingEnabled)}
+          title={t("flows.settings.quickFirst")} switch={{ value: values.quickFirst, onValueChange: (v) => update("quickFirst", v, setAdaptiveRoutingEnabled) }}
         />
-        <SwitchRow
+        <ListRow
           icon="layers"
-          title={t("flows.settings.alwaysComplete")}
-          value={values.alwaysComplete}
-          onValueChange={(v) => update("alwaysComplete", v, setDeepResearchMode)}
+          title={t("flows.settings.alwaysComplete")} switch={{ value: values.alwaysComplete, onValueChange: (v) => update("alwaysComplete", v, setDeepResearchMode) }}
         />
       </Section>
 
@@ -177,18 +172,16 @@ export function SettingsScreen() {
             ]}
           />
         </View>
-        <SwitchRow
-          title={t("flows.settings.haptics")}
-          value={values.haptics}
-          onValueChange={(v) => {
+        <ListRow
+          title={t("flows.settings.haptics")} switch={{ value: values.haptics, onValueChange: (v) => {
             setHapticsEnabledCache(v);
             update("haptics", v, setHapticsEnabled);
-          }}
+          } }}
         />
       </Section>
 
       <Section title={t("flows.settings.input")} footer={t("flows.settings.voiceNote")}>
-        <SwitchRow icon="mic" title={t("flows.settings.voice")} value={values.voice} onValueChange={(v) => update("voice", v, setVoiceInputEnabled)} />
+        <ListRow icon="mic" title={t("flows.settings.voice")} switch={{ value: values.voice, onValueChange: (v) => update("voice", v, setVoiceInputEnabled) }} />
       </Section>
 
       <Section>
@@ -208,10 +201,10 @@ export function SettingsScreen() {
         title={t("flows.settings.eraseTitle")}
         description={t("flows.settings.eraseBody")}
         footer={
-          <View style={{ gap: tokens.space.sm }}>
+          <>
             <Button label={t("common.cancel")} variant="secondary" onPress={() => setResetOpen(false)} disabled={resetting} fullWidth />
             <Button label={t("flows.settings.eraseConfirm")} variant="destructive" onPress={reset} loading={resetting} fullWidth />
-          </View>
+          </>
         }
       >
         <View style={{ gap: tokens.space.xs }}>

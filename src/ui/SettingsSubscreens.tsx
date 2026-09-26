@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { View } from "react-native";
 import { useTranslation } from "react-i18next";
-import { Button, Screen, Section, Sheet, TextField, useToast } from "./components";
+import { Button, ListRow, Screen, Section, Sheet, TextField, useToast } from "./components";
 import { useTokens } from "./theme";
 import { MAX_TOKENS_OPTIONS, PERSONALITIES, PersonalityId } from "../constants/personalities";
 import {
@@ -18,7 +18,6 @@ import {
 } from "../models/settings";
 import { clearAllHistory } from "../services/chatHistory";
 import { RadioRow } from "./flows/RadioRow";
-import { SwitchRow } from "./flows/SwitchRow";
 
 export function SettingsToneScreen() {
   const { t } = useTranslation();
@@ -122,17 +121,13 @@ export function SettingsHistoryScreen() {
   return (
     <Screen>
       <Section>
-        <SwitchRow
+        <ListRow
           title={t("flows.history.autoTitles")}
-          subtitle={t("flows.history.autoTitlesHint")}
-          value={memory.autoGenerateTitles}
-          onValueChange={(v) => update({ autoGenerateTitles: v })}
+          subtitle={t("flows.history.autoTitlesHint")} switch={{ value: memory.autoGenerateTitles, onValueChange: (v) => update({ autoGenerateTitles: v }) }}
         />
-        <SwitchRow
+        <ListRow
           title={t("flows.history.autoSummarize")}
-          subtitle={t("flows.history.autoSummarizeHint")}
-          value={memory.autoSummarize}
-          onValueChange={(v) => update({ autoSummarize: v })}
+          subtitle={t("flows.history.autoSummarizeHint")} switch={{ value: memory.autoSummarize, onValueChange: (v) => update({ autoSummarize: v }) }}
         />
       </Section>
 
@@ -172,7 +167,7 @@ export function SettingsHistoryScreen() {
         title={t("flows.history.clearTitle")}
         description={t("flows.history.clearBody")}
         footer={
-          <View style={{ gap: tokens.space.sm }}>
+          <>
             <Button label={t("common.cancel")} variant="secondary" onPress={() => setClearOpen(false)} fullWidth />
             <Button
               label={t("flows.history.clear")}
@@ -184,7 +179,7 @@ export function SettingsHistoryScreen() {
                 toast({ message: t("flows.history.cleared"), tone: "success" });
               }}
             />
-          </View>
+          </>
         }
       />
     </Screen>
