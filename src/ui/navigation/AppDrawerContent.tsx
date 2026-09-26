@@ -48,7 +48,6 @@ export function AppDrawerContent({ navigation }: DrawerContentComponentProps) {
     { route: "Knowledge", icon: "book-open", label: tr("nav.knowledge") },
     { route: "Settings", icon: "sliders", label: tr("nav.settings") },
     { route: "Performance", icon: "activity", label: tr("nav.performance") },
-    { route: "About", icon: "info", label: tr("nav.about") },
   ];
   if (__DEV__) destinations.push({ route: "Catalog", icon: "grid", label: tr("nav.catalog") });
 

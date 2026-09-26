@@ -479,12 +479,19 @@ export function ChatScreen({ onRelaunchWizard }: { onRelaunchWizard?: () => void
     toast({ message: t("chatScreen.toneChanged", { tone: `${getPersonality(next).icon} ${t(`personalities.${next}.label`)}` }) });
   }, [personalityId, t, toast]);
 
-  const openSettings = useCallback(() => {
-    showSettingsRef.current = true;
-    navigation.navigate("Settings");
-  }, [navigation]);
+  const openSettings = useCallback(() => navigation.navigate("Settings"), [navigation]);
 
-  // Returning from Settings: pick up what may have changed there (the back gesture counts too).
+  // Set while another screen (Settings, Models, ...) is pushed on top of the chat;
+  // also keeps download toasts meant for that screen out of the chat.
+  useEffect(
+    () =>
+      navigation.addListener("blur", () => {
+        showSettingsRef.current = true;
+      }),
+    [navigation]
+  );
+
+  // Returning from any pushed screen (drawer, error card, back gesture): pick up what may have changed there.
   useFocusEffect(
     useCallback(() => {
       if (!showSettingsRef.current) return;
