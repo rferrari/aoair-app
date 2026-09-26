@@ -13,7 +13,8 @@
 import { classifyTask } from "./classify";
 import { compressContext, selectInstant, INSTANT_FINAL_CONFIDENCE } from "./context";
 import { DepthModel, planAnswer, resolveDeepModel, AnswerPlan } from "./depth";
-import { buildVerificationPrompt, parseVerificationVerdict } from "./verify";
+import { buildVerificationInput, parseVerificationVerdict, VERIFICATION_INSTRUCTION } from "./verify";
+import { taskRequest } from "../inference/format";
 import type {
   AnswerErrorCode,
   AnswerEvent,
@@ -376,7 +377,16 @@ export function createAnswerer(deps: AnswerDeps) {
           if (!vErr && !stopRequested) {
             stage("verifying", genTier, verifier.id);
             const verdictText = await deps.engine
-              .generate({ prompt: buildVerificationPrompt(req.query, text, sources), nPredict: 200, temperature: 0.2 })
+              .generate({
+                ...taskRequest(
+                  VERIFICATION_INSTRUCTION,
+                  buildVerificationInput(req.query, text, sources),
+                  "Verdict:",
+                  deps.engine.hasEmbeddedChatTemplate()
+                ),
+                nPredict: 200,
+                temperature: 0.2,
+              })
               .catch(() => "");
             const v = parseVerificationVerdict(verdictText).status;
             if (v === "passed" || v === "failed" || v === "uncertain") baseReceipt.verification = v;
